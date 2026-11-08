@@ -343,8 +343,9 @@ de facto.
 O conjunto reservado é exaustivo e único para parâmetros e chaves JSON:
 
 ```text
-proposal_id, rule_id, proposal_hash, schema_id, model, model_id, model_sha256, model_version,
-prompt, prompt_hash, prompt_version, cassette_id, request_id, tick, revision, region_id,
+proposal_id, rule_id, proposal_hash, schema_id, frame_version, provenance, model, model_id,
+model_sha256, model_version, prompt, prompt_hash, prompt_version, cassette_id, request_id,
+tick, revision, region_id,
 actor_id, target_id, fact_seq, planned_fact_seq, seed, temperature, trace, draw, rng,
 timestamp, notes, raw_digest, raw_reply_bytes, rule_content_hash, effect_set_hash,
 validator_version, facts_hash, parse_status, validation_status, error_stage, error_code,
@@ -408,15 +409,17 @@ Regras por efeito:
    contrário). O host aplica `TRANSFER_LOSS_BP` e as regras de portador do SOC-03; o modelo não
    escolhe a perda, as testemunhas nem cria rumor. A criação de um rumor novo é o bloco
    `propagation`.
-6. `delta_hp`: `amount` é inteiro `-1000000..=1000000`, diferente de zero. Dano que leve o alvo a
-   menos de `1` é `LethalDamageNotAuthorized`; não há morte em v1. Cura acima do máximo sem
-   saturação autorizada é `ClampNotAuthorized`; com a flag, satura e registra.
+6. `delta_hp`: `amount` é inteiro `-1000000..=1000000`, diferente de zero; fora do intervalo é
+   `HpDeltaOutOfRange`. Dano que leve o alvo a menos de `1` é `LethalDamageNotAuthorized`; não há
+   morte em v1. Cura acima do máximo sem saturação autorizada é `ClampNotAuthorized`; com a flag,
+   satura e registra.
 7. `transfer_currency`: `from` é `actor` e `to` é `target` (com `actor=speaker` e
    `target=listener`), `amount` é inteiro `1..=10000`, `ActionFacts.offer_currency` é `Some(amount)`
-   e `ActionFacts.currency_transfer_allowed=true`; a soma conserva-se e a carteira do destino não
-   pode exceder `10000` (`WalletOverflow`). Só é válido quando o `intent` do facto é `NEGOTIATE` (2)
-   ou `INFORM_PATH` (9) conforme `identity-events.md` §4.5.2. Qualquer desvio —
-   intent, direção invertida, oferta incoerente ou gate `false` — é `IntentEffectMismatch`.
+   com o mesmo `amount`, `ActionFacts.result_class=1` e `ActionFacts.currency_transfer_allowed=true`;
+   a soma conserva-se e a carteira do destino não pode exceder `10000` (`WalletOverflow`). Só é
+   válido quando o `intent` do facto é `NEGOTIATE` (2) ou `INFORM_PATH` (9), conforme
+   `identity-events.md` §4.5.2. Qualquer desvio — intent, `result_class != 1`, direção invertida,
+   oferta `None`/`Some(0)`/diferente do `amount` ou gate `false` — é `IntentEffectMismatch`.
 8. `authorized_saturation` só existe em `delta_relationship` e `delta_hp`; em qualquer outro `kind`
    é `UnsupportedSaturation`. Ausente vale `false`.
 9. `damage`, `heal`, `spawn_rumor`, `set_flag`, `teleport`, `give_xp` e `kill` não são kinds v1;
@@ -424,11 +427,13 @@ Regras por efeito:
    emitir o nome canônico.
 10. O allowlist é fechado e refere os sete kinds do CTR-01; nenhum efeito novo é inventado neste
     contrato. Um kind futuro exige `schema_version` novo e revisão do CTR-01.
-11. `transfer_currency` só pode aparecer no ramo `on_success`; `on_failure` não pode contê-lo
-    (`IntentEffectMismatch`). Se `ActionFacts.offer_currency=Some(amount)`, `on_success` contém
-    exatamente um `transfer_currency` com esse `amount`; se `None`, nenhum (`IntentEffectMismatch`).
-    Duas ocorrências no mesmo ramo são `DuplicateCurrencyEffect`; `from == to` é `SelfTransfer`.
-    Estas regras são de validação e antecedem a materialização.
+11. `transfer_currency` só pode aparecer no ramo `on_success`, com `result_class=1`; `on_failure`
+    não pode contê-lo (`IntentEffectMismatch`). Se `ActionFacts.offer_currency=Some(amount)` com
+    `amount` em `1..=10000`, `on_success` contém exatamente um `transfer_currency` com esse
+    `amount`; `Some(0)` ou `None` são `IntentEffectMismatch` e exigem zero ocorrências. Duas
+    ocorrências no mesmo ramo são `DuplicateCurrencyEffect`. Se `from == to`, é `SelfTransfer`,
+    verificado antes dos testes de direção. Estas regras são de validação e antecedem a
+    materialização.
 
 ### 3.5 Selectores
 
@@ -593,8 +598,9 @@ sensíveis a caixa e não têm normalização.
 
 ### 3.9 Cardinalidade e duplicados
 
-1. `on_success.effects` tem `1..=8` templates. `on_failure.effects` tem `0..=8`; um array vazio é
-   válido e significa "nenhum efeito mecânico no fracasso".
+1. `on_success.effects` tem `1..=8` templates; vazio é `EmptyEffectSet` e mais de oito é
+   `EffectCountExceeded`. `on_failure.effects` tem `0..=8`; um array vazio é válido e significa
+   "nenhum efeito mecânico no fracasso".
 2. No máximo três `attach_label` por ramo (`MAX_LABELS_PER_BRANCH`). No máximo oito `apply_status`
    por ramo, implícito no limite de efeitos.
 3. Soma dos dois ramos ≤ 16 templates. Isso não é um orçamento de jogo; é apenas o limite de
@@ -748,7 +754,7 @@ mínimo:
 
 | Grupo | Campos |
 | --- | --- |
-| Contexto | `tick`, `revision`, `region_id`, `actor`, `target?`, `intent`, `location`, `cell`, `facts_hash` |
+| Contexto | `tick`, `revision`, `region_id`, `actor`, `target?`, `intent`, `result_class`, `location`, `cell`, `facts_hash` |
 | Atores | `alive`, `attributes`, `hp`, `hp_max`, `wallet`, `inventory`, `labels`, `statuses`, `relationships`, `rumor_copies` |
 | Itens | `exists`, `holder`, `quantity`, `items_enabled` |
 | Rumores | `exists`, `copies` com fidelidade por ator |
@@ -844,6 +850,8 @@ está registada em F-13.
 | `UnsupportedSaturation` | `authorized_saturation` num kind que não o aceita |
 | `AmountOutOfRange` | `amount_bp` fora de `-10000..=10000`; zero é `ZeroDelta` |
 | `ZeroDelta` | delta de relação ou HP igual a zero |
+| `HpDeltaOutOfRange` | `delta_hp.amount` fora de `-1000000..=1000000` |
+| `EmptyEffectSet` | `on_success.effects` vazio |
 | `DurationOutOfRange` | `duration_ticks` fora de `1..=525600` |
 | `InvalidCheckModifier` | `facts.check_modifier` fora de `-20..=20`; ausente é `MissingFact` |
 | `ArithmeticOverflow` | soma inteira na validação excedeu o tipo |
@@ -875,7 +883,7 @@ está registada em F-13.
 | `QuantityOutOfRange` | quantidade insuficiente ou acima do estoque |
 | `ItemAlreadyHeld` | `to` já tem o mesmo `ItemId` |
 | `InsufficientCurrency` | carteira de `from` insuficiente |
-| `IntentEffectMismatch` | `transfer_currency` com intent diferente de `NEGOTIATE`/`INFORM_PATH`, direção `from!=actor`/`to!=target`, `offer_currency != Some(amount)`, `currency_transfer_allowed=false`, presença em `on_failure` ou ausência/duplicidade quando `offer_currency=Some(amount)` |
+| `IntentEffectMismatch` | `transfer_currency` com intent diferente de `NEGOTIATE`/`INFORM_PATH`, `result_class != 1`, direção `from!=actor`/`to!=target`, `offer_currency` `None`/`Some(0)`/diferente do `amount`, `currency_transfer_allowed=false`, presença em `on_failure` ou ausência/presença indevida quando a oferta existe |
 | `WalletOverflow` | carteira de `to` acima de `10000` |
 | `RumorNotFound` | rumor inexistente |
 | `RumorNotKnown` | ator sem cópia ativa |
@@ -901,6 +909,8 @@ saturado.
 | --- | --- | --- |
 | `target_dc` fora de `5..=25` | rejeita | `DcOutOfRange` |
 | `amount_bp` fora de `-10000..=10000` | rejeita | `AmountOutOfRange` |
+| `delta_hp.amount` fora de `-1000000..=1000000` | rejeita | `HpDeltaOutOfRange` |
+| `on_success.effects` vazio | rejeita | `EmptyEffectSet` |
 | `amount_bp` igual a zero | rejeita | `ZeroDelta` |
 | `duration_ticks` fora de `1..=525600` | rejeita | `DurationOutOfRange` |
 | orçamento de propagação diferente de 10000/1200/4000 | rejeita | `PropagationBudgetMismatch` |
@@ -915,7 +925,8 @@ saturado.
 | item já com o destino | rejeita | `ItemAlreadyHeld` |
 | estado já presente | rejeita | `StatusAlreadyPresent` |
 | item usado com `items_enabled=false` | rejeita | `ItemEffectNotEnabled` |
-| moeda com intent, direção, oferta, ramo ou ocorrência incoerentes | rejeita | `IntentEffectMismatch` |
+| moeda com intent, `result_class`, direção, oferta, ramo ou presença/ausência incoerentes | rejeita | `IntentEffectMismatch` |
+| duas transferências de moeda no mesmo ramo | rejeita | `DuplicateCurrencyEffect` |
 | DC/duração/quantidade/escopo fora do limite | nunca satura | rejeição |
 
 Regras de saturação:
@@ -1067,20 +1078,22 @@ que o INT-04/INT-07 forneça esta resolução; enquanto não existir, a material
    ser válido antes da soma.
 5. `delta_hp`: `raw = old + amount`. Cura acima de `hp_max` satura em `hp_max` apenas com flag; sem
    flag é `ClampNotAuthorized`; dano que leve a menos de 1 é sempre `LethalDamageNotAuthorized`.
-6. `attach_label`, `apply_status`, `transfer_currency` e `propagate_rumor` verificam duplicados,
-   catálogo, carteira, intent/oferta, fidelidade e existência na staging; não há criação implícita
-   de rumor. `transfer_currency` exige `from=actor`, `to=target`, `offer_currency=Some(amount)`,
+6. `attach_label`, `apply_status`, `transfer_currency` e `propagate_rumor` reexecutam na staging
+   apenas existência, posse, carteira, HP, fidelidade, intenção, ramo e alvo; duplicados, catálogo e
+   intervalos já foram decididos na validação. Não há criação implícita de rumor. `transfer_currency`
+   exige `from=actor`, `to=target`, `offer_currency=Some(amount)`, `result_class=1`,
    `currency_transfer_allowed=true`, intent `NEGOTIATE`/`INFORM_PATH` e presença apenas em
-   `on_success`, exatamente uma quando a oferta existe; qualquer desvio é `IntentEffectMismatch`.
+   `on_success`, exatamente uma quando a oferta existe; duplicado é `DuplicateCurrencyEffect` e qualquer\n   outro desvio é `IntentEffectMismatch`.
 7. `propagate_rumor` não escolhe a perda: usa a fidelidade da cópia de origem validada e deixa a
    aplicação de `TRANSFER_LOSS_BP` e as testemunhas para o SOC-03. Um `amount_bp` diferente da
    fidelidade de origem é `RumorFidelityMismatch`.
 8. Um efeito cujo valor efetivo é zero (saturação no limite, delta anulado) é omitido do `EffectSet`
    com `no_effect_reason=SATURATED_TO_ZERO` e registado em auditoria; a contagem final pode ser
    menor que a dos templates.
-9. Se a expansão ultrapassar oito efeitos, é `EffectSetOverflow`; se dois efeitos entrarem em
-   conflito (item movido duas vezes, carteira inconsistente, HP impossível), é `EffectConflict`. Não
-   há aplicação parcial: o conjunto inteiro é rejeitado.
+9. Se a expansão ultrapassar oito efeitos, é `EffectSetOverflow`; duas transferências do mesmo item
+   são `DuplicateItemEffect` e duas do mesmo par de moeda são `DuplicateCurrencyEffect`. Outros
+   conflitos (carteira inconsistente, HP impossível) são `EffectConflict`. Não há aplicação parcial:
+   o conjunto inteiro é rejeitado.
 10. Um ramo de sucesso com apenas templates de testemunhas pode materializar zero efeitos; o
     `EffectSet` fica vazio com `no_effect_reason=NO_ELIGIBLE_BYSTANDER`. Um ramo de sucesso sem
     templates é impossível pelo schema.
@@ -1123,40 +1136,41 @@ que o INT-04/INT-07 forneça esta resolução; enquanto não existir, a material
 
 ### 5.6 Erros de materialização
 
-| Código | Quando |
-| --- | --- |
-| `CheckResolutionMissing` | `ResolvedDraws.check` ausente |
-| `CheckMismatch` | `roll`/`total`/`target_dc`/`modifier`/`success` incoerentes |
-| `InvalidCheckModifier` | modificador fora de `-20..=20` (ausente é `MissingFact`) |
-| `EffectSetOverflow` | mais de oito efeitos após expansão |
-| `EffectConflict` | conflito entre efeitos na staging |
-| `ClampNotAuthorized` | saturação ausente numa soma que a exigia |
-| `LethalDamageNotAuthorized` | dano efetivo levaria a HP < 1 |
-| `WalletOverflow` | carteira efetiva acima de 10000 |
-| `InsufficientCurrency` | saldo efetivo insuficiente |
-| `IntentEffectMismatch` | intent/oferta/direção/gate ou ramo/ocorrência de moeda incoerentes |
-| `ItemEffectNotEnabled` | item usado com `items_enabled=false` |
-| `ItemNotFound` | item ausente na staging |
-| `ItemNotHeld` | item não está com a origem |
-| `ItemAlreadyHeld` | destino já tem o item |
-| `QuantityOutOfRange` | stock efetivo insuficiente |
-| `MissingPossession` | `required_item` não está com o ator |
-| `StatusAlreadyPresent` | estado já presente |
-| `RumorNotFound` | rumor ausente na staging |
-| `RumorNotKnown` | origem sem cópia ativa |
-| `RumorFidelityTooLow` | cópia abaixo do limiar |
-| `RumorFidelityMismatch` | fidelidade de origem diferente do `amount_bp` |
-| `ActorDead`/`TargetDead` | ator/alvo morreu entre validação e materialização |
-| `StaleTarget` | alvo mudou entre validação e materialização |
-| `PreviewDiverged` | hash da prévia diferente do commit |
-| `StaleFacts` | revisão mudou |
-| `ArithmeticOverflow` | soma inteira excedeu o tipo |
+| Código | Estágio | Quando |
+| --- | --- | --- |
+| `CheckResolutionMissing` | M | `ResolvedDraws.check` ausente |
+| `CheckMismatch` | M | `roll`/`total`/`target_dc`/`modifier`/`success` incoerentes |
+| `InvalidCheckModifier` | V/M | modificador fora de `-20..=20` (ausente é `MissingFact`) |
+| `EffectSetOverflow` | M | mais de oito efeitos após expansão |
+| `EffectConflict` | M | conflito entre efeitos na staging |
+| `ClampNotAuthorized` | V/M | saturação ausente numa soma que a exigia |
+| `LethalDamageNotAuthorized` | V/M | dano efetivo levaria a HP < 1 |
+| `WalletOverflow` | V/M | carteira efetiva acima de 10000 |
+| `InsufficientCurrency` | V/M | saldo efetivo insuficiente |
+| `IntentEffectMismatch` | V/M | intent/oferta/direção/gate/ramo de moeda incoerentes |
+| `DuplicateCurrencyEffect` | V | duas transferências de moeda no mesmo ramo |
+| `ItemEffectNotEnabled` | V/M | item usado com `items_enabled=false` |
+| `ItemNotFound` | V/M | item ausente na staging |
+| `ItemNotHeld` | V/M | item não está com a origem |
+| `ItemAlreadyHeld` | V/M | destino já tem o item |
+| `QuantityOutOfRange` | V/M | stock efetivo insuficiente |
+| `MissingPossession` | V/M | `required_item` não está com o ator |
+| `StatusAlreadyPresent` | V/M | estado já presente |
+| `RumorNotFound` | V/M | rumor ausente na staging |
+| `RumorNotKnown` | V/M | origem sem cópia ativa |
+| `RumorFidelityTooLow` | V/M | cópia abaixo do limiar |
+| `RumorFidelityMismatch` | V/M | fidelidade de origem diferente do `amount_bp` |
+| `ActorDead`/`TargetDead` | M | ator/alvo morreu entre validação e materialização |
+| `StaleTarget` | M | alvo mudou entre validação e materialização |
+| `PreviewDiverged` | M | hash da prévia diferente do commit |
+| `StaleFacts` | M | revisão mudou |
+| `ArithmeticOverflow` | V/M | soma inteira excedeu o tipo |
 
-Duplicados, catálogo e intervalos são erros de **validação** e não são reemitidos na materialização.
-A staging reexecuta existência, posse, carteira, HP, fidelidade, intenção e alvo, e PODE emitir os
-códigos correspondentes da tabela; se os factos mudaram, emite `ActorDead`, `TargetDead`,
-`StaleTarget` ou `StaleFacts`. Um erro de conservação é `EffectConflict`; não existe um segundo
-código para o mesmo caso.
+`V` = validação (não reemitido na materialização); `M` = materialização; `V/M` = pode ser reemitido
+pela staging se os factos mudaram. Duplicados, catálogo, intervalos, DC e cardinalidade são `V`-only.
+A staging reexecuta existência, posse, carteira, HP, fidelidade, intenção, ramo e alvo; se os factos
+mudaram, emite também `ActorDead`, `TargetDead`, `StaleTarget` ou `StaleFacts`. Um erro de
+conservação é `EffectConflict`; não existe um segundo código para o mesmo caso.
 
 ## 6. Portas de modelo
 
@@ -1484,6 +1498,11 @@ given_currency_without_negotiate_intent_when_validated_then_intent_effect_mismat
 given_currency_reversed_when_validated_then_intent_effect_mismatch
 given_currency_offer_mismatch_when_validated_then_intent_effect_mismatch
 given_currency_gate_false_when_validated_then_intent_effect_mismatch
+given_currency_on_success_when_validated_then_accepted
+given_currency_result_class_two_when_validated_then_intent_effect_mismatch
+given_currency_offer_zero_when_validated_then_intent_effect_mismatch
+given_empty_success_effects_when_validated_then_empty_effect_set
+given_hp_delta_over_limit_when_validated_then_hp_delta_out_of_range
 given_currency_on_failure_when_validated_then_intent_effect_mismatch
 given_currency_twice_when_validated_then_duplicate_currency_effect
 given_currency_self_when_validated_then_self_transfer
@@ -1600,9 +1619,8 @@ são constantes de produto/engenharia e podem ser confirmadas com o maintainer.
 
 1. Este é um documento de contrato; não há código, testes executados, crate, binário ou prompt.
 2. O status é proposta; o freeze exige revisão independente e decisão de produto. `DELIVERED_TO_REVIEW`
-   não é `DONE`. A R1 levantou B-01..B-07 e D-01..D-13; a R2 fechou os B e nove D, deixando D-01,
-   D-05, D-08 e D-10 e notas. Esta revisão responde a esses pontos; uma R3 independente continua
-   obrigatória.
+   não é `DONE`. R1, R2, R3 e R4 fecharam todos os B; D-14, N-04 e N-14 ficaram em aberto na R4 e
+   esta revisão responde-lhes. Uma R5 independente continua obrigatória antes do freeze.
 3. O ADR 0012 é novo e o índice de ADRs não é editado aqui; a atualização do índice é tarefa de
    integração. O manifesto lista apenas o contrato em `files_allowed`; o ADR é o artefacto
    companion autorizado pelo brief do orquestrador e deve ser reconciliado no manifesto/juiz.

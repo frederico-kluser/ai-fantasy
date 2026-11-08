@@ -43,8 +43,8 @@ registar a decisão estrutural.
    efeito. Atributos (oito nomes do overview, sem códigos), eixos, rótulos e estados têm catálogo
    versionado; `GROUP` não existe. `transfer_item`/`required_item` ficam atrás de
    `ActionFacts.items_enabled` (default `false` no recorte DOC-02/PD-04). `transfer_currency` só é
-   válido em `NEGOTIATE`/`INFORM_PATH`, com `from=actor`, `to=target`, `offer_currency=Some(amount)`
-   e `currency_transfer_allowed=true`.
+   válido em `NEGOTIATE`/`INFORM_PATH` com `result_class=1`, `from=actor`, `to=target`,
+   `offer_currency=Some(amount)` e `currency_transfer_allowed=true`; é success-only e único.
 4. **Rejeitar por omissão; saturar só com autorização explícita.** DC, deltas, durações, IDs,
    escopos, carteiras e quantidades fora do intervalo são rejeitados. A saturação só existe em
    `delta_relationship` e `delta_hp` (cura), com `authorized_saturation=true`, e regista pedido,
@@ -127,14 +127,15 @@ Negativas e riscos:
 - Testes de schema: versão ausente (`MissingParameter`), aliases (incluindo `propagation_rules`),
   desconhecidos/proveniência, duplicados, tipos, intervalos, catálogos, selectores.
 - Testes de validação: posse, item/rumor, `items_enabled`, alvo morto/ausente, auto-transferência,
-  auto-alvo relacional, intent/oferta de moeda, escopo, constantes exatas de propagação (10000/1200/4000).
+  auto-alvo relacional, moeda (result_class, direção, oferta, ramo, duplicado), escopo, constantes
+  exatas de propagação (10000/1200/4000), HP fora do intervalo, sucesso vazio.
 - Testes de materialização: saturação autorizada, dano letal, 1 bp, oito efeitos, hash,
   preview/commit, `CheckResolutionMissing`/`CheckMismatch`, moeda e orçamento de propagação.
 - Testes de portas: 16 perguntas, timeout, score inválido, margem 999/1000, fakes/cassettes, live
   ignorado.
 - Testes de NLG: claim inventada, prosa contraditória, fallback, cache/locale, duas perspetivas,
   overlay não usado.
-- Revisão independente `REVIEW-CTR-04` R3 antes de qualquer freeze ou implementação.
+- Revisão independente final `REVIEW-CTR-04` R5 antes de qualquer freeze ou implementação.
 
 ## Referências
 
