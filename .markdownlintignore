@@ -1,0 +1,10 @@
+.agents/**
+.claude/**
+.github/ISSUE_TEMPLATE/**
+node_modules/
+target/
+.work/
+coverage/
+mutants.out/
+docs/architecture/assets/
+Roadmap Jogo Procedural Com LFM3.md

@@ -1,0 +1,60 @@
+# ---------------------------------------------------------------------------
+# ai-fantasy — artefactos locais que NUNCA entram no repositório
+# Regra: o repositório é código + documentos. Modelos, saves e dados de
+# execução ficam na máquina de cada pessoa (ver docs/engineering/offline-ai.md).
+# ---------------------------------------------------------------------------
+
+# Rust
+/target/
+**/*.rs.bk
+*.pdb
+
+# Modelos de IA (ficheiros grandes, licenças próprias — nunca versionar)
+/models/
+**/*.gguf
+**/*.safetensors
+**/*.onnx
+**/*.mlx
+**/*.bin
+**/mmproj-*
+
+# Dados de execução, saves e telemetria local
+/data/
+/saves/
+*.sqlite
+*.sqlite3
+*.db
+*.db-wal
+*.db-shm
+*.log
+
+# Áreas de trabalho e temporários
+/.work/
+/.tmp/
+/tmp/
+/scratch/
+
+# Segredos e configuração local
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# Cobertura, mutação e relatórios
+/coverage/
+/lcov.info
+/mutants.out/
+/test-results/
+/target/llvm-cov/
+
+# Ferramentas e sistemas
+node_modules/
+__pycache__/
+*.py[cod]
+.venv/
+.vscode/
+.idea/
+*.swp
+.DS_Store
+Thumbs.db

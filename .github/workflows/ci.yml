@@ -1,0 +1,193 @@
+# =============================================================================
+# CI — ai-fantasy
+#
+# Princípios:
+#  - o job `build` é o agregador e o required status check do ruleset;
+#  - o job `rust` só corre quando existe Cargo.toml (F0 é docs-only);
+#  - nenhum job depende de modelos, GPU ou rede fora do GitHub;
+#  - actions fixadas por SHA (ver oss-pin-actions.sh).
+# =============================================================================
+
+name: CI
+
+on:
+  push:
+    branches: ["main"]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CARGO_TERM_COLOR: always
+  RUST_BACKTRACE: 1
+
+jobs:
+  docs:
+    name: docs
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      - name: Markdown lint
+        uses: DavidAnson/markdownlint-cli2-action@05f32210e84442804257b2a6f20b273450ec8265 # v19
+        with:
+          globs: "**/*.md"
+
+      - name: Links locais (offline)
+        uses: lycheeverse/lychee-action@e7477775783ea5526144ba13e8db5eec57747ce8 # v2
+        with:
+          args: --offline --no-progress --accept 200,204,206,429 "**/*.md"
+          fail: true
+
+      - name: Governança mínima
+        run: |
+          set -euo pipefail
+          for f in LICENSE README.md CONTRIBUTING.md SECURITY.md CODEOWNERS \
+                   CODE_OF_CONDUCT.md CLAUDE.md AGENTS.md GOVERNANCE.md \
+                   docs/architecture/overview.md \
+                   docs/engineering/development-rules.md \
+                   docs/engineering/testing-strategy.md; do
+            test -s "$f" || { echo "::error::falta ou está vazio: $f"; exit 1; }
+          done
+          # CLAUDE.md e AGENTS.md são espelhos (a primeira linha pode diferir).
+          diff <(tail -n +2 CLAUDE.md) <(tail -n +2 AGENTS.md) \
+            || { echo "::error::CLAUDE.md e AGENTS.md divergem"; exit 1; }
+
+  preflight:
+    name: preflight
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      has_rust: ${{ steps.check.outputs.has_rust }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - name: Detetar workspace Rust
+        id: check
+        run: |
+          if [ -f Cargo.toml ]; then
+            echo "has_rust=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "has_rust=false" >> "$GITHUB_OUTPUT"
+          fi
+
+  rust:
+    name: rust
+    needs: preflight
+    if: needs.preflight.outputs.has_rust == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      - name: Toolchain (stable + componentes)
+        uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # stable
+        with:
+          components: rustfmt, clippy, llvm-tools-preview
+
+      - name: Cache Rust
+        uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2
+
+      - name: Format
+        run: cargo fmt --all -- --check
+
+      - name: Clippy
+        run: cargo clippy --workspace --all-targets --all-features -- -D warnings
+
+      - name: Instalar nextest + llvm-cov
+        uses: taiki-e/install-action@3a3daafd3b7f23b8f65d9f5ba2db203fb59b79e2 # v2
+        with:
+          tool: nextest,cargo-llvm-cov
+
+      - name: Testes
+        run: cargo nextest run --workspace --profile ci --no-fail-fast
+
+      - name: Cobertura (gates)
+        run: |
+          cargo llvm-cov nextest --workspace --fail-under-lines 90 \
+            --lcov --output-path lcov.info
+
+      - name: Upload cobertura
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: coverage-lcov
+          path: lcov.info
+          retention-days: 14
+
+      - name: cargo-deny (licenças, advisories, fontes)
+        uses: EmbarkStudios/cargo-deny-action@3c6349835b2b7b196a839186cb8b78e02f7b5f25 # v2
+
+      - name: Rustdoc
+        env:
+          RUSTDOCFLAGS: -D warnings
+        run: cargo doc --workspace --no-deps
+
+      - name: Offline check (quando xtask existir)
+        run: |
+          if [ -d xtask ]; then
+            cargo xtask check-offline
+          else
+            echo "xtask ainda não existe (F0) — check-offline adiado"
+          fi
+
+  build:
+    name: build
+    needs: [docs, rust]
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          fetch-depth: 0
+
+      - name: Falhar se docs falhou
+        if: needs.docs.result != 'success'
+        run: |
+          echo "::error::Job docs falhou — ver o run"
+          exit 1
+
+      - name: Falhar se rust falhou (skipped é OK em F0)
+        if: needs.rust.result != 'success' && needs.rust.result != 'skipped'
+        run: |
+          echo "::error::Job rust falhou — ver o run"
+          exit 1
+
+      - name: Commits convencionais (últimos 25)
+        run: |
+          python3 - <<'PY'
+          import re, subprocess, sys
+          header = re.compile(r'^(feat|fix|docs|style|refactor|perf|test|build|ci|chore|revert)(\([^)]*\))?!?: .+')
+          skip = re.compile(r'^(Merge |Revert "|Reapply "|fixup!|squash!)')
+          out = subprocess.run(['git', 'log', '--pretty=tformat:%s', '-n', '25', 'HEAD'],
+                               capture_output=True, text=True).stdout
+          bad = 0
+          for s in out.splitlines():
+              s = s.strip()
+              if not s or skip.match(s):
+                  continue
+              h = re.sub(r'\s+\(#\d+\)$', '', s)
+              if not header.match(h) or len(h) > 72:
+                  print('ERRO: mensagem fora de Conventional Commits:', s)
+                  bad = 1
+              else:
+                  print('OK  :', s)
+          sys.exit(bad)
+          PY
+
+      - name: Resumo
+        run: |
+          echo "### CI ✅" >> "$GITHUB_STEP_SUMMARY"
+          echo "- docs: ${{ needs.docs.result }}" >> "$GITHUB_STEP_SUMMARY"
+          echo "- rust: ${{ needs.rust.result }} (skipped = F0 sem Cargo.toml)" >> "$GITHUB_STEP_SUMMARY"

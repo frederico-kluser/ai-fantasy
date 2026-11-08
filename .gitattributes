@@ -1,0 +1,30 @@
+# Normalização de texto: LF em todo o repositório, independentemente do SO.
+* text=auto eol=lf
+
+# Documentos e código
+*.md        text eol=lf
+*.rs        text eol=lf
+*.toml      text eol=lf
+*.yml       text eol=lf
+*.yaml      text eol=lf
+*.json      text eol=lf
+*.sh        text eol=lf
+*.py        text eol=lf
+
+# Binários (nunca normalizar)
+*.png       binary
+*.jpg       binary
+*.jpeg      binary
+*.gif       binary
+*.webp      binary
+*.ico       binary
+*.pdf       binary
+*.gguf      binary
+*.safetensors binary
+*.onnx      binary
+*.sqlite    binary
+*.db        binary
+
+# Diffs de lockfiles e snapshots gerados
+Cargo.lock  merge=binary
+*.snap      text eol=lf

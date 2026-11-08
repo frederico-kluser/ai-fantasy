@@ -1,0 +1,23 @@
+# CODEOWNERS — ai-fantasy
+#
+# Revisão obrigatória por área. O ruleset "Governança Principal Restrita"
+# exige revisão de code owner antes do merge. A última regra que casa é a
+# que vale.
+#
+# Enquanto o projeto tem um único maintainer, todas as áreas apontam para
+# @frederico-kluser. Quando houver mais maintainers (ver GOVERNANCE.md),
+# substituir por equipas reais — não inventar slugs de equipas inexistentes.
+
+*                                   @frederico-kluser
+
+# Arquitetura, ADRs, regras de engenharia e contratos dos agentes.
+/docs/architecture/                 @frederico-kluser
+/docs/engineering/                  @frederico-kluser
+/CLAUDE.md                          @frederico-kluser
+/AGENTS.md                          @frederico-kluser
+
+# Governança open-source, CI, segurança e licenciamento.
+/.github/                           @frederico-kluser
+/CODEOWNERS                         @frederico-kluser
+/SECURITY.md                        @frederico-kluser
+/LICENSE                            @frederico-kluser

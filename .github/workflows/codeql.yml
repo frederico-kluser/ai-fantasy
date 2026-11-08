@@ -1,0 +1,65 @@
+# =============================================================================
+# CodeQL — ai-fantasy
+#
+# Rust é suportado pelo CodeQL (build-mode: none). O job só corre quando existe
+# Cargo.toml; em F0 (docs-only) é skipped em vez de falhar.
+# =============================================================================
+
+name: CodeQL
+
+on:
+  push:
+    branches: ["main"]
+  pull_request:
+  schedule:
+    - cron: "15 4 * * 1"
+  workflow_dispatch:
+
+permissions: read-all
+
+concurrency:
+  group: codeql-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  preflight:
+    name: preflight
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      has_rust: ${{ steps.check.outputs.has_rust }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - name: Detetar workspace Rust
+        id: check
+        run: |
+          if [ -f Cargo.toml ]; then
+            echo "has_rust=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "has_rust=false" >> "$GITHUB_OUTPUT"
+          fi
+
+  analyze:
+    name: analyze (rust)
+    needs: preflight
+    if: needs.preflight.outputs.has_rust == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      security-events: write
+      packages: read
+      actions: read
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      - name: Init CodeQL
+        uses: github/codeql-action/init@9418214df1f2c4b8128c770156c409013b07d6b9 # v3
+        with:
+          languages: rust
+          build-mode: none
+
+      - name: Analyze
+        uses: github/codeql-action/analyze@9418214df1f2c4b8128c770156c409013b07d6b9 # v3
