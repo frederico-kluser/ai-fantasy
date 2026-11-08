@@ -48,8 +48,8 @@ registar a decisão estrutural.
 4. **Rejeitar por omissão; saturar só com autorização explícita.** DC, deltas, durações, IDs,
    escopos, carteiras e quantidades fora do intervalo são rejeitados. A saturação só existe em
    `delta_relationship` e `delta_hp` (cura), com `authorized_saturation=true`, e regista pedido,
-   efetivo, política e `planned_fact_seq`. Dano letal é sempre rejeitado. Zero é `ZeroDelta`; fora
-   do intervalo é `AmountOutOfRange`. A propagação usa exatamente 10000/1200/4000 (DOC-02/PD-07);
+   efetivo, política e `planned_fact_seq`. Dano letal é sempre rejeitado. Zero é `ZeroDelta`; `amount_bp` fora do intervalo é
+   `AmountOutOfRange` e `delta_hp.amount` fora do intervalo é `HpDeltaOutOfRange`. A propagação usa exatamente 10000/1200/4000 (DOC-02/PD-07);
    outro valor é `PropagationBudgetMismatch`, não um piso ajustável. Não há clamp silencioso e não há
    dois códigos para a mesma condição.
 5. **Proveniência e auditoria host-side.** O modelo não fornece identidade, tempo, RNG, prompt,
