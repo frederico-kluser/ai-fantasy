@@ -4,7 +4,7 @@
 
 | | |
 | --- | --- |
-| **Versão do documento** | 2.1 (corrige e substitui o roadmap anterior; regista redes neurais por raça/espécie) |
+| **Revisão documental** | 2.2 — decisões de produto reconciliadas em 2026-11-08; contratos técnicos ainda em revisão |
 | **Data** | 2026-11-08 |
 | **Estado** | Fundação — arquitetura e regras; sem código executável |
 | **Público** | maintainers, contribuidores, revisores de arquitetura |
@@ -107,26 +107,47 @@ sem qualquer runtime associado. O produto real da TypeSafe é este:
 
 ### 0.8 Decisões registadas nesta revisão (2026-11-08)
 
-- **Nomenclatura do documento.** Este markdown passa a chamar-se apenas **`roadmap`**
-  (`docs/architecture/roadmap.md`); o título histórico “Roadmap Jogo Procedural Com
-  LFM3” e o sufixo “hermeneutic-core” deixam de fazer parte do nome. O ficheiro
-  original mantém-se na raiz do repositório só como **fonte histórica**, sem valor
-  normativo.
-- **Mini-MLP por personagem (individualidade).** Cada personagem tem o **seu próprio
-  perceptron de múltiplas camadas**, inicializado pelo arquétipo da raça/espécie e
-  afiado pela experiência de vida; detalhe na **secção 2.8**. Fase **F8**.
-- **Redes neurais por raça/espécie.** Ideia aprovada e registada na **secção 2.8**:
-  pequenas redes neurais por raça/espécie para treinar comportamentos (trabalho,
-  estilo de combate, dia a dia) com treino e **evolução darwiniana**. Execução
-  prevista na fase **F8**; o MVP (F0–F7) não depende dela.
-- **Mundo em blocos (estilo Dwarf Fortress/Minecraft).** Cada bloco da grelha pode ser
-  casa, caverna, buraco, árvore, parede ou água; detalhe na **secção 2.9**.
-- **Visualização 2D isométrica, sem 3D real.** O render final é 2D com visão isométrica;
-  **não haverá qualquer visualização 3D real**; detalhe na **secção 2.10**.
-- **Visibilidade e memória de ambientes (*fog of war*).** Três camadas — visão ativa
-  (onde o personagem olha), memória desvanecida e congelada (onde já viu: é a memória do
-  personagem sobre o ambiente) e escuro (onde nunca viu) — com silhuetas em occlusão e
-  navegação por z-levels; detalhe na **secção 2.11**.
+Esta revisão registra a devolutiva do maintainer. As escolhas de produto abaixo não
+aprovam layouts, fórmulas, implementações, scaffold ou releases ainda inexistentes.
+
+- **Autoridade documental.** Este [roadmap de arquitetura](<roadmap.md>) continua canônico
+  para as definições e a errata. O [ROADMAP de execução](<../../ROADMAP.md>) concentra
+  atividades, dependências, ondas, barreiras e estado dos trabalhos. O
+  [documento original](<../../Roadmap%20Jogo%20Procedural%20Com%20LFM3.md>) é apenas fonte histórica.
+- **Marcos e foco (D-01/D-03).** Primeiro validar o motor; depois entregar o primeiro
+  jogável 2D. O foco inicial são relações sociais e rumores. A TUI valida o motor,
+  mas não substitui a visualização final.
+- **Tempo por ação (D-02).** Movimentar-se e falar como ações do mundo avançam o tempo
+  lógico com custo determinístico. Relógio real, demora de inferência, leitura de NLG,
+  câmera e operação da UI não avançam o mundo; detalhes na seção 2.3 e no
+  [ADR 0008 proposto](<adr/0008-action-driven-simulation-time.md>).
+- **Individualidade.** Cada personagem conserva seu mini-MLP próprio, inicializado pelo
+  arquétipo de raça/espécie, ajustado pela experiência e transmitido aos descendentes.
+  Treino e evolução darwiniana permanecem na trilha de comportamento neural, sem serem
+  dependência do primeiro motor validado ou do primeiro jogável 2D; seção 2.8.
+- **Região procedural desde a base (D-07).** A primeira base simulável já representa
+  várias localidades de uma região procedural. O foco em uma área deve permitir detectar
+  e corrigir comportamentos entre áreas cedo, antes que os problemas escalem. Fixtures
+  unitárias pequenas continuam permitidas, mas não substituem integração regional;
+  seção 2.9. Câmera e foco do jogador não congelam outras áreas nem as removem do hash.
+- **Visualização (D-06).** Final 2D isométrico, nunca 3D real; render sob responsabilidade
+  do maintainer, com stack e ponte concreta ainda abertas. Navegação de câmera por
+  z-levels não muda a simulação; seção 2.10.
+- **Silhuetas privilegiadas (D-04).** **Todos** os personagens atrás de construções,
+  inclusive os não percebidos, aparecem como silhuetas: escolha deliberada de “raio X”.
+  O overlay de apresentação é separado da percepção autoritativa, não atualiza a memória
+  do ambiente e não transmite conhecimento a NPCs ou MLPs. Alcance, áreas nunca vistas e
+  regras entre z-levels ainda exigem contrato; seção 2.11 e
+  [ADR 0009 proposto](<adr/0009-privileged-silhouette-overlay.md>).
+- **Hardware (D-05).** Sem teto artificial de hardware nesta etapa. Desenvolvimento e
+  testes usam CPU/GPU na mesma máquina, em Windows/Linux; números de desempenho são
+  referências a medir, não critério para restringir a máquina ou reduzir a região.
+  A intenção de portabilidade desktop do ADR 0002 permanece; mobile continua posterior.
+- **Execução com subagents (D-08).** Sem cap artificial de agentes de desenvolvimento:
+  todas as tarefas realmente independentes podem usar worktrees isoladas. Um juiz de
+  integração fecha a barreira, integra, resolve conflitos, valida/corrige e prepara a
+  próxima onda. Isso é paralelismo de desenvolvimento, não mudança do tick determinístico;
+  o procedimento e o grafo vivem somente no [ROADMAP de execução](<../../ROADMAP.md>).
 
 ---
 
@@ -201,7 +222,7 @@ Componentes principais:
 | `Inventory` | Lista ordenada de itens + equipamento. |
 | `Relationships` | Eixos: confiança, medo, empatia, dependência, hostilidade (basis points). |
 | `AiState` | FSM + utilidade + *cooldowns*. |
-| `Memory` | IDs de eventos/rumores, não texto. |
+| `Memory` | IDs de eventos/rumores e snapshots do ambiente percebido; sem prosa. Silhuetas privilegiadas não atualizam last-seen ou conhecimento. |
 
 ### 2.2 Comportamento autónomo
 
@@ -227,19 +248,39 @@ ser sempre a base.
 step(world, command, ctx) -> (world', events, stats)
 ```
 
-- `Tick(u64)` é a única noção de tempo do núcleo; 1 tick = passo lógico (alvo: 100 ms de
-  simulação, render desacoplado).
+- `Tick(u64)` é a única noção de tempo do núcleo. O avanço é **orientado por ações**:
+  movimentar-se e falar no mundo têm custo lógico determinístico. Não há avanço periódico
+  ditado pelo relógio real; a antiga referência de 100 ms não define a cadência do jogo.
+- Ao avançar os ticks de uma ação, a agenda determinística dos NPCs e sistemas de todas
+  as localidades processa o intervalo devido. Focar uma área não congela o restante da região.
+- Ler ou regenerar NLG, esperar inferência, editar texto antes de submetê-lo, navegar na UI
+  ou mover a câmera não consome tempo. **Falar como comando do mundo** é diferente de
+  renderizar a fala em texto; somente o primeiro pode cobrar custo lógico.
+- Custos por ação, ordem de aplicação, rejeições/cancelamentos e política de atividade
+  regional precisam ser fechados em contrato. Não se presume um tick por ação, custo nulo
+  para qualquer erro ou suspensão de áreas fora da câmera.
 - Sistemas ordenados topologicamente; queries ordenadas quando a ordem afeta o resultado.
 - RNG ChaCha20 com *streams* por domínio (`social`, `combat`, `rumor`, `spawn`).
 - Sem `HashMap`, `Instant::now`, `thread_rng` ou `f32` no estado autoritativo.
-- Hash BLAKE3 do estado canónico; replay a partir de seed + log de comandos.
+- Hash BLAKE3 do estado canônico. Replay exige log versionado das entradas autoritativas
+  normalizadas, incluindo decisões externas relevantes; seu formato e a transação de RNG
+  permanecem em CTR-02 do [ROADMAP de execução](<../../ROADMAP.md>).
 
-O contrato completo está no [ADR 0005](adr/0005-deterministic-simulation-contract.md).
+O [ADR 0005 aceito](<adr/0005-deterministic-simulation-contract.md>) permanece intacto.
+O [ADR 0008 proposto](<adr/0008-action-driven-simulation-time.md>) registra a decisão de
+produto e os critérios ainda a especificar para tempo por ação.
 
 ### 2.4 Registo objetivo de conversa (zero-string)
 
-Cada interação produz um `ConversationEventRecord` de **48 bytes** (42 úteis + 6 de
-reserva/alinhamento). A serialização é explícita; não dependemos de `#[repr(packed)]`.
+O desenho anterior propôs `ConversationEventRecord` com total de **48 bytes** e declarou
+42 úteis + 6 reservados. **Essa declaração é inconsistente:** os campos abaixo somam
+46 bytes. A largura dos IDs geracionais e a precisão dos deltas também não estão fechadas.
+A tabela é referência do desenho a revisar, **não um formato binário aprovado**.
+
+CTR-01 do [ROADMAP de execução](<../../ROADMAP.md>) deve definir identidade, offsets,
+ordem dos bytes, reservas e fatos completos. Não se adota automaticamente “46 + 2” como
+solução: deltas percentuais em `i8` não preservam 1 bp e um item/delta de HP não descreve
+até oito efeitos. A serialização será explícita, sem depender de `#[repr(packed)]`.
 
 | Campo | Tipo | Bytes | Semântica |
 | --- | --- | --- | --- |
@@ -259,7 +300,7 @@ reserva/alinhamento). A serialização é explícita; não dependemos de `#[repr
 | `labels` | `u32` | 4 | Bitmask: amizade, casamento, inimizade, família, aliança. |
 | `statuses` | `u32` | 4 | Bitmask fisiológico. |
 | `rumor` | `u32` | 4 | Rumor transmitido (0 = nenhum). |
-| **Total** | | **48** | 42 úteis + 6 reservados. |
+| **Soma dos campos publicados** | | **46** | Observação aritmética; total, reservas, IDs e precisão ainda dependem de CTR-01. |
 
 O registo **não contém palavras**. A NLG reconstrói o diálogo a partir da sequência, dos
 rótulos e dos estados anexados.
@@ -287,15 +328,22 @@ Fora desse fluxo, **nenhum texto é gerado**. O *game loop* não espera pelo mod
 
 ### 2.7 Persistência e replay
 
-- SQLite local, WAL, migrações versionadas.
-- Save atómico (`tmp` + `fsync` + `rename`), backup do anterior.
-- Event log append-only; snapshots periódicos; replay reproduz o estado.
-- Formato versionado, com hash e *checksum*; save antigo migra sem perda.
+- SQLite local e migrações versionadas permanecem no desenho; log append-only, snapshots,
+  hash, checksum e preservação do último save válido são requisitos.
+- **Contrato pendente:** ainda é necessário definir a autoridade durável entre SQLite/WAL
+  e snapshot AIFS, a ordem de commit/publicação e o protocolo de recuperação. Não renomear
+  banco WAL aberto como se fosse um arquivo exportado comum.
+- Replay precisa preservar entradas normalizadas, estado regional, agendas, RNG, genomas e
+  memória autoritativa relevantes; formato e transação ficam em CTR-01/CTR-02 do
+  [ROADMAP de execução](<../../ROADMAP.md>). UI, overlay e métricas de relógio real não entram
+  no hash por serem somente apresentação/diagnóstico.
 
 ### 2.8 Mini-MLP por personagem e redes por raça/espécie (individualidade)
 
-> **Estado:** ideia aprovada e desenhada; execução na fase **F8**. O MVP (F0–F7) não
-> depende disto — a FSM + Utility AI da secção 2.2 continua a ser a base.
+> **Estado:** individualidade e evolução são decisões de produto; contrato matemático,
+> genético e de aprendizagem ainda em revisão. A trilha F8 é executada pelas dependências
+> do [ROADMAP](<../../ROADMAP.md>), sem exigir o render pronto. O motor validado e o primeiro
+> jogável 2D não dependem dela; a FSM + Utility AI continua a ser a base.
 
 A ideia tem dois níveis:
 
@@ -322,12 +370,12 @@ gerações da simulação.
 
 | Peça | Desenho |
 | --- | --- |
-| Arquitetura | MLP pequena (2–3 camadas ocultas); entradas = estado percebido (fome, risco, aliados, recursos); saída = *scores* das macroações + parâmetros de estilo (agressividade, cautela, preferência de trabalho). |
+| Arquitetura | MLP pequena (desenho inicial: 2–3 camadas ocultas); entradas = estado autoritativamente percebido (fome, risco, aliados, recursos); saída = scores das macroações e parâmetros de estilo. Dimensões, ativação e aritmética exigem contrato; overlay de silhuetas privilegiadas não alimenta essas entradas. |
 | Pesos | Dois níveis: **arquétipo por raça/espécie** (base) e **genoma por personagem** (o mini-MLP de cada um: arquétipo + mutação inicial + experiência). Quantizados em ponto fixo; SHA-256 do genoma no *save*. |
 | Treino | (a) **reforço in-game**: sucesso/fracasso ajusta ligeiramente os pesos do indivíduo; (b) **treino offline** (`xtask train-behavior`): algoritmo genético / *evolution strategies* sobre cenários determinísticos, com arquétipos revistos por humanos antes de entrarem em vigor. |
-| Evolução darwiniana | Os indivíduos reproduzem-se: o **genoma (mini-MLP) de cada personagem** desce por **cruzamento** (mistura) + **mutação** (RNG determinístico, *stream* `behavior`); a **aptidão** é o desempenho real medido pela simulação (sobrevivência, recursos, objetivos cumpridos). Populações extintas perdem o seu genoma. |
-| Integração | A rede **modula** a FSM + Utility AI (secção 2.2): pondera macroações e estilos; nunca escreve estado diretamente — o núcleo continua a decidir e aplicar. |
-| Persistência | Genomas no *save* (versionados, com migração); *replay* reproduz exatamente as decisões (mesmo *seed* + genoma ⇒ mesma ação). |
+| Evolução darwiniana | Genomas individuais são transmitidos por cruzamento e mutação com stream `behavior` determinística; aptidão mede sobrevivência, recursos e objetivos. Regras de herança, recompensa e atualização ainda precisam de contrato. Extinção encerra a população ativa sem apagar genomas necessários ao replay histórico. |
+| Integração | A rede modula a FSM + Utility AI: pondera macroações e estilos, sem escrever estado diretamente. Consome percepção e memória autoritativas, jamais a presença revelada apenas pelo overlay privilegiado ao jogador. |
+| Persistência | Genomas e estado de aprendizagem no save versionado; replay conserva entradas percebidas, versão matemática e posição dos streams. Mesmo estado percebido + pesos + versão + entradas determinísticas produz a mesma decisão; seed e genoma isolados não bastam. |
 
 **Regras que não se quebram:**
 
@@ -343,22 +391,35 @@ gerações da simulação.
 5. **Legibilidade:** genomas pequenos, telemetria local e a *baseline* FSM sempre
    disponível como comparação — comportamentos ilegíveis são bug.
 
-**Critérios de aceitação (F8):**
+A fonte de percepção precisa estar contratada antes da inferência: FOV/memória da região
+ou uma percepção abstrata equivalente para experimentos headless. Nenhuma alternativa
+exige o cliente 2D pronto, usa câmera como sensor ou expõe o overlay privilegiado aos NPCs.
+A expansão de construção/render não inaugura a região, que existe desde a primeira base.
 
-- [ ] Mesmo *seed* + genoma ⇒ mesma sequência de decisões (hash igual em 100 execuções).
-- [ ] Dois personagens da mesma raça/espécie e *seed* de mundo divergem de comportamento
-      (individualidade observável e reproduzível).
-- [ ] Cenário E2E `evolution-100-generations` reproduzível e com *golden*.
-- [ ] Um cenário de extinção perde o genoma da população extinta sem afetar as outras.
-- [ ] Mutação de código do módulo ≥ 90%; complexidade dentro dos limites da secção 8.
-- [ ] Formato do genoma documentado; saves antigos migram sem perda.
+**Critérios de aceitação planejados (F8):**
+
+- [ ] Mesmas entradas percebidas, pesos, versão matemática e streams produzem a mesma
+      sequência de decisões e hash em 100 execuções.
+- [ ] Fixture discriminante demonstra individualidade de personagens da mesma raça/espécie,
+      de forma reproduzível; não se exige divergência quando só uma ação é possível.
+- [ ] Cenário E2E `evolution-100-generations` reproduzível e com golden humano.
+- [ ] Extinção não afeta outras populações nem apaga a evidência necessária ao replay histórico.
+- [ ] Alterar overlay/câmera sem mudar percepção não altera inputs ou decisões da MLP.
+- [ ] Mutação de código do módulo ≥ 90%; complexidade dentro dos limites da seção 8.
+- [ ] Formato do genoma e aprendizagem documentados; saves antigos migram sem perda.
 
 ### 2.9 Mundo em blocos (estilo *Dwarf Fortress* / *Minecraft*)
 
-O mundo é uma **grelha de blocos**, como no *Dwarf Fortress*: cada bloco é uma unidade
-de construção que pode ser **casa, caverna, buraco, árvore, parede, água, rocha ou
-chão**. Escavar, construir, cortar árvores e abrir buracos é a linguagem do mundo — e o
-estado do mundo é 100% determinístico e serializável.
+O mundo é uma **região procedural com várias localidades desde a primeira base simulável**.
+O foco inicial em relações sociais e rumores não reduz o produto a uma vila isolada:
+interações entre áreas precisam aparecer cedo, para descobrir e corrigir comportamentos
+antes que os problemas escalem. Essa base regional pertence ao core, não à entrega posterior
+que amplia construção, percepção e render.
+
+A região usa grelha inteira de blocos. Célula/material/ocupação são conceitos distintos de
+estruturas agregadas, como casas, árvores e cavernas; sua representação concreta ainda será
+fechada em CTR-03 do [ROADMAP de execução](<../../ROADMAP.md>). Escavar, construir, cortar
+árvores e abrir buracos são comandos determinísticos; o estado regional é serializável.
 
 **Cubos de construção — e só de construção.** Todo o **material de construção do mapa** é
 um **cubo** (tipo *Minecraft*, projetado em isométrico): pedra, madeira, terra, parede,
@@ -369,15 +430,18 @@ papel estrutural na grelha.
 
 | Peça | Desenho |
 | --- | --- |
-| Bloco | Tipo + estado (ex.: `TREE`, `WALL`, `CAVE`, `HOLE`, `HOUSE`, `WATER`, `FLOOR`), com material e flags; identidade estável. |
-| Grelha | Coordenadas inteiras `(x, y, z)` com níveis (como os *z-levels* do DF); sem geometria contínua — nada de malhas ou alturas flutuantes. |
-| Operações | Escavar, construir, cortar árvores, abrir buracos, tapar cavernas — tudo como comandos determinísticos do núcleo. |
-| Integração | Os blocos vivem no estado do `af-core` (ECS/dados indexados); *pathfinding*, linha de visão e propagação leem a grelha. |
-| Persistência | Grelha no *save* (compressão por região), versionada; o *replay* reproduz exatamente a mesma grelha. |
+| Bloco | Material, ocupação e estado de uma célula estrutural; tipos, flags e identidade ainda a contratar. Não presumir que uma casa inteira é um único cubo. |
+| Grelha | Coordenadas inteiras `(x, y, z)` com níveis; nada de geometria contínua ou alturas flutuantes. Limites, divisões e geração por localidade precisam de contrato. |
+| Região | Várias localidades geradas desde a base do core, com identidade e conexões determinísticas; integração entre áreas enquanto o jogador foca uma delas. |
+| Operações | Escavar, construir, cortar árvores, abrir e tapar buracos como comandos determinísticos, conforme o recorte contratado. |
+| Integração | Pathfinding, linha de visão, rumores e agendas leem o estado regional. Câmera/foco de apresentação não define quais localidades existem ou evoluem. |
+| Persistência | Grelha, entidades e estado relevante de todas as localidades preservados no save e no hash canônico; replay reproduz a região. Codec e compressão ainda em revisão. |
 
-Regras: grelha em inteiros (sem `f32`); mesmo *seed* + comandos ⇒ mesma grelha; e a
-**simulação não conhece a câmara** — o render é apenas um consumidor de estado
-(secção 2.10).
+Mesmo seed + entradas normalizadas produz a mesma região. **Foco e câmera não congelam
+outras áreas nem retiram suas entidades do hash.** Política de atividade regional, custos de
+agenda, carga e limites precisam ser contratados: não há LOD ou suspensão por distância
+aprovados por esta decisão. Fixtures pequenas são válidas para testes unitários, mas o
+aceite da base exige cenários de integração entre localidades desde cedo.
 
 ### 2.10 Visualização: 2D isométrico, sem 3D real
 
@@ -387,21 +451,26 @@ Regras: grelha em inteiros (sem `f32`); mesmo *seed* + comandos ⇒ mesma grelha
 > sombras volumétricas, sem *engine* 3D. A profundidade é ilusão de projeção isométrica
 > **2D**.
 
-- O núcleo não renderiza: expõe o estado do mundo (blocos, atores, eventos) por uma API
-  de leitura estável; a **visualização 2D isométrica** é feita por um cliente dessa API
-  (renderização assegurada pelo maintainer do projeto).
-- **Renderizar apenas o que é visto:** o render não desenha o mundo às cegas — desenha
-  exatamente as camadas de visibilidade da secção 2.11 (visão ativa, memória
-  desvanecida, escuro).
-- **Navegação por eixos de altura:** o jogador sobe/desce a câmara no eixo de altura para
-  ver andares **acima ou abaixo** (z-levels, como no *Dwarf Fortress*).
-- **Silhuetas em occlusão:** um personagem (o próprio ou outros) que passe **por detrás
-  de uma construção** continua visível como **silhueta** — a construção oculta o corpo,
-  nunca a presença.
-- A TUI/ASCII continua a existir como interface de depuração, testes E2E e *fallback* —
-  nunca é a visualização final do jogo.
-- Orçamentos de render (sprites por ecrã, camadas, *culling* isométrico) entram na fase
-  do render (**F9**); a simulação nunca espera pelo render.
+- O núcleo não renderiza. Uma API somente leitura separa **percepção autoritativa por
+  observador** de **dados privilegiados do overlay de apresentação**; o cliente não recebe
+  permissão para alterar estado, memória ou agenda.
+- **Ambiente e memória:** o ambiente usa visão ativa, memória congelada e escuro da seção
+  2.11. Essa regra não elimina a exceção deliberada de silhuetas sobrepostas.
+- **Silhuetas de todos os personagens:** próprio, outros, aliados e não percebidos atrás
+  de construções devem aparecer como silhuetas. É uma escolha explícita de “raio X”,
+  não um filtro limitado aos personagens que já passaram no FOV.
+- O overlay revela presença ao jogador/apresentação, mas não atualiza last-seen do ambiente,
+  conhecimento de NPCs, entradas de MLP ou percepção autoritativa. Alcance, áreas nunca
+  visitadas, política entre z-levels e permissões da API privilegiada ainda serão contratados
+  no [ADR 0009 proposto](<adr/0009-privileged-silhouette-overlay.md>).
+- **Câmera livre:** subir/descer z-levels e navegar na UI não altera posição do personagem,
+  direção autoritativa, ticks, RNG, memória ou a atividade de outras localidades.
+- A visualização 2D é responsabilidade do maintainer; stack e ponte concreta ainda abertas.
+  Não introduzir engine 3D ou novo transporte por suposição.
+- A TUI/ASCII continua como depuração, E2E e fallback; motor validado precede o primeiro
+  jogável 2D, mas a TUI não é a visualização final.
+- Orçamentos de render, sprites, camadas e culling serão medidos no trabalho correspondente
+  do [ROADMAP](<../../ROADMAP.md>); não há teto artificial de hardware nesta etapa.
 
 ### 2.11 Visibilidade, campo de visão e memória de ambientes (*fog of war*)
 
@@ -410,42 +479,54 @@ Regras: grelha em inteiros (sem `f32`); mesmo *seed* + comandos ⇒ mesma grelha
 > a memória do personagem sobre o ambiente**, e vive no estado da simulação, não só no
 > render.
 
-Cada ponto do mundo está num de **três estados de visibilidade**:
+Cada ponto do ambiente tem um dos **três estados de percepção autoritativa** abaixo.
+O overlay privilegiado é um canal adicional de apresentação, **não uma quarta camada de
+memória nem autorização para tornar o ambiente conhecido**.
 
-| Estado | O que é | O que se vê | Atualiza? |
+| Estado | Semântica autoritativa | Apresentação do ambiente | Atualização |
 | --- | --- | --- | --- |
-| **Visão ativa** | Onde o personagem **olha** (campo de visão com direção) | O mundo **ao vivo**: criaturas, construções e mudanças em tempo real | ✅ sempre |
-| **Memória de ambientes** | Onde **não olha agora, mas já olhou/passou** | O caminho/área vista **meio apagada** (desvanecida), exatamente como foi vista da última vez | ❌ **nunca**: sem atualizar criaturas nem mudanças de construção |
-| **Escuro** | Onde **nunca viu** | **Totalmente escuro** | — não existe em memória |
+| **Visão ativa** | Campo de visão direcional do personagem | Estado atual percebido de criaturas e construções | Quando a simulação avança e a percepção é recalculada |
+| **Memória de ambientes** | Snapshot da última observação, fora da visão atual | Desvanecida, exatamente como foi vista; criaturas e construções congeladas nesse snapshot | Somente com nova percepção autoritativa |
+| **Escuro** | Área nunca percebida pelo personagem | Ambiente desconhecido, sem desenho live de terreno ou construções | Não cria memória por navegação de câmera ou overlay |
 
 Regras:
 
-1. **Campo de visão direcional** — só se vê para onde o personagem **olha**; o FOV é
-   calculado sobre a grelha de blocos (inteiros, determinístico).
-2. **Silhuetas em occlusão** — personagens (o próprio e outros) **por detrás de uma
-   construção** são desenhados como **silhueta**: a construção oculta o corpo, não a
-   presença.
-3. **Eixo de altura** — a câmara sobe/desce por andares (z-levels): ver andares **acima
-   ou abaixo** é navegação de visão, não mudança de posição.
-4. **Memória é dado de simulação** — a camada “memória” é o **modelo de memória do
-   personagem sobre ambientes** (liga-se ao componente `Memory`, secção 2.1): *snapshot*
-   do último estado visto, congelado até haver nova linha de visão. Testável: a memória
-   só muda quando há nova visão.
-5. **Determinismo** — mesmo estado + mesma direção ⇒ mesmo conjunto visível; a memória
-   é reproduzível (mesmo *seed* + trajetória ⇒ mesmo mapa de memória).
-6. **O render consome, não decide** — as três camadas são produzidas pelo núcleo e
-   expostas pela API de leitura; o render 2D isométrico apenas as pinta: visível ao vivo,
-   memória desvanecida, nunca visto a preto.
+1. **FOV direcional determinístico:** é calculado sobre grelha inteira e estado do observador.
+   Olhar/mover/falar são ações autoritativas conforme seus contratos; mexer na câmera não é
+   um novo sensor nem uma ação que cobra ticks.
+2. **Exceção visual deliberada:** todos os personagens atrás das construções, mesmo não
+   percebidos, aparecem no overlay de silhuetas. Não substituí-la pela recomendação rejeitada
+   “somente personagens visíveis”. Alcance, sobreposição a áreas nunca vistas e extensão em Z
+   ainda exigem contrato; o compromisso de incluir não percebidos está definido.
+3. **Separação de conhecimento:** dados atuais usados no overlay não atualizam last-seen,
+   memória do ambiente, conhecimento de NPCs ou entradas de MLP. O jogador pode receber essa
+   informação privilegiada sem que a simulação declare que o personagem a percebeu.
+4. **Câmera e níveis:** navegar por z-levels altera somente apresentação. Não avança tempo,
+   recalcula conhecimento por si só, move personagens ou suspende outras localidades.
+5. **Memória congelada:** snapshots são dados do personagem, não referências ao mundo live.
+   Uma silhueta pode exibir presença privilegiada atual sem reescrever o snapshot do ambiente.
+6. **API somente leitura:** percepção/memória por observador e overlay privilegiado são
+   respostas e permissões distintas, com revisão/tick consistentes. O cliente não altera o
+   core, e NPCs/MLPs não usam o canal privilegiado para suas decisões.
+7. **Região e replay:** mesmo estado, entradas e direção produzem a mesma percepção. Memória
+   e agenda regional são reproduzíveis; foco da câmera não retira outras localidades do hash.
 
-**Critérios de aceitação:**
+O [ADR 0009 proposto](<adr/0009-privileged-silhouette-overlay.md>) registra a decisão de
+produto e as pendências. CTR-03 do [ROADMAP](<../../ROADMAP.md>) deve fechar as duas interfaces
+antes de implementar o overlay, sem fingir que alcance/Z/permissões já foram aprovados.
 
-- [ ] Cenário E2E: entrar numa sala, sair e olhar para outro lado ⇒ a camada de memória
-      fica congelada (uma criatura que se moveu não aparece atualizada).
-- [ ] Cenário E2E: área nunca vista renderiza totalmente escura; área vista e fora do
-      olhar renderiza desvanecida.
-- [ ] Personagem por detrás de construção aparece como silhueta nos testes de UI.
-- [ ] Subir/descer z-levels não altera o estado da simulação (apenas a visão).
-- [ ] Memória reproduzível: mesmo *seed* + trajetória ⇒ mesmo mapa de memória (hash igual).
+**Critérios de aceitação planejados:**
+
+- [ ] Entrar numa sala, sair e consumir ticks por outra ação conserva o snapshot last-seen,
+      mesmo se uma criatura se moveu ou uma construção mudou fora do FOV.
+- [ ] Um personagem não percebido atrás de construção aparece como silhueta no overlay,
+      sem atualizar memória do ambiente, conhecimento dos NPCs ou inputs da MLP.
+- [ ] Região nunca percebida continua desconhecida no canal de ambiente; casos de overlay
+      sobre área escura seguem o contrato pendente de alcance/Z, não uma exclusão implícita.
+- [ ] Abrir NLG, alterar overlay ou navegar por z-levels não muda tick, RNG, memória ou hash.
+- [ ] Mesma trajetória autoritativa produz mesmo mapa de memória e replay.
+- [ ] Ações e rumores em outra localidade evoluem durante os ticks de ações do jogador;
+      mudar a área em foco não congela esses sistemas nem exclui entidades do estado canônico.
 
 ---
 
@@ -555,7 +636,7 @@ flowchart TD
     SO --> NAT{Nativo?}
     NAT -->|sim| CMD[Handler determinístico]
     NAT -->|não| PROP[LFM3: propose_emergent_action]
-    PROP --> PARSE[Parser XML + JSON]
+    PROP --> PARSE[Framing e schema conforme contrato CTR-04]
     PARSE --> VAL[Validação de schema + semântica]
     VAL -->|inválida| REJ[Rejeitar + explicar]
     VAL -->|válida| MAT[Materializador determinístico]
@@ -624,7 +705,13 @@ Regras de uso:
 
 ### 4.3 Proposta de regra (LFM3 local)
 
-```xml
+**Exemplo de desenho a reconciliar, não gramática aprovada.** Tokens e fechos abaixo não
+constituem XML padrão. Os nomes de parâmetros divergem do schema JSON e falta conciliar
+`schema_version`; CTR-04 do [ROADMAP](<../../ROADMAP.md>) deve definir o mapeamento e
+parsing, sem inventar uma solução por corrigir delimitadores. O exemplo é referência
+histórica de proposta, não código executável ou resposta real validada nesta revisão.
+
+```text
 <think
 O jogador executa uma extorsão pública combinada com mentira documental
 (Carta_Divida_Falsa) contra o Mercador_15 numa taverna movimentada.
@@ -663,8 +750,9 @@ Notas:
 - A ferramenta chama-se **`propose_emergent_action`**, não `jev_*`.
 - O `<think` é opcional e limitado (orçamento de tokens); melhora consistência, mas não é
   uma garantia. Medimos a mediana e o p95.
-- O JSON é uma **proposta**. O parser valida o XML, o `serde` valida o schema, o
-  materializador aplica *clamps* e o dry-run verifica invariantes.
+- O JSON é proposta não confiável. Gramática/framing e mapeamento ao schema precisam ser
+  fechados em CTR-04; a validação, materialização e dry-run continuam obrigatórios. Essa
+  pendência não autoriza parser permissivo nem aplicação direta da saída do modelo.
 - O modelo não recebe ferramentas capazes de alterar estado, ler ficheiros ou executar
   comandos.
 
@@ -692,7 +780,8 @@ O materializador impõe:
 
 ### 4.5 Validação, segurança e balanceamento
 
-1. **Sintaxe:** XML bem formado, sem *entities*, tamanho ≤ 64 KiB.
+1. **Sintaxe:** gramática/framing a aprovar em CTR-04, sem expansão de entidades ou
+   ambiguidades e com tamanho ≤ 64 KiB; não presumir XML padrão para o exemplo publicado.
 2. **Schema:** JSON válido, versão, campos obrigatórios, sem desconhecidos.
 3. **Semântica:** IDs, atributos, labels, status, itens, alvos.
 4. **Escala:** *clamps* de DC/deltas/durações.
@@ -745,40 +834,10 @@ stateDiagram-v2
 
 ### 5.2 C4 — contentores
 
-```mermaid
-flowchart TB
-    subgraph Proc["Processo ai-fantasy (Rust)"]
-        APP[af-app<br/>composition root]
-        TUI[af-tui]
-        SCEN[af-scenario]
-        CORE[af-core]
-        RULES[af-rules]
-        CONV[af-conversation]
-        NLG[af-nlg]
-        PORTS[af-ports]
-        DOM[af-domain]
-    end
-    subgraph Side["Sidecars locais"]
-        D1[llama-server d1-2B]
-        LFM[llama-server LFM3-1.7B]
-    end
-    DB[(SQLite)]
-    APP --> TUI
-    APP --> SCEN
-    APP --> CORE
-    APP --> NLG
-    CORE --> RULES
-    CORE --> CONV
-    CORE --> PORTS
-    RULES --> DOM
-    CONV --> DOM
-    NLG --> CONV
-    NLG --> RULES
-    PORTS --> DOM
-    APP --> DB
-    APP -. loopback .-> D1
-    APP -. loopback .-> LFM
-```
+O [C4 de composição](<overview.md#3-contentores-c4--nível-2>) mostra clientes, app, núcleo,
+adaptadores e sidecars. As setas ali representam composição/chamadas, **não imports**.
+A [tabela e o grafo de dependências](<overview.md#4-componentes-e-crates>) são a referência
+normativa de código; não manter uma cópia de diagrama com semântica divergente aqui.
 
 ### 5.3 Crates e dependências
 
@@ -798,7 +857,11 @@ flowchart TB
 | `af-scenario` | Runner E2E headless. |
 | `xtask` | Automação de desenvolvimento. |
 
-Regra: setas apontam para dentro; sem ciclos; adaptadores não vazam tipos de transporte.
+A [tabela normativa de imports](<overview.md#4-componentes-e-crates>) define dependências.
+No grafo correspondente, A → B significa A depende de B. `af-core` não importa adaptadores,
+app, UI ou NLG; `af-nlg` não importa core. O app compõe fatos/portas/adaptadores, sem ciclos
+ou tipos de transporte vazando para o domínio. Esta tabela resume responsabilidades, não
+substitui a coluna normativa de dependências.
 
 ### 5.4 Portas
 
@@ -865,16 +928,16 @@ sequenceDiagram
 
 ### 5.9 Orçamentos
 
-| Operação | Alvo |
-| --- | --- |
-| Tick 10k entidades | < 2 ms p50, < 5 ms p99 |
-| Triagem 16 questões | < 100 ms p95 desktop |
-| Proposta LFM3 | < 2 s p95 |
-| NLG 3 eventos | < 4 s p95; cache < 5 ms |
-| Memória combinada | < 2,8 GB |
-| Save/load 10k | < 250 ms p95 |
+As [referências diagnósticas de performance](<overview.md#14-orçamentos-de-performance-alvos-não-garantias>)
+concentram os números históricos de tick, triagem, NLG, memória e save/load. D-05 não fixa
+perfil mínimo ou teto artificial de hardware nesta etapa: a CPU/GPU da mesma máquina será
+usada para desenvolver/testar em Windows/Linux.
 
-Números da fabricante são referências, não garantias. Medimos no hardware suportado.
+Medições futuras precisam declarar sistema, build, contexto, população/localidades,
+concorrência e amostras. Percentis/tempo real/RAM/VRAM ficam em artefatos de diagnóstico,
+fora do hash/golden determinístico. Não reduzir a região para obedecer a 2,8 GB ou à
+latência de um perfil não escolhido; correção, qualidade, offline e determinismo permanecem
+gates. Requisitos mínimos e política de regressão serão decididos com evidência.
 
 ---
 
@@ -966,7 +1029,7 @@ af-scenario run tests/e2e/scenarios/forged-debt.json \
   "schema_version": 1,
   "name": "forged-debt-extortion",
   "seed": 42,
-  "world": { "fixture": "tavern-small" },
+  "world": { "fixture": "region-multi-localities-small" },
   "models": {
     "mode": "fake",
     "system_one": "tests/fixtures/system-one/extortion.json",
@@ -987,7 +1050,8 @@ af-scenario run tests/e2e/scenarios/forged-debt.json \
 
 ### 7.3 Saída e golden
 
-- JSON canónico com `events`, `final_state_hash`, `assertions`, `metrics`.
+- JSON canônico semântico com eventos, hash e asserções; métricas de relógio real/latência,
+  hardware e memória ficam em artefato separado, fora do golden determinístico e do hash.
 - Golden em `tests/e2e/golden/<scenario>/<seed>.json` via `insta`.
 - `cargo insta review` para aprovar; CI nunca faz *bless* automático.
 - Artifacts de falha: cenário, seed, output, logs, `repro.sh`, cassette.
@@ -1086,21 +1150,36 @@ Resumo; o contrato completo está em
 
 ## 10. Roadmap por fases
 
-| Fase | Entrega | Critério de saída |
-| --- | --- | --- |
-| **F0 — Fundação** (atual) | Docs, ADRs, regras, governança, CoALA | `oss-doctor` sem faltas; docs revistos; CI documental verde |
-| **F1 — Core** | Workspace Rust, domínio, RNG, clock, ECS, tick, hash, replay | 10k ticks determinísticos; hash igual em 100 runs; benchmarks no orçamento |
-| **F2 — Conversa e rumores** | `ConversationEvent`, relações, propagação, SQLite, save/load | property tests; migração; save atómico |
-| **F3 — IA offline** | d1-2B/LFM3 clients, supervisor, fakes, cassettes, verificação | contract tests; fallback; latência medida |
-| **F4 — Regras** | Schema, validador, materializador, clamps, proveniência | 200 propostas válidas/inválidas; 0 inválidas aplicadas; mutação ≥ 90% |
-| **F5 — NLG** | Prompts, parser, cache, checklist factual | 100 sequências sem alucinação mecânica; latência |
-| **F6 — UI** | TUI, input, modal de conversa, saves, settings | E2E de UI; acessibilidade texto |
-| **F7 — Hardening** | Soak 12 h, performance, packaging, SBOM, release | memória < 2,8 GB; release `v0.1.0` |
-| **F8 — Comportamento neural** | Mini-MLP por personagem (individualidade) + arquétipos por raça/espécie, treino por reforço, evolução darwiniana (secção 2.8) | genomas determinísticos; individualidade observável; cenário E2E de 100 gerações; mutação ≥ 90% |
-| **F9 — Mundo em blocos e render 2D** | Grelha de blocos (casas, cavernas, buracos, árvores — secção 2.9), visualização isométrica 2D sem 3D (secção 2.10) e visibilidade/memória de ambientes (secção 2.11) | grelha determinística e reproduzível; render consome estado sem tocar na simulação; FOV determinístico e memória congelada validados por E2E; cenário E2E de construção/escavação |
+Esta seção agora é uma **ponte para o [ROADMAP de execução](<../../ROADMAP.md>)**, fonte
+única de atividades, dependências, ondas, responsáveis, barreiras e critérios de aceite.
+A tabela operacional anterior e a regra de concluir toda fase antes de começar outra foram
+substituídas pelo grafo de dependências documentado ali. F0–F9 podem permanecer como rótulos
+temáticos históricos, não uma segunda ordem obrigatória de execução.
 
-Cada fase só começa quando a anterior tem os testes e a documentação verdes. Não se
-“avança para a UI” com o core instável.
+As restrições arquiteturais permanecem canônicas neste documento:
+
+- **F0 atual:** somente planejamento/documentação; aprovar o plano não autoriza construir
+  aplicação, scaffold, contratos de código, worktrees, CI ou release agora.
+- **Base regional desde o core:** várias localidades e interação entre áreas entram na
+  primeira base simulável. Construção/percepção/render posteriores ampliam essa região,
+  não inauguram o mundo regional nem suspendem áreas fora do foco.
+- **Marcos separados:** motor validado antes do primeiro jogável 2D; individualidade neural
+  posterior depende de percepção/persistência contratadas, não do renderer pronto.
+- **Avanço futuro por dependências:** somente pacotes independentes, com contratos e inputs
+  explícitos, podem ser planejados em paralelo. Juiz de integração/barreira/validação e
+  worktrees isoladas seguem o [ROADMAP](<../../ROADMAP.md>), sem cap artificial de subagents
+  de desenvolvimento e sem mudar o single-thread determinístico do tick.
+- **Gates preservados:** TDD, qualidade, segurança, offline, determinismo, corpus de
+  200 propostas válidas + 200 inválidas e revisão humana continuam obrigatórios quando
+  houver execução explicitamente autorizada. Números de desempenho são referências nesta
+  etapa, não teto de hardware ou razão para reduzir o escopo regional.
+- **Contratos ainda em revisão:** CTR-01/CTR-02/CTR-03/CTR-04 tratam IDs/layout/precisão,
+  replay/durabilidade/tempo, percepção/overlay/região e gramática. A escolha de produto
+  não resolve esses contratos por decreto.
+
+O [registro das decisões](<../planning/decisions.md>) é a fonte da devolutiva humana.
+Nenhuma atividade aqui está marcada como implementada, nem há versão de software fixada
+manualmente. A conclusão deste pacote é coerência documental para revisão do plano.
 
 ---
 
@@ -1138,9 +1217,15 @@ Questões abertas: ver [`overview.md`](overview.md#15-decisões-abertas).
 | Visualização final é 2D isométrica, sem 3D real | ✅ decisão | secção 2.10; reforçada no README |
 | *Fog of war* em 3 camadas (visão/memória/escuro) com silhuetas | ✅ decisão | secção 2.11; memória é dado de simulação |
 
-O documento original citava fontes secundárias e imagens de *marketing*. Aqui, cada número
-tem um estado: verificado, alegação ou meta. Nenhum número de fabricante é tratado como
-contrato.
+As classificações históricas de fornecedor acima não significam revalidação externa deste
+pacote documental. Runtime, artefatos, licença, revisão e hashes concretos ainda exigem
+CTR-05 do [ROADMAP](<../../ROADMAP.md>); nenhuma consulta externa ou medição foi executada
+por esta reconciliação.
+
+A devolutiva humana fixa produto e método de planejamento, não uma implementação. Tempo
+por ação e overlay de todos os personagens têm ADRs propostos; formato de IDs/eventos,
+gramática, save e custos continuam em revisão. Referências de desempenho não são teto de
+hardware nesta etapa e não se confundem com gates de qualidade/correção.
 
 ---
 
@@ -1192,11 +1277,14 @@ contrato.
 - [ ] As redes neurais da secção 2.8 mantêm determinismo e testabilidade.
 - [ ] O nome do documento é apenas `roadmap` e a decisão está registada na secção 0.8.
 - [ ] O mundo é grelha de blocos e a visualização final é 2D isométrica (sem 3D real).
-- [ ] As três camadas de visibilidade (visão ativa, memória desvanecida, escuro), as
-      silhuetas e a navegação por z-levels estão especificadas e testadas (secção 2.11).
+- [ ] As três camadas autoritativas e o overlay privilegiado de todos os personagens
+      estão separados; alcance/escuro/Z/permissões têm contrato e testes futuros explícitos.
+- [ ] A primeira base é regional; câmera/foco não congela localidades ou as exclui do hash.
+- [ ] Tempo por ação não é relógio/NLG; custo e agenda têm contrato pendente rastreável.
 - [ ] Os números externos estão marcados como alegação/meta.
 - [ ] As licenças estão corretas e os pesos não são distribuídos.
-- [ ] O roadmap tem fases com critérios de saída testáveis.
+- [ ] O [ROADMAP de execução](<../../ROADMAP.md>) contém o único grafo de atividades,
+      dependências, barreiras e critérios; nenhuma execução é autorizada por aprovar o plano.
 
 ## Apêndice B — Glossário rápido
 

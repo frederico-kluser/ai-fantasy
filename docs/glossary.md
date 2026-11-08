@@ -8,13 +8,13 @@ equivalentes em inglês indicados entre parênteses.
 
 | Termo | Definição |
 | --- | --- |
-| **AI Fantasy** | O jogo: RPG procedural em modo texto/ASCII inspirado no *Adventure Mode* de *Dwarf Fortress*. |
+| **AI Fantasy** | RPG procedural inspirado no Adventure Mode de Dwarf Fortress, com região de várias localidades desde a base e visualização final 2D isométrica, nunca 3D real. TUI/ASCII é depuração e validação do motor. |
 | **Hermeneutic Core** | O motor determinístico do jogo: ECS, tick, regras, conversação, persistência. |
 | **Offline-first** | O runtime não usa rede. Só é permitido *loopback* para os *sidecars* locais de modelo. |
-| **Tick** | Passo discreto de simulação. O estado autoritativo só muda em ticks; render e NLG são desacoplados. |
+| **Tick** | Passo lógico do mundo, avançado pelo custo determinístico de ações como movimentar-se e falar. Relógio real, texto NLG, espera de inferência, UI e câmera não acrescentam ticks por si só. Custos e ordem de agenda ainda a contratar. |
 | **Seed** (`Seed`) | `u64` que determina todas as sequências pseudoaleatórias. Mesmo seed + mesmas entradas ⇒ mesmo estado. |
-| **Replay** | Reprodução de uma sessão a partir do seed + log de comandos, sem modelos. |
-| **Estado autoritativo** (`authoritative state`) | O mundo ECS + eventos persistidos. É a única fonte de verdade. |
+| **Replay** | Reprodução de uma sessão sem inferência ou relógio real, usando seed e entradas autoritativas normalizadas. Formato do log, RNG e autoridade do save permanecem em CTR-01/CTR-02 do plano de execução. |
+| **Estado autoritativo** (`authoritative state`) | Região, entidades, agendas, genomas, percepção/memória e fatos relevantes às decisões. Câmera, overlay privilegiado e métricas não o alteram; protocolo durável e campos completos ainda a contratar. |
 | **Estado canónico** (`canonical state`) | Serialização determinística do estado, com chaves ordenadas e formatação fixa, usada para hashes e golden tests. |
 | **Hash de estado** (`state hash`) | BLAKE3 do estado canónico num tick; prova de determinismo. |
 
@@ -39,6 +39,12 @@ equivalentes em inglês indicados entre parênteses.
 | **NLU** | *Natural Language Understanding*: interpretação de intenção em texto livre. |
 | **Lazy NLG** | O diálogo só é gerado quando o jogador o abre; nunca por tick. |
 | **Hermenêutica** | Reconstrução interpretativa de uma sequência de eventos simbólicos, com âncoras factuais. |
+| **Tempo por ação** (`action-driven time`) | Tempo avança por ações autoritativas do personagem, não pela duração da apresentação. Agenda regional processa o intervalo lógico contratado. |
+| **Região procedural** (`procedural region`) | Conjunto de várias localidades geradas desde a primeira base simulável, com interações entre áreas; foco/câmera não congela outras áreas nem as remove do hash. |
+| **Memória de ambientes** (`last-seen memory`) | Snapshot da última percepção autoritativa; permanece congelado fora do FOV. Desenhar uma silhueta não o atualiza. |
+| **Percepção autoritativa** (`authoritative perception`) | Informação percebida pelo personagem que pode alimentar conhecimento e decisões de NPC/MLP; distinta de privilégio visual do jogador. |
+| **Overlay de silhuetas** (`privileged silhouette overlay`) | Apresentação privilegiada de todos os personagens atrás de construções, inclusive não percebidos. Alcance/Z ainda em revisão; não atualiza memória ambiental, rumores ou conhecimento/MLP dos NPCs. |
+| **Mini-MLP individual** (`individual behavior MLP`) | Rede pequena em ponto fixo que modula FSM/Utility AI a partir de percepção autoritativa; experiência/herança/evolução na trilha posterior. Sem LLM/sidecar no tick. |
 
 ## IA offline
 
@@ -109,3 +115,12 @@ equivalentes em inglês indicados entre parênteses.
 | **Merge** | Única estratégia de sincronização/integração permitida. Rebase é proibido. |
 | **CoALA** | Memória local do projeto (`.agents/ai-fantasy-coala-agent-skill/`) com notas e catálogo de código. |
 | **Gate** | Verificação obrigatória (commit, push, PR, release, segurança) que não se contorna. |
+| **Subagent de desenvolvimento** | Agente delegado de uma tarefa planejada e independente, com worktree/arquivos isolados; não é componente do runtime. A decisão D-08 não impõe cap artificial. |
+| **Juiz de integração** | Papel independente que fecha a barreira, integra, resolve conflitos, valida/corrige e prepara a próxima onda; não substitui responsabilidade humana nem autoriza execução pelo planejamento. |
+
+**Revisão documental: 2026-11-08.** [Definições](<architecture/roadmap.md>) e
+[respostas do maintainer](<planning/decisions.md>) são as fontes semânticas; atividades,
+dependências, contratos CTR e critérios ficam no [ROADMAP de execução](<../ROADMAP.md>).
+[ADR 0008](<architecture/adr/0008-action-driven-simulation-time.md>) e
+[ADR 0009](<architecture/adr/0009-privileged-silhouette-overlay.md>) são propostas de contratos,
+não implementações aceitas.

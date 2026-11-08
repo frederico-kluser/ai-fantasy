@@ -12,7 +12,9 @@
 - **Estado:** **F0 — Fundação**. Não há código executável; não crie `Cargo.toml`, crates
   ou binários sem um pedido explícito e sem o PR de scaffold aprovado.
 - **Licença:** código MIT; pesos de modelos **não** são distribuídos (LFM Open License).
-- **Documento canónico:** [`docs/architecture/roadmap.md`](docs/architecture/roadmap.md).
+- **Definições canônicas:** [roadmap de arquitetura](<docs/architecture/roadmap.md>).
+- **Plano de execução:** [ROADMAP](<ROADMAP.md>) — atividades, dependências, ondas e integração por juiz; subagents de desenvolvimento não são componentes do runtime.
+- **Decisões do maintainer:** [registro da revisão](<docs/planning/decisions.md>).
 
 ## 2. Regra zero: offline e JEV
 

@@ -76,8 +76,9 @@ fn given_dc_above_25_when_validate_rule_then_rejects_with_out_of_range() { ... }
 | E2E | 5–10% | Binário + cenário + golden. | `tests/e2e` |
 | Performance/soak | à parte | Orçamentos, memória, 12 h. | `benches/`, nightly |
 
-O CI corre unit/property/integration/contract/E2E em cada PR. Performance e live models
-correm na nightly ou em PRs que tocam essas áreas.
+Quando implementado, o CI executará unit/property/integration/contract/E2E de PR com
+fake/cassette. Contratos real/live e medições de modelos ficam em nightly/manual
+preprovisionados; nenhum PR passa a depender de pesos ou hardware por tocar essas áreas.
 
 ## 4. Testes unitários
 
@@ -169,7 +170,7 @@ Contrato do CLI:
   "schema_version": 1,
   "name": "forged-debt-extortion",
   "seed": 42,
-  "world": { "fixture": "tavern-small" },
+  "world": { "fixture": "region-multi-localities-small" },
   "models": {
     "mode": "fake",
     "system_one": "tests/fixtures/system-one/extortion.json",
@@ -211,13 +212,17 @@ Regras:
     { "tick": 3, "type": "RULE_VALIDATED", "rule_id": "..." },
     { "tick": 3, "type": "RULE_APPLIED", "rule_id": "..." }
   ],
-  "assertions": [{ "name": "fear_bp", "ok": true }],
-  "metrics": { "tick_ms_p95": 0.4, "model_calls": 2 }
+  "assertions": [{ "name": "fear_bp", "ok": true }]
 }
 ```
 
-- Ordenado, sem dados voláteis, com `state_hash`.
-- O artifact inclui `repro.sh` com o comando exato e a seed.
+- Resultado semântico ordenado, sem dados voláteis, com `state_hash` e entradas normalizadas
+  contratadas. Tempo de relógio real, latência, percentis, RAM/VRAM e hardware **não entram**
+  na comparação estrita de golden ou no hash autoritativo.
+- Métricas e contagens de chamadas ficam em artefato de diagnóstico separado, identificado
+  por cenário/build/perfil; não são comparadas como estado canônico do mundo.
+- O artifact de reprodução registra o comando disponível e a seed; exemplos de runner e
+  fixtures aqui são planejamento, não executáveis ou testes já criados.
 - Golden correspondente em `tests/e2e/golden/<scenario>/<seed>.json`.
 
 ### 8.5 Hermeticidade
@@ -241,7 +246,21 @@ Regras:
 | `save-load` | Save/load preserva estado e hash. |
 | `model-unavailable` | Sem modelos, o jogo continua em fallback. |
 | `migration` | Save antigo migra sem perda. |
-| `soak-smoke` | 10k ticks headless sem panic/leak óbvio. |
+| `soak-smoke` | 10 mil ticks lógicos headless sem panic/leak óbvio; não equivale a soak de 12 h. |
+| `action-driven-time` | Movimento/fala simbólica cobra custo contratado; NLG/cache/espera/câmera não avança ticks. |
+| `regional-cross-locality` | Base gera várias localidades; efeitos sociais/rumores/agendas entre áreas evoluem nos ticks de ações. |
+| `regional-focus-independence` | Mudar câmera/foco não congela outras áreas nem remove suas entidades do hash. |
+| `last-seen-isolation` | Mudança de criatura/terreno fora do FOV não atualiza snapshot autoritativo pela apresentação. |
+| `privileged-silhouette` | Não percebido atrás de construção aparece no overlay de todos, sem atualizar conhecimento/MLP ou memória do ambiente. |
+| `overlay-channel-separation` | Percepção e overlay têm interfaces somente leitura distintas; alcance, escuro e Z seguem contrato explícito. |
+
+**Revisão documental: 2026-11-08.** Esses cenários são requisitos de planejamento, não testes
+implementados ou executados. Custos/ordem de tempo e atividade regional dependem do
+[ADR 0008 proposto](<../architecture/adr/0008-action-driven-simulation-time.md>); alcance,
+áreas nunca vistas/Z e permissões de silhuetas dependem do
+[ADR 0009 proposto](<../architecture/adr/0009-privileged-silhouette-overlay.md>).
+Fixtures unitárias pequenas são permitidas, mas a base do core exige integração regional
+desde o início. Foco social em uma área não transforma a região em vila isolada.
 
 ### 8.7 E2E de UI (fase posterior)
 
@@ -286,9 +305,16 @@ fn given_platform_a_and_b_when_same_scenario_then_same_hash() { ... } // CI matr
 
 - `criterion` para benchmarks; não bloqueiam PRs, mas regressões > 20% exigem explicação.
 - Benchmarks: tick 10k entidades, save/load 10k, triagem 16 questões, NLG 3 eventos.
-- Soak: 12 h, 10k ticks, modelos ligados, monitorização de RSS/VRAM, sem *leak*.
-- Resultados publicados em `docs/performance/` com hardware e versão.
-- Números da fabricante não são metas; metas são as nossas medições.
+- Soak futuro: 12 h de agenda controlada de ações/modelos, com monitoramento de RSS/VRAM.
+  Smoke de 10 mil ticks é teste lógico distinto; não avançar simulação só porque o teste
+  de soak aguarda relógio real. A agenda de ações precisa ser explícita e reproduzível.
+- D-05 não fixa teto de hardware nesta etapa: CPU/GPU da mesma máquina do maintainer em
+  Windows/Linux, resultados honestos por sistema/build/contexto/população/localidades.
+- Números anteriores de latência/memória são referências diagnósticas, não gates que reduzem
+  o escopo regional ou escolhem um perfil mínimo ainda não aprovado. Gates de correção,
+  qualidade, determinismo e offline permanecem.
+- Relatórios de performance ficam separados de hashes/goldens; requisitos mínimos e política
+  de regressão serão contratados com evidência. Nenhuma medição foi executada neste pacote.
 
 ## 12. Cobertura e mutação
 
