@@ -1,8 +1,9 @@
 # Contrato CTR-03 — Região, percepção autoritativa e overlay privilegiado de silhuetas
 
-> **Status:** **PROPOSTA PARA FREEZE — pendente de revisão independente e de aprovação do
-> alcance visual pelo maintainer** — nenhum código de aplicação, engine de render, teste
-> executado, medição ou valor de hash foi produzido.
+> **Status:** **PROPOSTA PARA FREEZE — pendente de revisão independente; alcance visual
+> aprovado pelo maintainer em 2026-11-08 (A1 + D1 + Z2 + N1 + O1, `max_silhouettes = 256`)** —
+> nenhum código de aplicação, engine de render, teste executado, medição ou valor de hash foi
+> produzido.
 
 | Campo | Valor |
 | --- | --- |
@@ -14,8 +15,9 @@
 | Base SHA | `b0cc40efa439d26d1b785c99e76daf5006a956ee` |
 | Manifesto | `docs/planning/wave-spec.md`, SHA-256 `328a8c7e121c9e4411bf0c105c3845c636e37bf208770fbc675f2cff4a360769` |
 | Worktree | `C:\Users\kluse\Projects\ai-fantasy-worktrees\ctr-03`, branch `docs/ctr-03` |
-| Contrato consumido | `CTR-01` rev 5 — [identidade, unidades e eventos](<identity-events.md>) |
-| Especificação consumida | `DOC-02` rev 6 — [sessão de gameplay social regional](<../gameplay-spec.md>) |
+| Contrato consumido | `CTR-01` rev 5 — [identidade, unidades e eventos](<identity-events.md>), commit `11ee9be6c44a0651b291141130baf709ab46a004` |
+| Especificação consumida | `DOC-02` — [sessão de gameplay social regional](<../gameplay-spec.md>), commit `31416a137be781b7534dcd6abc46d1d8fc895f65` |
+| Alcance visual | **Aprovado pelo maintainer em 2026-11-08** — `A1 + D1 + Z2 + N1 + O1`, `max_silhouettes = 256` |
 | Interfaces produzidas | `INT-03`, `INT-14`, `INT-15`, `INT-19` |
 | ADR relacionado | [ADR 0009](<../../architecture/adr/0009-privileged-silhouette-overlay.md>), status **Proposto** |
 | Versão do contrato | v1 |
@@ -42,7 +44,7 @@ código existente. Os caminhos de código mencionados são destinos futuros, nã
 - `compute_perception`, `update_memory` e `observer_view`; visão direcional determinística,
   memória congelada, estado desconhecido, `last_seen` e DTO por observador com tick e revisão.
 - `player_silhouettes`: canal privilegiado somente leitura, elegibilidade geométrica, dados
-  expostos, opções de alcance e recomendação pendente de aprovação do maintainer (D-04).
+  expostos e alcance `A1 + D1 + Z2 + N1 + O1` aprovado pelo maintainer em 2026-11-08 (D-04).
 - Câmera, foco, navegação por `z` e viewport como apresentação pura, sem ticks, RNG, hash,
   agenda, memória ou congelamento de localidades (D-02/D-07).
 - Interface lógica `present(...)` independente de linguagem e stack, projeção isométrica 2D,
@@ -81,7 +83,7 @@ Nenhuma decisão é reaberta; a tabela declara compatibilidade.
 | D-07 | A região nasce multi-localidade, inteira no estado e no hash; foco não congela nem remove áreas. |
 | D-08 | Entrega documental em worktree isolada, com revisão independente obrigatória; sem autoaprovação. |
 
-### 1.4 Relação com CTR-01 rev 5 e DOC-02 rev 6
+### 1.4 Relação com CTR-01 rev 5 e DOC-02
 
 - O CTR-01 fixa `EntityId(u64)` com `kind`/`index`/`generation`, os kinds `ACTOR = 1`,
   `ITEM = 2`, `LOCATION = 3`, `STRUCTURE = 4`, `RUMOR = 5`, `GATE = 6` e `EDGE = 7`,
@@ -91,7 +93,8 @@ Nenhuma decisão é reaberta; a tabela declara compatibilidade.
 - O CTR-01 delegou explicitamente a este contrato a **semântica** de portão e aresta, a
   validade topológica, a criação concreta, a passagem e a rota. A semântica fica nas secções 4.4
   a 4.6; o packing e as rejeições de forma continuam no CTR-01.
-- O DOC-02 fixa a fixture de quatro localidades, as arestas de 24, 13, 18 e 15 ticks, terreno de
+- O DOC-02 (`docs/planning/gameplay-spec.md`, commit `31416a137be781b7534dcd6abc46d1d8fc895f65`)
+  fixa a fixture de quatro localidades, as arestas de 24, 13, 18 e 15 ticks, terreno de
   1 a 4 ticks por célula, +1 por nível de `z`, viagem atómica, foco que não congela áreas e as
   regras de apresentação/overlay. Este contrato usa esses números como vetor curado e não os
   substitui por valores de produto.
@@ -151,15 +154,23 @@ Nenhuma decisão é reaberta; a tabela declara compatibilidade.
 - O allocator é regional por kind (CTR-01 §2.4); gerar a mesma seed e a mesma `RegionSpec` produz
   os mesmos `(kind, index, generation)` e a mesma ordem de criação.
 
+**Fronteira com CTR-02/INT-01:** `Seed` é `u64` opaco (newtype proposto), não `[u8;32]`; é o
+segundo argumento de `generate_region` e o `seed u64` do payload `REGION`. `RegionId` e `spec_digest` são propriedade
+deste contrato: o CTR-02/INT-01 **referenciam** estes tipos e a derivação, não os redefinem nem
+criam um `Seed` alternativo. O `RegionId` e o `seed` entram no envelope/hash canónico do CTR-01;
+a derivação `region_draw` é uma PRF de geração e **não** é um RNG de simulação paralelo, não
+avança streams de `INT-02` e não altera `Tick`, agenda ou replay. Uma mudança de nome, tipo ou
+fórmula desta fronteira exige revisão conjunta CTR-02/CTR-03 e deve ser reportada ao juiz.
+
 ### 2.3 Tipos lógicos propostos
 
 | Tipo | Campos lógicos | Observação |
 | --- | --- | --- |
-| `RegionSpec` | versões, bounds, contagem e extensão de localidades, portões, perfis, densidade, política de arestas, fixture | Entrada pura de `generate_region`; a seed é argumento separado; sem I/O, relógio ou RNG global. |
+| `RegionSpec` | versões, bounds, contagem e extensão de localidades, portões, perfis, densidade, política de arestas | Entrada pura de `generate_region`; a seed é argumento separado; sem I/O, relógio ou RNG global. |
 | `RegionState` | `region_id`, seed, versão do gerador, bounds, localidades ordenadas, portões, arestas, estruturas, blocos | Estado regional completo; não depende de câmera ou foco. |
 | `Locality` | `LocationId`, AABB, portões | Uma localidade pode ocupar muitas células; não é um tile. |
 | `Gate` | `GateId`, célula, localidade, kind (`ESTRADA`/`TRILHA`), flags | Célula de passagem/chegada; não é um bloco sólido. |
-| `Edge` | `EdgeId`, `gate_a`, `gate_b`, `cost_ticks`, estado, flags | Aresta entre localidades distintas; custo inteiro. |
+| `Edge` | `EdgeId`, `gate_a`, `gate_b`, `cost_ticks`, `corridor_units` (4 contagens), estado, flags | Aresta entre localidades distintas; custo inteiro derivado do terreno agregado. |
 | `Structure` | `StructureId`, localidade, kind, AABB, contagem de blocos | Agregado cúbico; casa, muro, ponte, árvore ou outro. |
 | `Block` | localidade, `z`, `y`, `x`, superfície, preenchimento, `StructureId` opcional, papel, flags | Uma célula cúbica; item não é bloco. |
 | `CameraState` | âncora, `camera_z`, zoom, viewport, camadas | Somente apresentação; nunca no estado. |
@@ -167,8 +178,8 @@ Nenhuma decisão é reaberta; a tabela declara compatibilidade.
 | `PerceivedState` | observador, tick/hash, facing, alcance, células, atores, estruturas | Leitura derivada; não persistida como autoridade. |
 | `EnvironmentMemory` | observador, revisão, último tick, células e atores com `last_seen` | Autoridade congelada por observador; codificação pendente em CTR-02. |
 | `ObservationEnvelope` | versão, observador, tick/hash, `PerceivedState`, memória, desconhecido, permissões | DTO por observador; sem nomes, prosa ou overlay. |
-| `SilhouetteContract` | versão e parâmetros de alcance/Z/nunca-visto/limite | **Proposta pendente de aprovação humana**; não é default aprovado. |
-| `SilhouetteQuery` | observador, âncora, `camera_z`, âmbito, `include_never_seen` | Consulta de apresentação; não é percepção. |
+| `SilhouetteContract` | versão e parâmetros aprovados de alcance/Z/nunca-visto/limite | Valores de `A1 + D1 + Z2 + N1 + O1`; `PA-06`/`PA-07` pendentes. |
+| `SilhouetteQuery` | observador, âncora, `camera_z` | Consulta de apresentação; não é percepção. |
 | `SilhouetteEnvelope` | versão, contrato, tick/hash, lista de silhuetas, truncamento | Canal privilegiado somente leitura. |
 | `FrameReceipt` | sequência, tick/hash ecoados, versões, avisos | Recibo de apresentação; não é recibo de ação. |
 | `AbstractPerception` | versão, observador, tick/hash, facing, atores percebidos, resumo de ambiente | Entrada de NPC/MLP; nunca inclui overlay. |
@@ -205,10 +216,9 @@ uma vila (D-05/D-07). Alterá-los exige nova versão de `RegionSpec`/gerador e n
 | `MAX_STRUCTURES` | `1_048_576` | Estruturas por região. |
 | `MAX_BLOCKS` | `2_147_483_647` | Blocos por região; cabe na contagem `u32` e no limite do CTR-01. |
 | `MAX_BLOCKS_PER_STRUCTURE` | `65_535` | Blocos de uma estrutura. |
+| `MAX_CORRIDOR_CELLS` | `16_383` | Células de corredor somadas de uma aresta; limita o custo a `65_534` ticks. |
 | `MAX_EDGE_TICKS` | `65_535` | Custo total de uma aresta. |
-| `MAX_VISION_RADIUS` | `64` | Alcance máximo de FOV por schema v1. |
-| `MAX_SILHOUETTES` | `4_096` | Silhuetas devolvidas por envelope. |
-| `MAX_OVERLAY_DISTANCE` | `256` | Distância máxima de uma query de overlay. |
+| `MAX_SILHOUETTES` | `4_096` | Limite absoluto do envelope; o contrato aprovado usa `256`. |
 
 Regras:
 
@@ -432,7 +442,6 @@ de `RegionSpec`; `0` é um valor válido, não um sentinela.
 | `extra_edges` | `u16` | `0..=65_535` | Só usadas na política 2. |
 | `initial_blocked_edges` | `u16` | `0..=65_535` | Bloqueio determinístico para testes; não é regra de produto. |
 | `name_profile` | `u16` | `1..=4` | Nomes procedurais de apresentação, fora do hash. |
-| `fixture` | `u16` | `0 = procedural`, `1 = fixture DOC-02` | A fixture é instrumento de teste, não o produto. |
 
 Validações de `RegionSpec`:
 
@@ -442,10 +451,15 @@ Validações de `RegionSpec`:
   `InvalidRegionBounds`.
 - `locality_extent_min > locality_extent_max` é `InvalidRegionSpec`; `bounds` pequeno demais para
   a contagem pedida é `InvalidRegionSpec`, não um ajuste silencioso.
-- `fixture = 1` exige `locality_count = 4`, `bounds` e perfis compatíveis com a fixture do DOC-02;
-  uma fixture incoerente é `InvalidRegionSpec`. A fixture não muda o produto procedural padrão.
+- `edge_policy = 1` com `extra_edges > 0` é `InvalidRegionSpec`: a política 1 não aceita extras.
+  `edge_policy = 2` aceita `extra_edges`; o excesso é ignorado apenas depois de a árvore mínima
+  existir.
+- `initial_blocked_edges` é validado **depois** da seleção das arestas: maior que o número de
+  arestas selecionadas é `InvalidBlockedEdgeCount`, sem truncagem; o valor nunca escolhe arestas
+  inexistentes.
 - A seed não é consumida pelo RNG de simulação de `CTR-02`; a geração tem derivação própria
-  (§4.2) e não avança streams de ação.
+  (§4.2) e não avança streams de ação. A fixture DOC-02 é um manifesto de teste separado
+  (§4.9), não um modo de `generate_region`.
 
 ### 4.2 Derivação determinística da geração
 
@@ -458,11 +472,12 @@ region_draw(seed, generator_version, stream, counter):
   digest   = BLAKE3-256(material)
   return first_u64_be(digest)
 
-uniform_below(n, state):
+uniform_below(n, seed, generator_version, stream, counter_ref):
   if n == 0: error InvalidRegionSpec
   limit = (2^64 / n) * n
   repeat at most 1_024 times:
-    v = region_draw(...)
+    v = region_draw(seed, generator_version, stream, counter_ref)
+    counter_ref += 1
     if v < limit: return v % n
   error RegionGenerationFailed
 ```
@@ -475,7 +490,7 @@ seed produzem a mesma sequência de draws em Windows e Linux.
 
 ### 4.3 Fases da geração (ordem normativa)
 
-1. Validar `RegionSpec`, versões, bounds, faixas e fixture; sem consumir draws.
+1. Validar `RegionSpec`, versões, bounds e faixas; sem consumir draws.
 2. Derivar `RegionId` (§2.2).
 3. **Colocar localidades**: com margem e gap, sortear âncoras e extensões dentro de `bounds`; no
    máximo `1_024` tentativas por localidade; rejeitar sobreposição de AABB expandido por
@@ -490,12 +505,14 @@ seed produzem a mesma sequência de draws em Windows e Linux.
    `TRILHA`, alternando; localidades com um portão recebem `ESTRADA`.
 7. **Construir o grafo de arestas**: candidatos entre localidades vizinhas (até quatro vizinhas
    por distância ao centro, desempate por `LocationId`); para cada par, escolher o par de portões
-   de menor custo de corredor (desempate por `(gate_a, gate_b)`); calcular custo conforme §4.5;
-   selecionar uma árvore geradora mínima por Kruskal com ordem `(cost_ticks, gate_a, gate_b,
-   location_a, location_b)`; adicionar extras da política 2 na mesma ordem até `extra_edges`;
-   se não houver árvore que ligue todas as localidades, `RegionGenerationFailed`. Alocar `EdgeId`
-   após ordenar as arestas finais por `(gate_a, gate_b)`; marcar como `BLOQUEADA` as primeiras
-   `initial_blocked_edges` arestas dessa ordem.
+   de menor custo de corredor (desempate por `(gate_a, gate_b)`); calcular `corridor_units` e
+   `cost_ticks` conforme §4.5; selecionar uma árvore geradora mínima por Kruskal com ordem
+   `(cost_ticks, gate_a, gate_b, location_a, location_b)`; adicionar extras da política 2 na
+   mesma ordem até `extra_edges`; se não houver árvore que ligue todas as localidades,
+   `RegionGenerationFailed`. Alocar `EdgeId` após ordenar as arestas finais por
+   `(gate_a, gate_b)`; se `initial_blocked_edges` exceder o número de arestas selecionadas,
+   `InvalidBlockedEdgeCount`; marcar como `BLOQUEADA` as primeiras `initial_blocked_edges`
+   arestas dessa ordem.
 8. **Gerar estruturas** por localidade, em ordem determinística, até ao orçamento
    `structures_budget = min(64, floor(area_xy * structure_density_bp / 10_000))` por localidade;
    tentar até `structures_budget * 4` posições; estruturas que não cabem são ignoradas, não
@@ -556,15 +573,25 @@ validação final.
   numericamente; `gate_a != gate_b`; nenhum extremo ausente ou stale; nenhuma aresta com os dois
   portões na mesma localidade (`InvalidEdge`). O par não pode repetir outra aresta, mesmo com
   `EdgeId` diferente (`DuplicateEdge`).
-- O custo é a soma do custo de entrada das células tocadas pelo corredor, mais a sobrecarga fixa
-  de `2` ticks do DOC-02 §3.2. O corredor é a supercover 2D do segmento entre os centros dos
-  portões no nível `z = REGION_Z_MIN`, incluindo os dois extremos; células com superfície
-  intransponível contribuem com o custo máximo de terreno `4` e não bloqueiam a aresta, porque a
-  viagem é atómica e abstrata. Estruturas e ocupação de atores não alteram o custo de uma aresta
-  já criada; o corredor é amostragem de terreno, não um caminho célula a célula percorrido.
+- O corredor é uma **amostra agregada de terreno**, não um caminho célula a célula percorrido.
+  Para a geração procedural, a amostra é a supercover 2D do segmento entre os centros dos
+  portões no nível `z = REGION_Z_MIN`, incluindo os dois extremos; cada célula tocada contribui
+  para um dos quatro escalões de custo do DOC-02 §3.3:
+  `c1` = células de custo 1 (estrada, pavimento, terra batida), `c2` = custo 2 (vegetação
+  rasteira, entulho), `c3` = custo 3 (vegetação densa, rocha), `c4` = custo 4 ou superfície
+  intransponível. Uma célula intransponível conta como `c4` e não bloqueia a aresta, porque a
+  viagem é atómica e abstrata.
+- `corridor_units = (c1, c2, c3, c4)` é armazenado na aresta; a soma
+  `c1 + c2 + c3 + c4` fica em `1..=MAX_CORRIDOR_CELLS`. O custo é exatamente
+  `cost_ticks = c1 + 2*c2 + 3*c3 + 4*c4 + 2` (a sobrecarga fixa de `2` ticks do DOC-02 §3.2).
+  A fixture DOC-02 pode fixar `corridor_units` diretamente no manifesto, sem depender da
+  geometria da supercover; o mesmo cálculo de custo vale para os dois casos.
 - `cost_ticks` é inteiro em `1..=MAX_EDGE_TICKS`; overflow ou valor acima é `EdgeCostOverflow`.
-  O valor guardado deve ser igual ao recalculado (`EdgeCostMismatch`); não há cache autoritativa
-  divergente.
+  O valor guardado deve ser igual ao recalculado pela fórmula (`EdgeCostMismatch`); soma zero,
+  soma acima de `MAX_CORRIDOR_CELLS` ou contagem que não caiba em `u16` é `InvalidCorridorUnits`.
+  Uma geração cuja amostra exceda `MAX_CORRIDOR_CELLS` é `CorridorTooLong`, sem truncagem.
+- Estruturas e ocupação de atores não alteram `corridor_units` nem o custo de uma aresta já
+  criada; o corredor é amostragem de terreno, não um caminho de simulação.
 - Estado `PASSÁVEL` (1) ou `BLOQUEADA` (2); outro valor é `UnsupportedEdgeState`. Aresta bloqueada
   é ignorada em `find_route`, mas permanece no estado e no hash. O DOC-02 fixa o custo simétrico;
   não há direção, portagem, encontro de estrada ou assalto nesta sessão.
@@ -587,7 +614,8 @@ inclusive localidades fora do foco, é devolvida; não há geração preguiçosa
 `RegionState`, ser do kind 3 e não estar stale. `find_route`:
 
 - considera apenas arestas `PASSÁVEL`; arestas `BLOQUEADA` não participam;
-- minimiza `total_ticks = soma de cost_ticks` da rota;
+- minimiza `total_ticks = soma de cost_ticks` da rota, em `u64` com soma verificada (sem wrap);
+  um overflow é `RouteCostOverflow` e rejeita a rota;
 - desempata pela sequência lexicográfica de `LocationId` visitados, incluindo origem e destino,
   e depois pela sequência lexicográfica de `EdgeId`; nunca pela ordem de `HashMap`;
 - devolve a rota com arestas ordenadas pela travessia, portões de embarque/chegada, localidades
@@ -617,6 +645,9 @@ existem e não remove nenhuma do hash (D-07).
    ou relógio entra em payload, ordem ou hash.
 7. A mesma seed/spec/versão reproduz bytes canónicos; uma alteração de qualquer campo afeta o
    hash da secção correspondente.
+8. Toda aresta tem `corridor_units` com soma em `1..=MAX_CORRIDOR_CELLS` e
+   `cost_ticks = c1 + 2*c2 + 3*c3 + 4*c4 + 2`; o `FixtureManifest` DOC-02 materializa um estado
+   que satisfaz estes invariantes e é rejeitado com `InvalidFixture` se divergir.
 
 ### 4.8 Payloads canónicos das secções 1 a 4
 
@@ -643,6 +674,10 @@ repeat edge_count, ordered by edge_id ascending:
   gate_a u64
   gate_b u64
   cost_ticks u32
+  corridor_c1 u16
+  corridor_c2 u16
+  corridor_c3 u16
+  corridor_c4 u16
   state u8                (1 = PASSÁVEL, 2 = BLOQUEADA)
   flags u8                (0)
 ```
@@ -705,8 +740,12 @@ repeat count, ordered by (location_id, z, y, x) ascending:
 
 Regras de payload:
 
-- `REGION` tem `flags = 0`; qualquer bit não nulo é `NonZeroFlags`. `edge_count` é `u32` e não
-  pode exceder `MAX_EDGES`.
+- `REGION` tem `flags = 0`; qualquer bit não nulo é `NonZeroFlags`. `edge_count` é `u32`; acima
+  de `MAX_EDGES` é `InvalidRegionPayload`, nunca truncagem.
+- Cada aresta de `REGION` tem `gate_a < gate_b`, ambos `GateId` kind 6 vivos e presentes em
+  `LOCALITIES`; `corridor_c1..c4` com soma em `1..=MAX_CORRIDOR_CELLS`;
+  `cost_ticks = c1 + 2*c2 + 3*c3 + 4*c4 + 2` (`EdgeCostMismatch` se divergir); `state` 1/2 e
+  `flags = 0`; o par de portões é único e não se repete noutra aresta.
 - `LOCALITIES` tem `count` igual ao número de localidades; `gate_count` em `1..=8`; a lista de
   portões é ordenada por `gate_id`; `kind` 1/2; `flags = 0`.
 - `STRUCTURES` tem IDs kind 4, `block_count > 0`, AABB exato e ordenado por `structure_id`;
@@ -728,35 +767,69 @@ Regras de payload:
 
 ### 4.9 Fixture curada do DOC-02
 
-O modo `fixture = 1` é um instrumento de teste, não o produto: reproduz a fixture de quatro
-localidades do DOC-02 §3.1/§3.2 e é validado pelas mesmas regras de payload, topologia, custo e
-hash da região procedural. A seed canónica da fixture (`PD-09`) continua pendente de aprovação;
-os IDs numéricos efetivos são os que o allocator regional produzir e o manifesto da fixture
-regista. Os nomes abaixo são ilustrativos e não canónicos.
+A fixture é um `FixtureManifest` v1 — instrumento de teste, não um modo de `generate_region`
+nem o produto. O manifesto é propriedade de `GRID-01`, que o materializa num `RegionState`; os
+consumidores são `GAME-01`, `SOC-01`, `SOC-03` e `E2E-01`. O estado materializado passa as mesmas
+validações de §4.7/§4.8; a seed `0` é de teste e não aprova `PD-09`. Os nomes são ilustrativos e
+não canónicos. O manifesto é fechado: AABBs, IDs, portões, regra de terreno e contagens de
+corredor bastam para reconstruir a fixture sem inventar layout. O manifesto **não** usa
+`gates_per_locality = 2` como override: os portões são explícitos e produzem 2/2/2/1 por
+localidade.
 
-| Localidade | Papel na sessão | Portões | Gate kind |
+| Campo do `FixtureManifest` | Valor |
+| --- | --- |
+| `manifest_version` | `1` |
+| `name` | `DOC02_FIXTURE_V1` |
+| `region_id` | `0x0000_0000_0000_0001` (vetor de teste; não afirma o resultado de `generate_region` para a seed) |
+| `seed` | `0` (somente fixture; `PD-09` canónico continua pendente) |
+| `generator_version` | `1` |
+| `bounds` | `(0, 0, 0)..(129, 71, 0)` |
+| `terrain_rule` | Todas as células de cada localidade em `z = 0` têm `surface = TERRA_BATIDA`, `fill = AR`, `structure_id = 0`, `role = 0`; fora das localidades, o bloco é implícito `(NENHUMA, AR)`. |
+
+Localidades e portões:
+
+| Localidade | `LocationId` | AABB | Portões |
 | --- | --- | --- | --- |
-| `L1` Vau do Junco | aldeia de passagem, origem do jogador | `G1a`, `G1b` | `ESTRADA`, `TRILHA` |
-| `L2` Feira de Sal | mercado regional | `G2a`, `G2b` | `ESTRADA`, `TRILHA` |
-| `L3` Atalaia do Norte | posto de vigia | `G3a`, `G3b` | `ESTRADA`, `TRILHA` |
-| `L4` Bosque de Cobre | aldeia de lenhadores | `G4a` | `ESTRADA` |
+| `L1` Vau do Junco | `0x0003_0000_0001_0001` | `x 0..31`, `y 0..31`, `z 0` | `G1a` `(31,16,0)` `ESTRADA`; `G1b` `(16,31,0)` `TRILHA` |
+| `L2` Feira de Sal | `0x0003_0000_0002_0001` | `x 64..95`, `y 0..31`, `z 0` | `G2a` `(64,16,0)` `ESTRADA`; `G2b` `(80,31,0)` `TRILHA` |
+| `L3` Atalaia do Norte | `0x0003_0000_0003_0001` | `x 34..65`, `y 40..71`, `z 0` | `G3a` `(48,71,0)` `ESTRADA`; `G3b` `(48,40,0)` `TRILHA` |
+| `L4` Bosque de Cobre | `0x0003_0000_0004_0001` | `x 98..129`, `y 40..71`, `z 0` | `G4a` `(98,56,0)` `ESTRADA` |
 
-| Aresta | Portões | Terreno do corredor | Custo |
+Portões (`GateId` kind 6, geração 1, na ordem de alocação `L1, L2, L3, L4`):
+
+| Portão | `GateId` | Célula | Kind |
 | --- | --- | --- | --- |
-| `E12` Vau–Feira | `G1a`–`G2a` | 6 estrada (1 cada) + 4 água rasa (4 cada) = 22 | 24 |
-| `E13` Vau–Atalaia | `G1b`–`G3b` | 5 estrada (1 cada) + 3 vegetação rasteira (2 cada) = 11 | 13 |
-| `E23` Atalaia–Feira | `G3a`–`G2b` | 4 estrada (1 cada) + 4 rocha (3 cada) = 16 | 18 |
-| `E24` Feira–Bosque | `G2a`–`G4a` | 5 terra batida (1 cada) + 4 vegetação rasteira (2 cada) = 13 | 15 |
+| `G1a` | `0x0006_0000_0001_0001` | `(31,16,0)` | `ESTRADA` |
+| `G1b` | `0x0006_0000_0002_0001` | `(16,31,0)` | `TRILHA` |
+| `G2a` | `0x0006_0000_0003_0001` | `(64,16,0)` | `ESTRADA` |
+| `G2b` | `0x0006_0000_0004_0001` | `(80,31,0)` | `TRILHA` |
+| `G3a` | `0x0006_0000_0005_0001` | `(48,71,0)` | `ESTRADA` |
+| `G3b` | `0x0006_0000_0006_0001` | `(48,40,0)` | `TRILHA` |
+| `G4a` | `0x0006_0000_0007_0001` | `(98,56,0)` | `ESTRADA` |
 
-Rotas de referência que o teste da fixture deve reproduzir: `L1` para `L2` pela direta `E12` =
-24 ticks; pela alternativa `E13` + `E23` = 31 ticks, vence a direta. `L3` para `L4` por `E23` +
-`E24` = 33 ticks; por `L1` = 52 ticks, vence a primeira. Com `E12` bloqueada, `L1` para `L2`
-passa a 31 ticks. Com `E24` bloqueada, `L4` fica inalcançável e `find_route` devolve
-`RouteImpossible`; a recusa de viagem com `ROTA_IMPOSSIVEL` e 0 tick é de `GAME-01`.
+Arestas (`EdgeId` kind 7, geração 1; `gate_a < gate_b` e custo pela fórmula de §4.5):
 
-A fixture não pode ser usada para reduzir o produto a uma vila nem para dispensar a geração
-procedural com pelo menos três localidades; ela existe para que `GAME-01`, `SOC-01`, `SOC-03` e
-`E2E-01` tenham custos e resultados pinados.
+| Nome | `EdgeId` | Portões | `corridor_units` (c1,c2,c3,c4) | `cost_ticks` |
+| --- | --- | --- | --- | --- |
+| `E12` Vau–Feira | `0x0007_0000_0001_0001` | `G1a`–`G2a` | `6, 0, 0, 4` | `6 + 0 + 0 + 16 + 2 = 24` |
+| `E13` Vau–Atalaia | `0x0007_0000_0002_0001` | `G1b`–`G3b` | `5, 3, 0, 0` | `5 + 6 + 0 + 0 + 2 = 13` |
+| `E24` Feira–Bosque | `0x0007_0000_0003_0001` | `G2a`–`G4a` | `5, 4, 0, 0` | `5 + 8 + 0 + 0 + 2 = 15` |
+| `E23` Atalaia–Feira | `0x0007_0000_0004_0001` | `G2b`–`G3a` | `4, 0, 4, 0` | `4 + 0 + 12 + 0 + 2 = 18` |
+
+A ordem de `EdgeId` é a ordem canónica de alocação por `(gate_a, gate_b)`: `(1,3)`, `(2,6)`,
+`(3,7)`, `(4,5)`. A regra de terreno materializa `4096` blocos (`4 × 32 × 32`); não há
+estruturas. A fixture é válida apenas se: os AABBs não se sobrepõem e respeitam
+`MIN_LOCALITY_GAP = 2`, cada portão está no AABB da sua localidade e numa célula passável,
+`gate_count` é `2/2/2/1`, as arestas usam os pares acima, `corridor_units` e `cost_ticks`
+satisfazem a fórmula, e as rotas abaixo reproduzem. Qualquer divergência é `InvalidFixture`; não
+há correção silenciosa.
+
+Rotas de referência: `L1` para `L2` pela direta `E12` = 24 ticks; pela alternativa `E13` + `E23`
+= 31 ticks, vence a direta. `L3` para `L4` por `E23` + `E24` = 33 ticks; por `L1` = 52 ticks,
+vence a primeira. Com `E12` bloqueada, `L1` para `L2` passa a 31 ticks. Com `E24` bloqueada,
+`L4` fica inalcançável e `find_route` devolve `RouteImpossible`; a recusa de viagem com
+`ROTA_IMPOSSIVEL` e 0 tick é de `GAME-01`. O manifesto não pode ser usado para reduzir o produto
+a uma vila nem para dispensar a geração procedural com pelo menos três localidades.
 
 ## 5. Percepção autoritativa e memória (INT-14)
 
@@ -834,6 +907,13 @@ Bloqueiam a linha:
   seguinte. Isto trata pisos, andares e vãos de escada sem uma regra especial por nome, e exige
   uma abertura transparente em **todos** os planos atravessados (uma escada isolada não abre um
   piso intermédio opaco).
+- Consequência explícita da regra: **o piso de apoio do alvo conta**. Um alvo no andar superior
+  sobre `PISO_PEDRA`/`PISO_MADEIRA` opaco não é visto de baixo, mesmo que exista uma `ESCADA`
+  noutra célula; para ser visto de baixo, o alvo tem de estar numa célula de superfície
+  transparente (`ESCADA` ou `RAMPA`) no nível superior e a linha deve atravessar os planos por
+  essa mesma coluna. Simetricamente, um observador sobre um piso opaco não vê o andar de baixo
+  através desse piso; a abertura tem de estar na superfície da célula do observador (escada ou
+  rampa). O piso de apoio não é ignorado por ser o destino.
 - Células fora dos limites regionais não são tocadas nem visíveis; não há wrap nem leitura de
   memória de outra região.
 
@@ -942,8 +1022,9 @@ observer_view(world: &WorldState, observer: ActorId, schema: ViewSchema)
 | Porta aberta | `PORTA` entre os dois, mesma linha | Alvo visível e passável; não há estado fechado. |
 | Janela | `VIDRO` entre os dois | Alvo visível; movimento para a célula é `CellImpassable`. |
 | Telhado | Observador em terraço `z=3`, alvo atrás de `TELHADO` em `z=2` | Linha tocada no telhado opaco; alvo não visível. |
-| Dois andares | Observador no piso `z=0`, alvo no piso `z=1`, piso `PISO_PEDRA` opaco | Alvo não visível pelo piso; escada transparente pode abrir a linha. |
-| Escada | Observador no piso de baixo, alvo no de cima, célula `ESCADA` transparente | Alvo visível se o resto da linha estiver livre. |
+| Dois andares | Observador no piso `z=0`, alvo no piso `z=1`, alvo sobre `PISO_PEDRA` opaco | Alvo **não** visível: o piso de apoio do destino está no plano `z=1` e bloqueia. |
+| Escada (alvo na escada) | Observador no piso de baixo, alvo na célula `ESCADA`/`RAMPA` do nível `z=1`, mesma coluna `x,y` | Alvo visível: a superfície transparente da célula do alvo abre o plano. |
+| Piso superior opaco | Observador no piso de baixo, escada noutra célula, alvo sobre `PISO_PEDRA` no nível `z=1` | Alvo **não** visível: a escada intermediária não abre o piso de apoio opaco do alvo. |
 | Fora do `z_span` | `abs(dz) > 1` | Não visível, mesmo com linha livre. |
 | Fora do arco | Alvo atrás do observador em `FRENTE_120` | Não visível, mesmo adjacente. |
 | Limite do raio | Alvo exatamente em `reach` | Visível se o arco e a linha permitirem; o limite é inclusivo. |
@@ -977,41 +1058,38 @@ player_silhouettes(world: &WorldState, query: &SilhouetteQuery,
   -> Result<SilhouetteEnvelope, VisibilityError>
 ```
 
-`SilhouetteQuery`:
+`SilhouetteQuery` (v1 fixa `A1`, sem campo de âmbito alternativo):
 
 | Campo | Tipo | Regra |
 | --- | --- | --- |
 | `observer` | `ActorId` | Jogador vivo; é o único dono do canal. |
-| `anchor` | `GridPoint` | Âncora da câmera; deve estar nos limites regionais. |
-| `camera_z` | `i16` | Nível exibido; `0..=15`; não move ator. |
-| `scope` | enum | `1 = LOCALITY` (recomendado), `2 = REGION`; ver §6.5. |
-| `include_never_seen` | `bool` | Obrigatório e explícito; não há default. |
-| `max_distance_cells` | `u16` | `1..=contract.max_distance_cells`; valor da query nunca amplia o contrato. |
+| `anchor` | `GridPoint` | Âncora da câmera; `anchor.z` deve ser igual a `camera_z`; a célula deve pertencer a exatamente uma localidade (`A1`). |
+| `camera_z` | `i16` | Nível exibido; `0..=15`; deve ser igual a `anchor.z`; não move ator. |
 
-`SilhouetteContract`:
+`SilhouetteContract` v1 (valores aprovados; um valor diferente exige versão nova):
 
-| Campo | Tipo | Regra |
+| Campo | Valor v1 | Regra |
 | --- | --- | --- |
-| `contract_version` | `u16` | `1`; outra versão é `UnknownSilhouetteContract`. |
-| `scope` | enum | Deve coincidir com a query; divergência é `InvalidSilhouetteContract`. |
-| `max_distance_cells` | `u16` | Limite de alcance aprovado; valor proposto em §6.5. |
-| `z_below` | `u8` | Níveis abaixo de `camera_z` incluídos (`0..=4`). |
-| `z_above` | `u8` | Níveis acima de `camera_z` incluídos (`0..=4`). |
-| `require_construction_occluder` | `bool` | Deve ser `true` em v1; `false` não é uma opção de produto. |
-| `include_never_seen` | `bool` | Deve coincidir com a query. |
-| `max_silhouettes` | `u16` | `1..=MAX_SILHOUETTES`; zero é `InvalidSilhouetteContract`. |
-| `allowed_roles` | bitset | Bit 1 = `PAREDE`, bit 2 = `TELHADO`, bit 3 = `PISO`; outros bits devem ser `0`. v1 usa `0b111`. |
+| `contract_version` | `1` | Outra versão é `UnknownSilhouetteContract`. |
+| `max_distance_cells` | `32` | Distância máxima a partir da âncora (`D1` aprovado). |
+| `z_below` | `1` | Um nível abaixo de `camera_z` (`Z2` aprovado). |
+| `z_above` | `1` | Um nível acima de `camera_z` (`Z2` aprovado). |
+| `require_construction_occluder` | `true` | Silhueta só atrás de construção opaca (`O1` aprovado). |
+| `max_silhouettes` | `256` | Limite determinístico; zero é `InvalidSilhouetteContract`. |
+| `allowed_roles` | `0b111` | Bits 0/1/2 correspondem aos papéis 1/2/3 (`PAREDE`/`TELHADO`/`PISO`); bits 3..15 devem ser `0`. |
 
 O contrato é um valor versionado e imutável de configuração. Ele não é escolhido pelo cliente,
-não é inferido de assets, não é ampliado por zoom e não entra no save/replay. Enquanto o alcance
-não for aprovado pelo maintainer, `VIEW-01`/`RENDER-01` não podem implementar o overlay; a
-tabela de opções e a recomendação estão em §6.5 e §14.
+não é inferido de assets, não é ampliado por zoom e não entra no save/replay. A combinação
+`A1 + D1 + Z2 + N1 + O1` foi **aprovada pelo maintainer em 2026-11-08**; `A2`/`A3`/`Z3`/`O2` e
+`N2` não são representáveis na v1 e exigem campo/versão nova e nova decisão (§6.5).
 
-Validação conjunta: `query.scope == contract.scope`, `query.include_never_seen ==
-contract.include_never_seen`, `1 <= query.max_distance_cells <= contract.max_distance_cells`,
-`contract.contract_version == 1`, `contract.allowed_roles` sem bits desconhecidos e
-`contract.require_construction_occluder = true`. Qualquer divergência é `InvalidSilhouetteContract`
-(contrato) ou `InvalidSilhouetteQuery` (query), sem resultado parcial.
+Validação conjunta: `contract.contract_version == 1`, todos os valores da tabela exatamente
+iguais aos aprovados, `contract.allowed_roles` sem bits desconhecidos,
+`contract.require_construction_occluder = true`, `anchor.z == camera_z`, `0 <= camera_z <= 15`,
+`anchor` contido numa localidade e observador válido. Contrato divergente é
+`InvalidSilhouetteContract`; query divergente é `InvalidSilhouetteQuery`; âncora fora de
+localidade é `AnchorOutsideLocality`; `anchor.z != camera_z` é `CameraAnchorMismatch`. Não há
+resultado parcial nem default de âmbito.
 
 ### 6.3 Elegibilidade: todos atrás de construções, inclusive não percebidos
 
@@ -1020,26 +1098,24 @@ Um ator é elegível para silhueta se **todos** os critérios valem:
 1. É um ator vivo, diferente do observador (o avatar do jogador não é silhueta).
 2. Está numa célula da região, não em trânsito (ator em trânsito não tem célula e não está atrás
    de construção).
-3. A célula está dentro do âmbito geométrico: `scope` (`LOCALITY` do `anchor`, ou `REGION`),
-   `max_distance_cells` a partir do `anchor` e faixa `[camera_z - z_below, camera_z + z_above]`.
+3. A célula está na **localidade da âncora** (`A1`), a `max_distance_cells = 32` dela, e na faixa
+   `[camera_z - 1, camera_z + 1]` (`Z2`).
 4. Existe **pelo menos uma construção opaca** tocada pela linha de visão entre o olho da câmera
-   (âncora `camera_z`) e a célula do ator: `PAREDE`, `TELHADO` ou `PISO` estrutural, conforme
-   `allowed_roles`. A linha usa a mesma supercover 3D de §5.3 (incluindo a regra de planos de
-   superfície), mas aqui procura um oclusor de construção e **não** calcula FOV. `VIDRO` e
-   `PORTA` são transparentes e não contam; `ROCHA`, `TRONCO`, `FOLHAGEM` e vegetação **não** são
-   construções e não geram silhueta nesta versão.
+   (a própria `anchor`, com `anchor.z == camera_z`) e a célula do ator: `PAREDE`, `TELHADO` ou
+   `PISO` estrutural (`O1`). A linha usa a mesma supercover 3D de §5.3 (incluindo a regra de
+   planos de superfície), mas aqui procura um oclusor de construção e **não** calcula FOV.
+   `VIDRO` e `PORTA` são transparentes e não contam; `ROCHA`, `TRONCO`, `FOLHAGEM` e vegetação
+   **não** são construções e não geram silhueta nesta versão.
 5. O ator não está na mesma célula do observador nem é uma duplicata/stale; iteração é sobre
    atores vivos ordenados por `ActorId`.
-6. Se `include_never_seen = false` (`N2`), a célula do ator deve existir na memória do observador
-   (terreno lembrado) ou o ator já deve ter sido visto; caso contrário, não é elegível. Com
-   `include_never_seen = true` (`N1`, recomendado), esta condição não se aplica e a área nunca
-   vista é admitida dentro do âmbito aprovado.
+6. A área nunca vista é **incluída** (`N1` aprovado): nenhuma célula ou ator é excluído por falta
+   de memória, `last_seen` ou FOV. Não existe filtro “já visto” na v1.
 
 O critério 4 é o que distingue "atrás de construção" de "não percebido por distância, arco ou
 escuridão". Um ator não percebido em campo aberto **não** aparece no overlay; a exceção de D-04
-não é um radar de todos os atores. Uma área nunca vista pode conter um ator atrás de parede e ser
-elegível se `include_never_seen = true`; a escolha está pendente de aprovação (§6.5/§14) e não
-pode ser decidida pela implementação.
+não é um radar de todos os atores. Uma área nunca vista pode conter um ator atrás de parede e é
+elegível pela `N1` aprovada; excluí-la exigiria uma nova decisão do maintainer e uma versão nova
+do contrato, nunca um filtro implícito de implementação.
 
 ### 6.4 Envelope, dados expostos e limites
 
@@ -1050,7 +1126,7 @@ pode ser decidida pela implementação.
 | `envelope_version` | `u16 = 1` | Outra versão é `UnsupportedSilhouetteVersion`. |
 | `contract_version` | `u16` | Eco do contrato aplicado. |
 | `tick` / `state_hash` | `u64` / 32 bytes | Eco do estado lido; consistência com o DTO. |
-| `scope` | enum | Âmbito aplicado. |
+| `scope` | `LOCALITY` fixo | Âmbito aplicado; a v1 não tem outro valor. |
 | `truncated` / `omitted_count` | `bool` / `u32` | Truncagem determinística, nunca silenciosa. |
 | `silhouettes` | lista ordenada | Ordenada por `(distance_squared, actor_id)` ascendente. |
 
@@ -1072,67 +1148,38 @@ revelar o interior da construção.
 - `max_silhouettes` é aplicado depois de ordenar por `(distance_squared, actor_id)`; se houver
   mais candidatos, devolve os primeiros e `truncated = true` com `omitted_count`; a ordem é
   estável e não depende de `HashMap`. `max_silhouettes = 0` é `InvalidSilhouetteContract`.
-- Consulta inválida (âncora fora dos limites, `camera_z` inválido, `scope` desconhecido,
-  `include_never_seen` ausente, observador morto/inexistente/em trânsito) é
-  `InvalidSilhouetteQuery`/`ObserverDead`/`ObserverNotFound`/`ObserverInTransit`; não há resultado
-  parcial.
+- Consulta inválida (âncora fora dos limites ou fora de qualquer localidade, `camera_z` inválido,
+  `anchor.z != camera_z`, observador morto/inexistente/em trânsito) é
+  `InvalidSilhouetteQuery`/`AnchorOutsideLocality`/`CameraAnchorMismatch`/`ObserverDead`/
+  `ObserverNotFound`/`ObserverInTransit`; não há resultado parcial.
 - `player_silhouettes` exige a permissão `PlayerPresentation`; NPC, MLP, rumor, testemunho e
   alcance social não têm essa permissão e recebem `OverlayAccessDenied`. Uma versão `DEBUG` é
   separada, não shipping e nunca alimenta decisão.
 
-### 6.5 Alcance geométrico: opções e recomendação (pendente de aprovação)
+### 6.5 Alcance geométrico aprovado
 
-Nenhum valor abaixo está aprovado. A recomendação é a deste contrato; o maintainer pode aceitar,
-alterar ou rejeitar cada item antes de `VIEW-01`/`RENDER-01`. A aprovação deve ser registada em
-`decisions.md` pelo maintainer; este contrato não edita esse ficheiro.
+A combinação `A1 + D1 + Z2 + N1 + O1`, com `max_silhouettes = 256`, foi **aprovada pelo
+maintainer em 2026-11-08**. Ela é a única configuração da v1; não há campo de âmbito, distância
+alternativa, exclusão de área nunca vista ou oclusor natural no contrato.
 
-**Âmbito horizontal (`scope`)**
-
-| Opção | Descrição | Prós | Contras/impacto |
-| --- | --- | --- | --- |
-| `A1` `LOCALITY` (**recomendada**) | Apenas atores na localidade da âncora, dentro de `max_distance_cells`. | Coerente com "atrás de construções" locais; limita revelação; testável sem projeção. | Não mostra silhuetas de uma localidade vizinha visível no ecrã; exige nova consulta ao mudar de localidade. |
-| `A2` `CAMERA_VIEWPORT` | Atores cuja projeção cai no viewport + margem, qualquer distância. | Sem "pop" na borda; alinhado ao que o jogador vê. | Depende da projeção/stack ainda não escolhida; zoom-out pode revelar região inteira; precisa de contrato do cliente antes. |
-| `A3` `REGION` | Todos os atores atrás de construção na região inteira. | Literal maximalista. | Omnisciência regional; contraria o limite de alcance e a intenção de D-04; rejeitada na recomendação. |
-
-**Distância (`max_distance_cells`)**
-
-| Opção | Valor | Efeito |
+| Dimensão | Valor aprovado | Efeito |
 | --- | --- | --- |
-| `D1` (**recomendada**) | `32` células a partir da âncora | Cobre a área imediata e construções vizinhas sem revelar a localidade inteira. |
-| `D2` | `16` células | Mais conservador; pode cortar silhuetas visíveis na borda. |
-| `D3` | `64` células | Mais revelador; útil em localidades grandes, mas aproxima-se de "região". |
+| Âmbito | `A1` `LOCALITY` | Apenas a localidade que contém a âncora; âncora fora de localidade é rejeitada. |
+| Distância | `D1` | `32` células a partir da âncora. |
+| Níveis `z` | `Z2` | `camera_z - 1..=camera_z + 1`; paredes, telhados e pisos continuam a ocluir. |
+| Áreas nunca vistas | `N1` | Incluídas dentro do âmbito; nenhuma filtragem por memória/`last_seen`/FOV. |
+| Oclusores | `O1` | Apenas `PAREDE`/`TELHADO`/`PISO` estruturais opacos. |
+| Limite | `256` | Truncagem determinística por `(distance_squared, actor_id)`. |
 
-**Níveis `z`**
+Alternativas **não representáveis na v1** (exigem campo, versão e decisão nova; não são opções
+válidas hoje): `A2` recorte por viewport, `A3` região inteira, `Z3` todos os níveis, `O2`
+adicionar tronco/folhagem/rocha e `N2` excluir áreas nunca vistas. `N2` em especial contradiz
+D-04 e o AC-CTR-03-03; não pode ser reintroduzida como opção técnica.
 
-| Opção | Faixa | Efeito |
-| --- | --- | --- |
-| `Z1` | `camera_z` apenas | Estrito; não mostra andares acima/abaixo, mas evita revelação vertical. |
-| `Z2` (**recomendada**) | `camera_z - 1 ..= camera_z + 1` | Mostra o andar atual e imediatamente adjacente; paredes/telhados/pisos continuam a ocluir. |
-| `Z3` | Todos os níveis da localidade | Maximalista; revela torres e caves inteiras; não recomendado. |
-
-**Áreas nunca vistas**
-
-| Opção | Comportamento | Efeito |
-| --- | --- | --- |
-| `N1` (**recomendada**) | `include_never_seen = true` dentro do âmbito/direção aprovados | Cumpre "inclusive não percebidos"; revela presença em salas nunca vistas, deliberadamente. |
-| `N2` | `include_never_seen = false`; só células já vistas/em memória | Menos revelação, mas exclui atores em áreas nunca vistas e enfraquece a exceção. |
-
-**Oclusores**
-
-| Opção | Papéis | Efeito |
-| --- | --- | --- |
-| `O1` (**recomendada**) | `PAREDE`, `TELHADO`, `PISO` estruturais opacos | Literal "atrás de construções"; árvores/rochas não criam silhueta. |
-| `O2` | Adicionar `TRONCO`/`FOLHAGEM`/`ROCHA` | Mais silhuetas naturais; mistura construção com terreno e amplia revelação; exige nova decisão. |
-
-**Recomendação consolidada:** `A1 + D1 + Z2 + N1 + O1`, com `max_silhouettes = 256` e
-`require_construction_occluder = true`. É a combinação que melhor cumpre D-04 sem transformar o
-overlay em radar regional e sem depender de projeção/stack. O número `32` é uma proposta
-contratual, não uma medição; pode ser ajustado pelo maintainer sem alterar a semântica.
-
-Enquanto a aprovação não existir, o único efeito permitido é documental: nenhum overlay é
-desenhado, nenhum default é inventado e nenhum teste de produto declara o alcance aprovado. A
-implementação de `VIEW-01` só começa depois do aceite explícito; `RENDER-01` só integra depois de
-`VIEW-01` e da stack.
+O número `32` e a faixa `±1` são decisões de produto aprovadas, não medições. `VIEW-01` pode
+implementar o canal com esta configuração depois do freeze; `RENDER-01` continua dependente da
+stack (`PA-08`), e a lista de campos expostos (`PA-06`) e o debug (`PA-07`) continuam pendentes.
+`RENDER-01` não pode aumentar o alcance, mudar oclusores ou reativar `N2` por conta própria.
 
 ### 6.6 O overlay não é fonte de conhecimento
 
@@ -1161,12 +1208,16 @@ implementação de `VIEW-01` só começa depois do aceite explícito; `RENDER-01
 `overlay_enabled: bool`. Não há rotação, perspectiva, `fov` de câmera ou altura flutuante em v1.
 Todos os campos são inteiros e vivem fora do `WorldState`, do save autoritativo e do hash.
 
-- `anchor` deve estar nos limites regionais; `camera_z` deve ser um nível válido; zoom e viewport
-  devem ser positivos. Estado inválido é `InvalidCameraState`; o cliente pode corrigir apenas a
-  apresentação, nunca o mundo.
+- `anchor` deve estar nos limites regionais e `anchor.z` deve ser **igual** a `camera_z`; um valor
+  divergente é `CameraAnchorMismatch` (ou `InvalidCameraState` na câmera). `camera_z` deve ser um
+  nível válido; zoom e viewport devem ser positivos. `layer_mask` usa os bits 0..7 para as oito
+  camadas de §8.3 (bit 0 = camada 1); bits 8..31 devem ser `0`, caso contrário `InvalidCameraState`.
+  O cliente pode corrigir apenas a apresentação, nunca o mundo.
 - A câmera pode olhar uma localidade, uma parede, um telhado ou uma área desconhecida; isso não
   cria percepção, memória, terreno, ator, estrutura ou fato. O desconhecido continua desconhecido
-  no canal autoritativo.
+  no canal autoritativo. Para o overlay, a âncora tem de estar dentro de uma localidade; a câmera
+  em terreno selvagem não define “localidade da âncora” e a query é rejeitada com
+  `AnchorOutsideLocality`.
 - O cliente pode usar `anchor`/`camera_z` na query de overlay como janela geométrica de
   apresentação; isso não converte a câmera em observador nem em sensor. O observador de FOV é
   sempre o ator.
@@ -1227,8 +1278,8 @@ autorizar efeito. Tempo de parede, FPS e latência podem aparecer em diagnóstic
 golden, hash ou decisão.
 
 O cliente deve rejeitar/avisar quando `observation.tick/state_hash` e
-`silhouettes.tick/state_hash` não coincidem, quando o contrato de silhuetas não está aprovado ou
-quando a versão do DTO é desconhecida (`STALE_OBSERVATION`, `OVERLAY_NOT_APPROVED`,
+`silhouettes.tick/state_hash` não coincidem, quando o contrato de silhuetas diverge dos valores
+aprovados ou quando a versão do DTO é desconhecida (`STALE_OBSERVATION`, `OVERLAY_CONTRACT_MISMATCH`,
 `UNSUPPORTED_DTO`). Um frame com aviso pode desenhar ambiente, mas não deve misturar canais
 inconsistentes nem inventar dados.
 
@@ -1332,18 +1383,38 @@ histórico.
 | `schema_version` | `u16 = 1` | Outra versão é `UnknownAbstractPerceptionVersion`. |
 | `observer`, `tick`, `state_hash` | Identidade e revisão | Eco do estado autoritativo lido. |
 | `facing`, `reach_cells` | Direção e alcance | Do observador, não da câmera. |
-| `visible_actors` | Lista ordenada por `ActorId` | Cada item tem `actor_id`, `bearing_octant` (`0..7`), `distance_bucket` (`1..=4`) e `elevation_bucket` (`-1..=1`); somente atores vivos no FOV atual. |
-| `environment_features` | Contagens e flags | Células passáveis/opacas/água/vegetação/estrada à volta do observador, em buckets inteiros. |
-| `memory_summary` | Contagens e células relativas lembradas | Última observação; nunca atores lembrados como presentes. |
-| `unknown_ratio_bp` | `0..=10_000` | Fração do alcance sem memória/visão ativa, para exploração. |
+| `visible_actors` | Lista ordenada por `ActorId` | Cada item tem `actor_id`, `bearing_quadrant` (`0..3`), `distance_bucket` (`1..=4`) e `elevation_bucket` (`-1..=1`); somente atores vivos no FOV atual. |
+| `environment_features` | Contagens inteiras | `passable_neighbors`, `opaque_neighbors`, `water_neighbors`, `vegetation_neighbors`, `road_neighbors`, cada uma em `0..=4`; vizinhança cardinal no mesmo `z`. |
+| `memory_summary` | Contagens | `remembered_cells u32`, `remembered_actors u32` e `last_seen_tick_max u64`; nunca posições de atores lembrados. |
+| `unknown_ratio_bp` | `0..=10_000` | Fração do quadrado local `(2*reach+1)^2` no mesmo `z` sem visão ativa nem memória. |
+
+Fórmulas exatas (sem `f32`; `dx = actor.x - observer.x`, `dy = actor.y - observer.y`,
+`dz = actor.z - observer.z`, `forward = dx*fx + dy*fy`, `right = -dx*fy + dy*fx`, com
+`(fx, fy)` o vetor `facing`):
+
+- `bearing_quadrant`: `0` se `forward > 0` e `abs(forward) >= abs(right)`; `1` se `right > 0` e
+  `abs(right) > abs(forward)`; `2` se `forward < 0` e `abs(forward) >= abs(right)`; `3` nos
+  restantes casos. Empates favorecem frente/trás de forma determinística.
+- `distance_bucket`: `1` se `dx*dx + dy*dy <= 4`; `2` se `<= 16`; `3` se `<= 64`; `4` caso
+  contrário (o FOV v1 tem `reach <= 12`, logo `d2 <= 144`).
+- `elevation_bucket`: `-1` se `dz < 0`, `0` se `dz = 0`, `1` se `dz > 0` (o FOV v1 limita
+  `abs(dz) <= 1`).
+- `unknown_ratio_bp = floor(unknown_cells * 10_000 / total_cells)`, onde `total_cells =
+  (2*reach+1)^2` e `unknown_cells` conta as células do quadrado local que não estão em
+  `perceived` nem em `memory`; `total_cells > 0` é garantido por `reach >= 4`.
+- `environment_features`: as quatro células cardinais no mesmo `z`; `passable_neighbors` conta
+  as passáveis por §3.4, `opaque_neighbors` as com `fill.opaque`, e água/vegetação/estrada as do
+  `CellType` correspondente; cada contagem fica em `0..=4`. `memory_summary` conta células e
+  atores com `last_seen` e o maior `last_seen_tick`; não expõe posições de atores lembrados.
 
 - `AbstractPerception` não contém `SilhouetteEnvelope`, `camera`, `anchor`, coordenadas de ecrã,
   nomes, HP, inventário, relações, rumores, agenda, intenção, prosa ou qualquer campo de overlay.
   Também não contém a posição live de um ator não percebido; a memória de ator é apresentação
   congelada, não input de decisão de alvo.
 - A conversão para `AbstractPerception` é determinística e versionada; o mesmo `PerceivedState` e
-  a mesma memória produzem o mesmo DTO. Buckets usam aritmética inteira e limites fechados; não há
-  `f32`, normalização por média móvel, ruído ou RNG.
+  a mesma memória produzem o mesmo DTO. As fórmulas desta secção pertencem a CTR-03; BEH-01
+  consome o resultado e não redefine buckets, direções ou distâncias. Não há `f32`, normalização
+  por média móvel, ruído ou RNG.
 - BEH-01 pode consumir `observer_view` diretamente com `consumer = MLP` ou o DTO abstrato
   equivalente; em qualquer caso, a permissão é a mesma e o overlay é negado. Um teste deve provar
   que mudar silhuetas, câmera ou texto NLG não altera scores/ações da MLP.
@@ -1374,6 +1445,12 @@ publicar metade.
 | Gerador com versão desconhecida | `generate_region` | `UnsupportedGeneratorVersion`. |
 | Bounds fora dos limites ou `min > max` | `RegionSpec`/`GridBounds` | `InvalidRegionBounds`. |
 | Contagem, extensão, gap, perfil ou densidade inválidos | `RegionSpec` | `InvalidRegionSpec`. |
+| `edge_policy = 1` com `extra_edges > 0` | `RegionSpec` | `InvalidRegionSpec`. |
+| `initial_blocked_edges` maior que as arestas selecionadas | geração | `InvalidBlockedEdgeCount`. |
+| `REGION.edge_count` acima de `MAX_EDGES` | payload | `InvalidRegionPayload`. |
+| `corridor_units` com soma zero/acima do limite | validação | `InvalidCorridorUnits`. |
+| Amostra procedural acima de `MAX_CORRIDOR_CELLS` | geração | `CorridorTooLong`. |
+| `FixtureManifest` incoerente com o vetor DOC-02 | fixture | `InvalidFixture`. |
 | Localidades sobrepostas ou fora dos bounds | geração | `LocalityOverlap`/`LocalityOutOfBounds`. |
 | Localidade sem portão ou portão em célula inválida | geração/validação | `InvalidGate`. |
 | Grafo sem árvore que ligue todas as localidades | geração | `RegionGenerationFailed`. |
@@ -1395,6 +1472,7 @@ publicar metade.
 | Estado de aresta desconhecido | validação | `UnsupportedEdgeState`. |
 | Rota com origem igual ao destino | `find_route` | `RouteOriginEqualsDestination`. |
 | Rota sem solução | `find_route` | `RouteImpossible`. |
+| Custo total de rota com overflow | `find_route` | `RouteCostOverflow`. |
 | Pedido de rota com localidade/campo inválido | `find_route` | `InvalidRouteRequest`/`UnknownLocation`. |
 | Dois atores na mesma célula | ocupação | `InvalidOccupancy`; sem sobreposição. |
 | Célula com `fill`/`surface` intransponível | passagem | `CellImpassable`. |
@@ -1418,9 +1496,11 @@ publicar metade.
 | NPC/MLP a pedir overlay | permissão | `OverlayAccessDenied`. |
 | Contrato de silhuetas desconhecido/inválido | overlay | `UnknownSilhouetteContract`/`InvalidSilhouetteContract`. |
 | Query de overlay inválida | overlay | `InvalidSilhouetteQuery`. |
+| Âncora fora de qualquer localidade (`A1`) | overlay | `AnchorOutsideLocality`. |
+| `anchor.z != camera_z` | overlay/câmera | `CameraAnchorMismatch`. |
 | Envelope de silhuetas com versão inválida | leitura | `UnsupportedSilhouetteVersion`. |
 | `max_silhouettes` zero | contrato | `InvalidSilhouetteContract`. |
-| Câmera com `z`/âncora/zoom inválido | apresentação | `InvalidCameraState`. |
+| Câmera com `z`/âncora/zoom/`layer_mask` inválido | apresentação | `InvalidCameraState`. |
 | `present` com DTO de outro tick/hash | cliente | `STALE_OBSERVATION` (aviso; não aplica). |
 | Stack/render sem aprovação | processo | `RENDER_STACK_AND_CODE_ALLOWLIST` bloqueado; sem código. |
 | Versão de percepção abstrata desconhecida | W8 | `UnknownAbstractPerceptionVersion`. |
@@ -1436,8 +1516,8 @@ etapa; cada linha indica a prova documental e o teste futuro que deve prová-lo.
 Critério: existem tipos de célula (vazio/sólido/água/vegetação/estrada/estrutura), materiais com
 opacidade/passagem/ocupação, estrutura cúbica com blocos e item normal fora da grelha; `z` e
 níveis, chunks e limites contratuais estão definidos; a região é gerada deterministicamente com
-pelo menos três localidades, portões e arestas com topologia válida; a fixture DOC-02 reproduz
-quatro localidades e custos 24/13/18/15 com terreno de 1 a 4 ticks e +1 por `z`; coordenadas
+pelo menos três localidades, portões e arestas com topologia válida; o `FixtureManifest` DOC-02
+reproduz quatro localidades e custos 24/13/18/15 com terreno de 1 a 4 ticks e +1 por `z`; coordenadas
 inválidas, ocupação ilegal, passagem impossível e colisão de identidade são rejeitadas; a mesma
 seed gera a mesma região, IDs e rotas; área fora do foco permanece no estado.
 
@@ -1465,9 +1545,10 @@ com inputs abstratos.
 Critério: o overlay mostra todos os personagens atrás de construções, inclusive não percebidos,
 em canal separado; não se restringe a percebidos nem a lembrados; não atualiza `last_seen`,
 memória, NPC, MLP, rumor, testemunho, hash, tick, RNG, agenda ou save; é somente leitura; não
-expõe dados além do contrato; o alcance geométrico tem opções e recomendação, marcado como
-pendente de aprovação do maintainer antes de `VIEW-01`/`RENDER-01`; um ator não percebido em
-campo aberto não é silhueta; um ator não percebido atrás de parede é silhueta quando elegível.
+expõe dados além do contrato; o alcance `A1 + D1 + Z2 + N1 + O1` foi **aprovado pelo maintainer
+em 2026-11-08** (`max_silhouettes = 256`), com âncora obrigatoriamente dentro de uma localidade; um
+ator não percebido em campo aberto não é silhueta; um ator não percebido atrás de parede é
+silhueta quando elegível, inclusive em área nunca vista (`N1`).
 
 Prova documental: §6.1–§6.6, §10.2 e §14.
 
@@ -1494,7 +1575,7 @@ Teste futuro: `RENDER-01` (documento de decisão e harness visual), `PLAY-01` (a
 | --- | --- | --- | --- | --- |
 | `AC-CTR-03-01` | Célula/material/estrutura/item, grelha, chunks, região multi-localidade, portões/arestas, rotas e rejeições | §3.1–§3.8, §4.1–§4.9, §10.2 | Tabelas de materiais, payloads, fixture 24/13/18/15 e testes de colisão/limite | `GRID-01`, `GRID-02`, `GAME-01` com fixture e golden de região. |
 | `AC-CTR-03-02` | FOV direcional, três estados, memória, `last_seen`, DTO por observador, câmera/NLG não sensores | §5.1–§5.8, §10.2 | Exemplos de parede/porta/janela/telhado/andar/limite e testes de memória congelada | `FOV-01` com `perception_memory.rs`; `VIEW-01` consome o DTO. |
-| `AC-CTR-03-03` | Silhuetas de todos atrás de construções, inclusive não percebidos, sem contaminar conhecimento/hash/tick | §6.1–§6.6, §10.2, §14 | Opções A1/D1/Z2/N1/O1, lista de campos e testes de contaminação | `VIEW-01` com `view_silhouettes.rs`, após aprovação do alcance. |
+| `AC-CTR-03-03` | Silhuetas de todos atrás de construções, inclusive não percebidos, sem contaminar conhecimento/hash/tick | §6.1–§6.6, §10.2, §14 | `A1 + D1 + Z2 + N1 + O1` aprovado, lista de campos e testes de contaminação | `VIEW-01` com `view_silhouettes.rs`, com o alcance aprovado. |
 | `AC-CTR-03-04` | Câmera sem tick/hash/agenda, região antes do render, INT-19 sem stack, W8 sem overlay | §7.1–§7.3, §8.1–§8.6, §9.1–§9.3, §14 | Tabela de custos 0, fórmula de projeção, gate e exclusões do DTO abstrato | `RENDER-01`, `PLAY-01`, `BEH-01`/`BEH-02` com testes visuais e de score. |
 
 ## 12. Testes futuros propostos
@@ -1506,10 +1587,11 @@ testes, não alegação de cobertura.
 
 - `given_same_seed_and_spec_when_generate_region_then_canonical_bytes_identical`
 - `given_three_localities_when_generate_then_all_connected_and_present`
-- `given_doc02_fixture_when_generate_then_four_localities_and_costs_24_13_18_15`
-- `given_doc02_fixture_when_validate_then_gate_pairings_and_terrain_match`
+- `given_doc02_fixture_manifest_when_materialize_then_four_localities_and_costs_24_13_18_15`
+- `given_doc02_fixture_manifest_when_validate_then_gate_pairings_and_terrain_match`
 - `given_same_seed_when_find_route_then_identical_route_and_cost`
-- `given_terrain_costs_when_travel_edge_then_sum_plus_two_matches_contract`
+- `given_corridor_units_when_compute_edge_then_cost_is_formula_plus_two`
+- `given_edge_with_zero_corridor_units_when_validate_then_invalid_corridor_units`
 - `given_z_change_when_move_stairs_then_cost_adds_one_per_level`
 - `given_gate_pair_when_validate_edge_then_distinct_localities_and_unordered_pair`
 - `given_duplicate_gate_pair_when_generate_then_duplicate_edge_rejected`
@@ -1541,7 +1623,8 @@ testes, não alegação de cobertura.
 - `given_window_between_when_compute_perception_then_visible_but_impassable`
 - `given_roof_between_when_compute_perception_then_not_visible`
 - `given_floor_between_floors_when_compute_perception_then_not_visible`
-- `given_stairwell_between_floors_when_compute_perception_then_visible`
+- `given_target_on_stair_cell_when_compute_perception_then_visible`
+- `given_target_on_opaque_upper_floor_when_compute_perception_then_not_visible`
 - `given_target_outside_z_span_when_compute_perception_then_not_visible`
 - `given_target_outside_facing_arc_when_compute_perception_then_not_visible`
 - `given_target_at_exact_reach_when_compute_perception_then_visible`
@@ -1562,8 +1645,10 @@ testes, não alegação de cobertura.
 - `given_unperceived_actor_behind_wall_when_player_silhouettes_then_present`
 - `given_perceived_actor_in_open_field_when_player_silhouettes_then_absent`
 - `given_unperceived_actor_in_open_field_when_player_silhouettes_then_absent`
-- `given_never_seen_actor_behind_wall_with_include_true_when_overlay_then_present`
-- `given_never_seen_actor_with_include_false_when_overlay_then_absent`
+- `given_never_seen_actor_behind_wall_when_overlay_then_present`
+- `given_anchor_outside_locality_when_overlay_then_rejected`
+- `given_anchor_z_differs_from_camera_z_when_overlay_then_rejected`
+- `given_overlay_contract_diverges_from_approved_values_when_query_then_rejected`
 - `given_overlay_query_when_compare_state_hash_then_unchanged`
 - `given_overlay_query_when_compare_memory_and_last_seen_then_unchanged`
 - `given_overlay_query_when_compare_tick_and_rng_then_unchanged`
@@ -1579,6 +1664,8 @@ testes, não alegação de cobertura.
 ### 12.4 RENDER-01 / PLAY-01 / BEH-01 — câmera, cliente e W8
 
 - `given_camera_z_changed_when_compare_hash_and_agenda_then_unchanged`
+- `given_camera_anchor_z_differs_when_camera_state_then_invalid`
+- `given_camera_layer_mask_unknown_bit_when_camera_state_then_invalid`
 - `given_camera_pan_between_localities_when_compare_region_then_unchanged`
 - `given_viewport_resize_when_compare_tick_then_unchanged`
 - `given_region_not_rendered_when_request_frame_then_region_exists_first`
@@ -1603,8 +1690,8 @@ independente e aceite do maintainer. Este documento não se autoaprova.
 | 3 | Tipo de célula | Derivado de `(surface, fill)`, não codificado | Evita redundância e divergência no hash. | Codificar `CellType` cria campo duplicado que pode contradizer os materiais. |
 | 4 | Limites de coordenadas | `2^20` valores por eixo e `z` 0..15; chunk 16×16×1 | Validação contratual, portável e suficiente; não é teto de hardware. | Limites menores reduzem a região; maiores exigem nova versão e revisão de overflow. |
 | 5 | Geração de aleatoriedade | BLAKE3 contador `AFRG`, separado de INT-02 | `generate_region` é puro e reproduzível sem estado de RNG de simulação. | Usar RNG global quebra pureza/determinismo; usar outro hash muda a região. |
-| 6 | Fixture DOC-02 | Modo `fixture = 1` validado com 4 localidades e custos 24/13/18/15 | Preserva o vetor curado sem reduzir o produto procedural. | Sem fixture, GAME-01 perde os custos pinados; sem modo procedural, o produto vira vila. |
-| 7 | Custo de aresta | Supercover do corredor + 2 ticks; intransponível contribui 4 | Coerente com DOC-02 e independente de caminho célula a célula. | Outro custo muda rotas, agenda e testes de viagem. |
+| 6 | Fixture DOC-02 | `FixtureManifest` v1 fechado (AABBs, IDs, portões, `terrain_rule`, `corridor_units`), materializado como `RegionState` validado | Preserva o vetor curado sem modo implícito nem seed inventada. | Sem manifesto, GAME-01/E2E não reproduzem os custos pinados; a fixture não substitui o produto procedural. |
+| 7 | Custo de aresta | `corridor_units` (c1..c4) + 2 ticks; unidade intransponível conta como c4 | Coerente com DOC-02, reproduzível e independente de caminho célula a célula. | Outro custo muda rotas, agenda e testes de viagem. |
 | 8 | Desempate de rota | Custo, sequência lexicográfica de `LocationId`, depois `EdgeId` | É a regra do DOC-02 e não usa `HashMap`. | Outro desempate torna rotas e replay não reproduzíveis. |
 | 9 | FOV v1 | Cilindro `reach` + arco 120° + supercover conservadora + `z_span = 1` | Determinístico, testável com parede/telhado/andar e sem floats. | Arco/raio diferentes mudam memória e testes; supercover não conservadora cria leaks. |
 | 10 | Memória inclui atores | Sim, `last_seen` congelado, mas não como alvo vivo | Cumpre a memória do ambiente e criaturas do roadmap sem dar presença atual. | Sem atores lembrados, o snapshot fica incompleto; tratá-los como vivos contamina decisões. |
@@ -1614,33 +1701,35 @@ independente e aceite do maintainer. Este documento não se autoaprova.
 | 14 | Overlay: quem é elegível | Somente atrás de construção opaca; não é radar de campo aberto | Mantém D-04 literal e evita revelar atores não percebidos sem oclusão. | Filtrar por percebidos viola D-04; incluir campo aberto revela demais. |
 | 15 | Overlay: dados expostos | ID, célula, facing, oclusor e classe de memória; nada mais | Presença genérica sem atributos, inventário ou relações. | Campos extra ampliam o vazamento e exigem revisão de segurança. |
 | 16 | Overlay: permissão | Só jogador; debug separado e não shipping | NPC/MLP não podem receber o canal privilegiado. | Um canal genérico contamina decisão e rumor. |
-| 17 | Overlay: alcance | `A1 + D1 + Z2 + N1 + O1` (proposta pendente) | Cumpre D-04 sem omnisciência regional; testável sem projeção. | Outra combinação exige nova tabela, testes e aprovação do maintainer. |
+| 17 | Overlay: alcance | `A1 + D1 + Z2 + N1 + O1`, `max_silhouettes = 256` — **aprovado pelo maintainer em 2026-11-08** | Cumpre D-04 sem omnisciência regional; testável sem projeção. | Mudar a combinação exige nova decisão, campos/versão e testes. |
 | 18 | Stack do cliente | Aberta; gate `RENDER_STACK_AND_CODE_ALLOWLIST` | D-06; nenhuma escolha silenciosa. | Escolher agora contradiz o maintainer e bloqueia revisão de assets/licença. |
 | 19 | Cliente e escrita | `present` só lê; ação por `APP-01` | Separação core/UI e autoridade. | Um cliente que escreve corrompe save e replay. |
 | 20 | W8 abstrato | Sem overlay, câmera, ecrã ou ator lembrado como vivo | NPC/MLP só usam percepção autoritativa. | Contaminação torna decisões dependentes da apresentação. |
 | 21 | Derivação de `RegionId` | Incluir `spec_digest` além de seed/versão | Evita duas `RegionSpec` distintas com o mesmo `RegionId`. | Sem isso, specs diferentes podem colidir na importação; com isso, o CTR-01 confirma a extensão. |
 | 22 | `facing` e `percepcao_bp` | Componentes autoritativos do ator em `CTR-02` | `compute_perception` não inventa direção nem atributo. | Sem componente fixado, o FOV não é reproduzível e o DTO é ambíguo. |
+| 23 | `Seed`/`RegionId` entre contratos | `Seed(u64)`, `RegionId` e `spec_digest` são definidos aqui e referenciados por CTR-02/INT-01; não há RNG paralelo | Alinha CTR-02 e o roadmap (`Seed(u64)`), evita `[u8;32]` e preserva a identidade regional. | Outro tipo/derivação quebra REGION, hash e importação; exige revisão conjunta. |
 
 ## 14. Pendências de aprovação humana
 
-Nenhum item abaixo está aprovado. A aprovação pode aceitar, alterar ou rejeitar cada um; uma
-alteração exige nova revisão do contrato e dos testes correspondentes.
+`PA-01` a `PA-05` foram **aprovados pelo maintainer em 2026-11-08**; `PA-06` a `PA-09` continuam
+pendentes. Uma alteração de qualquer item exige nova revisão do contrato e dos testes.
 
-| ID | Decisão | Recomendação | Impacto se adiada/rejeitada |
+| ID | Decisão | Status | Recomendação/impacto |
 | --- | --- | --- | --- |
-| `PA-01` | Âmbito do overlay: localidade, viewport ou região | `A1` localidade | Sem decisão, `VIEW-01` só pode documentar; a implementação fica bloqueada. |
-| `PA-02` | Distância máxima do overlay | `32` células | Zoom-out pode revelar mais ou menos; qualquer número precisa de teste e aceite. |
-| `PA-03` | Faixa de `z` do overlay | `camera_z ± 1` | Andares acima/abaixo ficam invisíveis ou revelam torres inteiras. |
-| `PA-04` | Áreas nunca vistas no overlay | Incluir (`N1`) dentro do âmbito | Excluir enfraquece D-04; incluir revela salas nunca vistas deliberadamente. |
-| `PA-05` | Oclusores que criam silhueta | `PAREDE`/`TELHADO`/`PISO` (`O1`) | Incluir rocha/vegetação amplia a exceção e exige arte/testes. |
-| `PA-06` | Dados expostos na silhueta | Lista mínima de §6.4 | Mais campos expõem atributos e relações; menos pode faltar à apresentação. |
-| `PA-07` | Overlay de debug | Canal separado, não shipping | Sem separação, debug pode virar fonte de MLP/NPC. |
-| `PA-08` | Stack/ponte/build/assets/testes do cliente | Processo `RENDER_STACK_AND_CODE_ALLOWLIST`; sem escolher stack aqui | Sem decisão, não há código de UI nem goldens visuais; o motor não é bloqueado. |
-| `PA-09` | Seed canónica da fixture (`PD-09` do DOC-02) | Manter pendente; fixture valida layout/custos por modo `fixture = 1` | Sem seed aprovada, E2E não fixa nomes/IDs de apresentação; não impede os testes de contrato. |
+| `PA-01` | Âmbito do overlay | **Aprovado 2026-11-08** — `A1` localidade | `VIEW-01` pode implementar dentro da localidade; âncora fora dela é `AnchorOutsideLocality`. |
+| `PA-02` | Distância máxima | **Aprovado 2026-11-08** — `32` células | Limite fixo; qualquer outro valor exige nova decisão/versão. |
+| `PA-03` | Faixa de `z` | **Aprovado 2026-11-08** — `camera_z ± 1` | Andares fora da faixa não entram no envelope. |
+| `PA-04` | Áreas nunca vistas | **Aprovado 2026-11-08** — incluir (`N1`) | `N2`/exclusão por memória não é opção da v1. |
+| `PA-05` | Oclusores | **Aprovado 2026-11-08** — `PAREDE`/`TELHADO`/`PISO` (`O1`) | `O2`/rocha/vegetação exigem nova decisão e versão. |
+| `PA-06` | Dados expostos na silhueta | Pendente | Lista mínima de §6.4; mais campos exigem revisão de segurança. |
+| `PA-07` | Overlay de debug | Pendente | Canal separado, não shipping; nunca fonte de MLP/NPC. |
+| `PA-08` | Stack/ponte/build/assets/testes | Pendente — gate `RENDER_STACK_AND_CODE_ALLOWLIST` | Sem decisão não há código de UI; o motor não é bloqueado. |
+| `PA-09` | Seed canónica da fixture (`PD-09`) | Pendente | O `FixtureManifest` usa `seed = 0` de teste; não antecipa a seed de produto. |
 
-Enquanto `PA-01` a `PA-07` não forem aceites, o overlay é apenas uma proposta documental: não há
-default aprovado, não há desenho em produção e nenhum teste pode declarar "alcance aprovado". A
-implementação de `VIEW-01` e `RENDER-01` começa somente depois do aceite registado.
+A aprovação de `PA-01` a `PA-05` satisfaz o alcance visual de D-04. O overlay ainda é uma proposta
+documental até ao freeze e à revisão independente; a implementação de `VIEW-01` não começa antes
+do freeze, e `RENDER-01` continua dependente de `PA-08`. Os testes de produto não podem declarar
+aprovado qualquer valor de `PA-06` a `PA-09`.
 
 ## 15. Consumo por cartões
 
@@ -1649,7 +1738,7 @@ implementação de `VIEW-01` e `RENDER-01` começa somente depois do aceite regi
 | `GRID-01` | `INT-03` | `RegionSpec`, geração, IDs, portões, arestas, rotas, payloads 1–4 | Outro packing, geração por foco, aresta sem par válido, custo fora do contrato. |
 | `GRID-02` | `INT-03` | blocos, estruturas, papéis, AABB, mutação atómica | Item como bloco, estrutura vazia, AABB divergente, mutação parcial. |
 | `FOV-01` | `INT-14` | FOV v1, três estados, memória, DTO, erros | Câmera como sensor, memória por overlay, float/RNG, DTO sem versão. |
-| `VIEW-01` | `INT-14`/`INT-15` | leitura observada, silhuetas, permissões, contrato pendente | Filtro "somente percebidos", alcance inventado, escrita no mundo. |
+| `VIEW-01` | `INT-14`/`INT-15` | leitura observada, silhuetas, permissões, alcance aprovado; `PA-06`/`PA-07` pendentes | Filtro "somente percebidos", alcance fora do contrato, escrita no mundo. |
 | `RENDER-01` | `INT-15`/`INT-19` | `present`, projeção, camadas, picking, gate de stack | Escolher engine, escrever estado, revelar além do contrato, 3D real. |
 | `PLAY-01` | `INT-19` | cliente 2D, câmera, overlay aprovado, ação via app | Tratar overlay como conhecimento, pausar áreas, mudar hash por câmera. |
 | `BEH-01` | `INT-16`/`INT-14` | `AbstractPerception` v1, sem overlay | Receber silhueta, câmera ou ator lembrado como vivo. |
@@ -1661,8 +1750,9 @@ implementação de `VIEW-01` e `RENDER-01` começa somente depois do aceite regi
   benchmark ou escolha de engine foi criado.
 - Nenhum valor de hash, seed canónica, medição de FPS/CPU/GPU ou golden visual é afirmado; os
   valores da fixture são os do DOC-02, não uma medição deste contrato.
-- O [ADR 0009](<../../architecture/adr/0009-privileged-silhouette-overlay.md>) está **Proposto**;
-  o índice de ADRs não foi editado porque está fora da allowlist desta tarefa.
+- O [ADR 0009](<../../architecture/adr/0009-privileged-silhouette-overlay.md>) continua **Proposto**;
+  a aprovação do alcance é registada como decisão de produto neste contrato e em `PA-01`–`PA-05`,
+  não altera o status do ADR e não edita o ficheiro do ADR nem o índice.
 - O diretório `docs/planning/contracts/` contém este contrato e o CTR-01, mas não tem índice
   compartilhado; a descoberta é pelo caminho e pela CoALA local.
 - A codificação de portões/arestas em `REGION`/`LOCALITIES`, a memória dentro de `ACTORS` e a
@@ -1673,8 +1763,9 @@ implementação de `VIEW-01` e `RENDER-01` começa somente depois do aceite regi
 - `facing` e `percepcao_bp` são componentes autoritativos do ator que devem ser fixados em
   `CTR-02`; sem eles, `compute_perception` não tem direção nem raio reproduzíveis e deve devolver
   `InvalidObserverState` em vez de inventar um default.
-- O overlay tem alcance, `z`, áreas nunca vistas, oclusores e dados expostos **pendentes de
-  aprovação humana**; nenhuma dessas escolhas é default aprovado.
+- O overlay tem `A1 + D1 + Z2 + N1 + O1` **aprovado em 2026-11-08**; `PA-06` (dados expostos),
+  `PA-07` (debug), `PA-08` (stack) e `PA-09` (seed) continuam pendentes. Nenhuma dessas quatro
+  pendências pode ser decidida pela implementação.
 - A stack do cliente, a ponte, o build, os assets, os testes visuais e a allowlist de código
   continuam sob o gate `RENDER_STACK_AND_CODE_ALLOWLIST` (D-06); este contrato não escolhe.
 - A revisão `REVIEW-CTR-03` e o aceite do maintainer são obrigatórios; `DELIVERED_TO_REVIEW` não
