@@ -11,6 +11,7 @@
 | Base SHA | `c412cd4c0da291d3797e3cc4dd4429199ac979b3` |
 | Branch e worktree | `docs/doc-02` em `../ai-fantasy-worktrees/doc-02`, ancorado na raiz original |
 | Revisão do manifesto | sha256 `328a8c7e121c9e4411bf0c105c3845c636e37bf208770fbc675f2cff4a360769` de [wave-spec](<wave-spec.md>) |
+| Contrato de identidade | `CTR-01` rev 3, commit `563c521645c05b2ec1b2ad90d0801994e9610fcc`; layout e IDs em `docs/planning/contracts/identity-events.md` (fonte externa a esta worktree) |
 | Interface produzida | `INT-04` — Ação nativa e tempo lógico |
 | Consome | nenhuma interface de aplicação |
 | Revisão obrigatória | `REVIEW-DOC-02` |
@@ -71,6 +72,8 @@ A região é uma grelha inteira com várias localidades, gerada de forma determi
 | `L4` | Bosque de Cobre | aldeia de lenhadores | `G4a` (estrada) | Fábio (lenhador), Gaia (curandeira) |
 
 Os oito agentes não jogadores existem para demonstrar agenda regional, testemunho e portabilidade de rumor; não são uma promessa de população, campanha ou densidade final. A população, o número de localidades e o tamanho da grelha permanecem parâmetros de geração; os guardrails estão na seção 11.
+
+`LocalityId` é **alias explícito** de `LocationId` (CTR-01 §2.9): o wire canônico usa `LocationId`, e esta spec usa `LocalityId` de forma uniforme. `GateId` é `EntityId` kind `GATE` = 6 e `EdgeId` é kind `EDGE` = 7; a semântica de portão/aresta pertence a `CTR-03`/`GRID-01`, não a esta spec. `Cell` é alias explícito de `GridPoint` (CTR-01 §3.2); esta spec usa `GridPoint` como nome canônico na intenção, nos tipos e nos fatos.
 
 ### 3.2 Grafo de conexões e estado das arestas
 
@@ -238,21 +241,45 @@ Campos comuns propostos de `NativeIntent`:
 | --- | --- | --- | --- |
 | `intent_id` | sequência monotônica da sessão | sim | idempotência e log |
 | `actor` | `ActorId` | sim | ator que age; nesta sessão, o jogador |
-| `kind` | enum fechado | sim | `MOVER`, `VIAJAR`, `FALAR`, `NEGOCIAR`, `MENTIR`, `PERGUNTAR_RUMOR`, `CONTAR_RUMOR`, `AMEACAR` |
+| `kind` | enum fechado | sim | ação nativa: `MOVER`, `VIAJAR`, `FALAR`, `NEGOCIAR`, `MENTIR`, `PERGUNTAR_RUMOR`, `CONTAR_RUMOR`, `AMEACAR`; o `intent` CTR-01 é derivado pela tabela 5.1.1 |
 | `target` | `Option<ActorId>` | conforme ação | alvo social |
-| `destination` | `Option<Destination>` | conforme ação | célula `(x, y, z)` ou `LocalityId` |
-| `topic` | `Option<TopicId>` | conforme ação | fato ou boato referido |
-| `offer_moeda` | `Option<u32>` | negociar | oferta inteira de moedas |
+| `destination` | `Option<Destination>` | conforme ação | `GridPoint` `(x, y, z)` ou `LocalityId` |
+| `topic` | `Option<TopicId>` | conforme ação | referência tipada: `TopicKind` + `FactId`/`RumorId` |
+| `offer_moeda` | `Option<u32>` | negociar | oferta inteira de moedas; vira `TRANSFER_CURRENCY` (kind 7) |
 | `meeting_tick` | `Option<Tick>` | `ENCONTRO_FUTURO` | tick absoluto do encontro; precisa ser maior que `t0` |
 | `meeting_locality` | `Option<LocalityId>` | `ENCONTRO_FUTURO` | localidade do encontro; precisa existir e ser alcançável pelo alvo |
 | `gate_id` | `Option<GateId>` | `PASSAGEM` | portão concedido; precisa pertencer à localidade do alvo ou a uma localidade adjacente |
 | `validity_ticks` | `Option<u32>` | `PASSAGEM` | validade da passagem em ticks, de 1 a `PASS_VALIDITY_TICKS` |
-| `away_destination` | `Option<Cell>` | `AFASTAR_SE` | célula de destino do alvo; passável, livre e a pelo menos `AWAY_MIN_DISTANCE_CELLS` do ator |
+| `away_destination` | `Option<GridPoint>` | `AFASTAR_SE` | célula de destino do alvo; passável, livre e a pelo menos `AWAY_MIN_DISTANCE_CELLS` do ator |
+| `registro` | `Option<enum>` | `FALAR` | `SAUDACAO`, `AGRADECIMENTO`, `DESPEDIDA`, `COMENTARIO_NEUTRO`; wire `1..4` |
+| `pedido` | `Option<enum>` | `NEGOCIAR` | `REVELAR_RUMOR=1`, `ENCONTRO_FUTURO=2`, `PASSAGEM=3`, `INFORMAR_CAMINHO=4`; `INFORM_PATH` usa 4 |
+| `exigencia` | `Option<enum>` | `AMEACAR` | `REVELAR_RUMOR=1`, `PASSAGEM=2`, `AFASTAR_SE=3` |
+| `claim_value` | `Option<u16>` | `MENTIR` | código 1..N do enum fechado; os valores semânticos pertencem a SOC-01/CTR-04 e não são inventados aqui |
 | `seed_rumor` | `bool` | contar | cria rumor a partir de fato testemunhado |
 | `client_revision` | `u64` | sim | revalidação contra estado obsoleto |
 | `mode` | `DryRun` ou `Commit` | sim | execução de ensaio ou aplicação |
 
 Campos sem valor para a ação ficam `None`. Combinação inválida, campo obrigatório ausente ou valor fora da faixa é `INTENCAO_INVALIDA` e não produz efeito; a fixture fixa os valores explicitamente, e nenhum default é inventado pela implementação.
+
+#### 5.1.1 Mapeamento ação → intent → payload (CTR-01 rev 3)
+
+`NativeIntent.kind` é a ação nativa desta spec; o `ConversationFact` do CTR-01 usa o campo `intent` com os códigos abaixo. `MOVER` e `VIAJAR` não viram `ConversationFact`: são eventos de domínio INT-05.
+
+| Ação (`kind`) | `intent` CTR-01 | Código | Payload usado | Fato resultante |
+| --- | --- | --- | --- | --- |
+| `MOVER` | — (evento INT-05) | — | `GridPoint` de destino e caminho | `ActorMovedFact` |
+| `VIAJAR` | — (evento INT-05) | — | `LocalityId` de destino, rota e portões | `TravelFact` |
+| `FALAR` | `SOCIAL_TALK` | 10 | `registro` 1..4, `topic` opcional | `FalaFact` |
+| `NEGOCIAR` (`REVELAR_RUMOR`, `ENCONTRO_FUTURO`, `PASSAGEM`) | `NEGOTIATE` | 2 | `pedido` 1..3, `offer_moeda`, `meeting_tick`, `meeting_locality`, `gate_id`, `validity_ticks` | `AcordoFact`/`AcordoRecusadoFact`; `PassagemFact` (INT-05) quando `PASSAGEM` |
+| `NEGOCIAR` (`INFORMAR_CAMINHO`) | `INFORM_PATH` | 9 | `pedido=4`, `destination` | `AcordoFact` + `CaminhoReveladoFact` (INT-05) |
+| `MENTIR` | `LIE` | 4 | `topic`, `claim_value` | `MentiraDetectadaFact`/`MentiraRejeitadaFact` (2/10–11), `CrencaJaPresenteFact` (3/7), `MENTIRA_ACEITA` (1/9) |
+| `PERGUNTAR_RUMOR` | `ASK_RUMOR` | 8 | `topic` opcional, `fidelity_offered_bp`, `fidelity_received_bp` | `RumorPerguntadoFact` |
+| `CONTAR_RUMOR` | `SHARE_RUMOR` | 6 | `rumor_id` ou `topic`, `seed_rumor`, fidelidades | `RumorContadoFact` |
+| `AMEACAR` | `EXTORTION` | 3 | `exigencia` 1..3, `topic`, `gate_id`, `validity_ticks`, `away_destination`, `scheduled_tick` | `AmeacaFact`/`AmeacaResistidaFact`; `PassagemFact`/`AfastamentoFact` (INT-05) quando aplicável |
+
+`GREETING`, `BRIBE` e `APPEASE` são legados e não são usados nesta sessão; `SOCIAL_TALK` cobre os quatro `registro` de `falar` (CTR-01 §4.5.2). Os nomes de ação em português são aliases de produto; o `intent` canónico é o da coluna 2. O `intent_payload` v2 tem 99 bytes e usa exatamente os campos do CTR-01 §4.5.2; ausência é codificada como 0/`None` e esta spec não acrescenta bytes. `result_class` é 1 sucesso, 2 falha resolvida, 3 limite e 4 sem efeito/cooldown; `reason` usa a tabela do CTR-01 §4.5.1.
+
+IDs usados no payload e no log: `TopicId` é `TopicKind` + `u64` (`1` = `FactId`, `2` = `RumorId`; `0` inválido); `FactId` é exatamente o `fact_seq` regional (`u64 >= 1`, monotônico, não `EntityId`); `RumorId` é `EntityId` kind `RUMOR` = 5; `GateId` é kind `GATE` = 6; `EdgeId` é kind `EDGE` = 7; `LocalityId` é alias de `LocationId` (kind `LOCATION` = 3). Nenhum desses IDs é um “sequencial” reutilizável; a ordem é o valor numérico crescente.
 
 Pipeline obrigatório, nesta ordem:
 
@@ -278,13 +305,13 @@ Log de replay comum a todas as ações:
 
 ### 5.2 `mover` — deslocamento dentro da localidade
 
-**Intenção.** `kind = MOVER`; `destination = Cell { x, y, z }`; sem `target`, `topic`, `offer_moeda` ou `seed_rumor`.
+**Intenção.** `kind = MOVER`; `destination = GridPoint { x, y, z }`; sem `target`, `topic`, `offer_moeda` ou `seed_rumor`.
 
 **Pré-condições e alvos.** Ator vivo, presente na localidade, destino dentro dos limites da grelha, mesma localidade, célula passável, desocupada, caminho cardinal existente, comprimento do caminho menor ou igual a `MAX_MOVE_CELLS`. Destino igual à origem é recusado.
 
 **Resolução.** Busca de caminho determinística com custo por terreno, conforme 3.3. Não há sorteio. O custo é a soma dos custos de entrada das células do caminho; a mudança de `z` soma +1 por nível.
 
-**Sucesso.** Ator na célula de destino; custo integral; fato `ActorMovedFact` com origem, destino, caminho resolvido, custo e tick; evento de movimento; recibo com hash final.
+**Sucesso.** Ator na célula de destino; custo integral; evento de domínio INT-05 `ActorMovedFact` com origem, destino, caminho resolvido, custo e tick; evento de movimento; recibo com hash final. Este fato **não** é `ConversationFact`; ver 5.11.
 
 **Erro.** Célula fora dos limites, bloqueada, ocupada, diagonal, caminho inexistente ou maior que o limite: rejeição `DESTINO_INVALIDO`, `DESTINO_OCUPADO`, `SEM_CAMINHO` ou `CAMINHO_LONGO`, com 0 tick e 0 RNG.
 
@@ -304,7 +331,7 @@ Log de replay comum a todas as ações:
 
 **Resolução.** Rota de menor custo no grafo de localidades, com desempate de 3.2; custo é a soma das arestas. Não há sorteio. A viagem é **atômica e abstrata**: o ator fica em trânsito durante o intervalo, não está presente em nenhuma localidade intermediária, não interage e não propaga rumor enquanto viaja. O portão de destino é reservado no início; a reserva é liberada na chegada ou no cancelamento.
 
-**Sucesso.** Ator no portão de destino ao fim do custo; fato `TravelFact` com rota, arestas, portão de embarque da primeira aresta, portão de chegada, custo e ticks; o ator deixa de estar em trânsito; agenda regional processa todos os ticks cobertos.
+**Sucesso.** Ator no portão de destino ao fim do custo; evento de domínio INT-05 `TravelFact` com rota, arestas, portão de embarque da primeira aresta, portão de chegada, custo e ticks; o ator deixa de estar em trânsito; agenda regional processa todos os ticks cobertos. Este fato **não** é `ConversationFact`; ver 5.11.
 
 **Erro.** Ator fora da localidade de origem, destino inexistente, destino igual à origem, rota impossível, portão ocupado, limite de arestas ou de ticks: rejeição `ORIGEM_INVALIDA`, `ROTA_IMPOSSIVEL`, `DESTINO_OCUPADO` ou `ROTA_EXCEDE_LIMITE`, com 0 tick e 0 RNG.
 
@@ -318,13 +345,13 @@ Log de replay comum a todas as ações:
 
 ### 5.4 `falar` — ato simbólico
 
-**Intenção.** `kind = FALAR`; `target` obrigatório; `topic` opcional; parâmetro `registro` em enum fechado: `SAUDACAO`, `AGRADECIMENTO`, `DESPEDIDA`, `COMENTARIO_NEUTRO`. Nenhum texto do jogador entra no intent.
+**Intenção.** `kind = FALAR`; `intent = SOCIAL_TALK` (código 10); `target` obrigatório; `topic` opcional; `registro` em enum fechado: `SAUDACAO`, `AGRADECIMENTO`, `DESPEDIDA`, `COMENTARIO_NEUTRO` (wire 1..4). Nenhum texto do jogador entra no intent.
 
 **Pré-condições e alvos.** Ator e alvo vivos, na mesma localidade, mesmo `z`, distância de Manhattan menor ou igual a `SOCIAL_REACH_CELLS`, linha estrutural livre, alvo não em trânsito.
 
 **Resolução.** Sem sorteio. O ato é sempre resolvido quando as pré-condições valem; o efeito é simbólico e não depende de NLG. Se o mesmo par repetir o mesmo `registro` dentro de `GREETING_COOLDOWN_TICKS`, o resultado é `SEM_EFEITO_COOLDOWN`.
 
-**Sucesso.** Empatia do alvo em relação ao ator +100 bp; confiança do alvo em relação ao ator +50 bp; fato `FalaFact` com registro, tópico e tick; nenhum rumor criado.
+**Sucesso.** Empatia do alvo em relação ao ator +100 bp; confiança do alvo em relação ao ator +50 bp; `ConversationFact` v2 `FalaFact` (`intent = SOCIAL_TALK`, `result_class = 1`) com `registro`, `topic` e tick; nenhum rumor criado.
 
 **Erro.** Alvo morto, inexistente, fora de alcance, em trânsito, outra localidade ou sem linha estrutural: rejeição `ALVO_MORTO`, `ALVO_INEXISTENTE`, `FORA_DE_ALCANCE` ou `SEM_LINHA_ESTRUTURAL`, com 0 tick e 0 RNG.
 
@@ -338,7 +365,7 @@ Log de replay comum a todas as ações:
 
 ### 5.5 `negociar` — oferta e pedido
 
-**Intenção.** `kind = NEGOCIAR`; `target` obrigatório; `pedido` em enum fechado: `REVELAR_RUMOR`, `ENCONTRO_FUTURO`, `PASSAGEM`, `INFORMAR_CAMINHO`; `offer_moeda` inteiro entre 0 e 10000; `topic` opcional para `REVELAR_RUMOR`; `destination = LocalityId` obrigatório para `INFORMAR_CAMINHO`; `meeting_tick` e `meeting_locality` obrigatórios para `ENCONTRO_FUTURO`; `gate_id` e `validity_ticks` obrigatórios para `PASSAGEM`. Campos de outro pedido ficam `None`.
+**Intenção.** `kind = NEGOCIAR`; `intent = NEGOTIATE` (código 2) para `REVELAR_RUMOR`/`ENCONTRO_FUTURO`/`PASSAGEM`, ou `INFORM_PATH` (código 9) para `INFORMAR_CAMINHO`; `target` obrigatório; `pedido` em enum fechado com códigos 1..4 (`REVELAR_RUMOR=1`, `ENCONTRO_FUTURO=2`, `PASSAGEM=3`, `INFORMAR_CAMINHO=4`); `offer_moeda` inteiro entre 0 e 10000; `topic` opcional para `REVELAR_RUMOR`; `destination = LocalityId` obrigatório para `INFORMAR_CAMINHO`; `meeting_tick` e `meeting_locality` obrigatórios para `ENCONTRO_FUTURO`; `gate_id` e `validity_ticks` obrigatórios para `PASSAGEM`. Campos de outro pedido ficam `None`.
 
 **Pré-condições e alvos.** Ator e alvo vivos, mesma localidade, mesmo `z`, alcance social, linha estrutural livre; ator com `moeda` maior ou igual à oferta; alvo capaz de conceder o pedido em princípio (vivo, presente, não em trânsito). Além disso: `meeting_tick` precisa ser maior que `t0` e menor ou igual a `t0 + MAX_MEETING_HORIZON_TICKS`; `meeting_locality` precisa existir e ter rota passável a partir da localidade do alvo; `gate_id` precisa pertencer à localidade do alvo ou a uma adjacente; `validity_ticks` precisa estar em `1..=PASS_VALIDITY_TICKS`; `destination` de `INFORMAR_CAMINHO` precisa existir e ter rota passável. Para `REVELAR_RUMOR`: `TopicId` inexistente no estado é rejeição `INTENCAO_INVALIDA`; `TopicId` existente sem cópia ativa no alvo é o limite `SEM_CONDICAO`. Ausência do conteúdo específico, como nenhum rumor elegível, é limite resolvido, não rejeição.
 
@@ -348,7 +375,7 @@ Log de replay comum a todas as ações:
 
 Onde `trust` e `empatia` são os eixos do alvo em relação ao ator. Sucesso se o valor sorteado for **menor** que `chance`.
 
-**Sucesso.** Transfere `offer_moeda` do ator para o alvo; confiança +300 bp; empatia +150 bp; concede o pedido com os campos explícitos: `REVELAR_RUMOR` compartilha a cópia ativa do rumor indicado por `topic`; se `topic` estiver ausente, compartilha a cópia ativa de maior fidelidade do alvo, com empate pelo menor `RumorId`, aplicando 9.2 (se a cópia resultante não superar a do jogador, não há substituição e o fato registra `RUMOR_JA_CONHECIDO` como sub-resultado, sem anular o acordo); `ENCONTRO_FUTURO` cria `AcordoFact` com `meeting_tick` e `meeting_locality` exatamente como recebidos; `PASSAGEM` cria `PassagemFact` com `gate_id`, `valid_from_tick = t0` e `valid_until_tick = t0 + validity_ticks`; `INFORMAR_CAMINHO` cria `CaminhoReveladoFact` com `destination`, rota e custo. Fato `AcordoFact` sempre registrado.
+**Sucesso.** Emite o efeito `TRANSFER_CURRENCY` (kind 7) com `source=speaker`, `target=listener` e `amount=offer_moeda` quando `offer_moeda > 0`; `offer_moeda=0` não emite efeito de moeda. Confiança +300 bp; empatia +150 bp; concede o pedido com os campos explícitos: `REVELAR_RUMOR` compartilha a cópia ativa do rumor indicado por `topic`; se `topic` estiver ausente, compartilha a cópia ativa de maior fidelidade do alvo, com empate pelo menor `RumorId`, aplicando 9.2 (se a cópia resultante não superar a do jogador, não há substituição e o fato registra `RUMOR_JA_CONHECIDO` como sub-resultado, sem anular o acordo); `ENCONTRO_FUTURO` cria `ConversationFact` v2 `AcordoFact` com `meeting_tick` e `meeting_locality` exatamente como recebidos; `PASSAGEM` cria `PassagemFact` (evento INT-05) com `gate_id` e `validity_ticks` do payload — a janela materializada `[t0, t0 + validity_ticks]` é pendência de layout INT-05/CORE-02, não inventada aqui; `INFORMAR_CAMINHO` cria `ConversationFact` v2 `AcordoFact` com `destination` e o evento INT-05 `CaminhoReveladoFact` com rota e custo. O `AcordoFact` é `ConversationFact` v2 (`intent = NEGOTIATE` ou `INFORM_PATH`); `PassagemFact` e `CaminhoReveladoFact` não são `ConversationFact` (5.11).
 
 **Falha resolvida.** Sorteio desfavorável com pré-condições válidas: custo integral de 6 ticks, 1 sorteio consumido, sem transferência de moedas e sem concessão; confiança -100 bp, empatia -50 bp; fato `AcordoRecusadoFact`. Nada é aplicado parcialmente.
 
@@ -364,7 +391,7 @@ Onde `trust` e `empatia` são os eixos do alvo em relação ao ator. Sucesso se 
 
 ### 5.6 `mentir` — afirmação falsa e detecção
 
-**Intenção.** `kind = MENTIR`; `target` obrigatório; `topic` obrigatório; `valor_afirmado` em enum fechado e compatível com o tópico; sem `offer_moeda`.
+**Intenção.** `kind = MENTIR`; `intent = LIE` (código 4); `target` obrigatório; `topic` obrigatório (`TopicId`); `claim_value` inteiro 1..N do enum fechado, compatível com o tópico; sem `offer_moeda`. Os valores semânticos de `claim_value` pertencem a SOC-01/CTR-04 e não são inventados aqui.
 
 **Pré-condições e alvos.** Ator e alvo vivos, mesma localidade, mesmo `z`, alcance social, linha estrutural livre; tópico válido. Se o alvo **testemunhou** o fato contraditório, a mentira não é recusada: ela é resolvida com detecção forçada, para que o jogador observe a consequência.
 
@@ -373,13 +400,13 @@ Onde `trust` e `empatia` são os eixos do alvo em relação ao ator. Sucesso se 
 - crença: `chance_crenca = clamp(5500 + (linguagem_ator - 5000)/2 - (inteligencia_alvo - 5000)/2 + trust/5, 1500, 9500)`; acreditada se o valor for menor que a chance;
 - detecção: `chance_deteccao = clamp(1500 + (percepcao_alvo - 5000)/2 + (5000 - trust)/2, 500, 9000)`; detectada se o valor for menor que a chance, ou se houver testemunho autoritativo do alvo.
 
-**Sucesso.** `MENTIRA_ACEITA` quando acreditada e não detectada: empatia +50 bp, confiança +100 bp; o alvo recebe `CrencaFalsaFact` com tópico, valor e origem; nenhum rumor é criado automaticamente.
+**Sucesso.** `MENTIRA_ACEITA` quando acreditada e não detectada: empatia +50 bp, confiança +100 bp; o alvo recebe o evento de domínio INT-05 `CrencaFalsaFact` com tópico, `claim_value` e origem; nenhum rumor é criado automaticamente. O ato social é `ConversationFact` v2 (`intent = LIE`, `result_class = 1`, `reason = 9`).
 
-**Falha resolvida.** `MENTIRA_DETECTADA`: custo integral de 4 ticks, dois sorteios consumidos, empatia -800 bp, medo +300 bp, confiança -1500 bp, rótulo `MENTIROSO` no par alvo para ator, fato `MentiraDetectadaFact`; se houver testemunha, ela recebe `TestemunhoFact` e o rumor `MENTIRA` é semeado com escopo `LOCAL`, origem no alvo e fidelidade 10000. `MENTIRA_REJEITADA` quando não acreditada e não detectada: empatia -100 bp, confiança -200 bp, fato `MentiraRejeitadaFact`.
+**Falha resolvida.** `MENTIRA_DETECTADA`: custo integral de 4 ticks, dois sorteios consumidos, empatia -800 bp, medo +300 bp, confiança -1500 bp; efeito `ATTACH_LABEL` com label **`LIAR` = 6** no par `(listener, speaker)` — `source` é o alvo que rotula, `target` é o ator rotulado; `ConversationFact` v2 `MentiraDetectadaFact` (`intent = LIE`, `result_class = 2`, `reason = 10`). Se houver testemunha, ela recebe o evento INT-05 `TestemunhoFact` e o rumor `MENTIRA` é semeado com escopo `LOCAL`, origem no alvo e fidelidade 10000. `MENTIRA_REJEITADA` quando não acreditada e não detectada: empatia -100 bp, confiança -200 bp, `ConversationFact` v2 `MentiraRejeitadaFact` (`intent = LIE`, `result_class = 2`, `reason = 11`).
 
-**Erro.** Alvo morto, inexistente, em trânsito, fora de alcance, tópico inválido ou valor incompatível: rejeição, 0 tick, 0 RNG. Mentira detectada não é erro de resolução: é falha resolvida, com custo integral.
+**Erro.** Alvo morto, inexistente, em trânsito, fora de alcance, `topic` inexistente ou `claim_value` incompatível: rejeição, 0 tick, 0 RNG. Mentira detectada não é erro de resolução: é falha resolvida, com custo integral.
 
-**Limite.** `CRENCA_JA_PRESENTE` quando o alvo já tem a mesma crença: custo 4 ticks, dois sorteios consumidos, deltas 0, fato registrado. Nenhum efeito parcial é aplicado.
+**Limite.** `CRENCA_JA_PRESENTE` quando o alvo já tem a mesma crença: custo 4 ticks, dois sorteios consumidos, deltas 0; `ConversationFact` v2 `CrencaJaPresenteFact` (`intent = LIE`, `result_class = 3`, `reason = 7`). Nenhum efeito parcial é aplicado.
 
 **Efeitos, fatos e replay.** Deltas de 8.2, na direção alvo para ator. O replay registra os dois sorteios, o resultado, o tópico e a crença; não registra o texto da mentira, o prompt de NLG ou a reação narrada.
 
@@ -389,7 +416,7 @@ Onde `trust` e `empatia` são os eixos do alvo em relação ao ator. Sucesso se 
 
 ### 5.7 `perguntar_rumor` — consultar informação
 
-**Intenção.** `kind = PERGUNTAR_RUMOR`; `target` obrigatório; `topic` opcional. Sem `offer_moeda`.
+**Intenção.** `kind = PERGUNTAR_RUMOR`; `intent = ASK_RUMOR` (código 8); `target` obrigatório; `topic` opcional (`TopicId`); sem `offer_moeda`. O payload registra `topic`, `fidelity_offered_bp` e `fidelity_received_bp`.
 
 **Pré-condições e alvos.** Ator e alvo vivos, mesma localidade, mesmo `z`, alcance social, linha estrutural livre; alvo não em trânsito. `topic`, se presente, precisa existir no estado; `TopicId` inexistente é rejeição `INTENCAO_INVALIDA`; `TopicId` existente sem cópia ativa no alvo é o limite `SEM_INFORMACAO`.
 
@@ -399,7 +426,7 @@ Onde `trust` e `empatia` são os eixos do alvo em relação ao ator. Sucesso se 
 
 Sucesso se o valor for menor que a chance.
 
-**Sucesso.** O alvo compartilha a cópia **ativa** de maior fidelidade: se `topic` foi indicado, a daquele rumor; caso contrário, a de maior fidelidade entre as elegíveis, com empate pelo menor `RumorId`. A cópia oferecida perde `TRANSFER_LOSS_BP`. Se a fidelidade resultante for menor que `MIN_COGNITION_BP`, a **cópia do destinatário** não é criada nem substitui cópia existente, e o resultado é `OFERTA_ABAIXO_DO_LIMIAR`; a cópia-fonte e o rumor permanecem inalterados, e o rumor só é `EXTINTO` quando nenhuma cópia ativa resta (9.4). Se o jogador não tem cópia ativa ou a cópia oferecida é maior que a sua, ele adquire/substitui a cópia e recebe confiança +100 bp e empatia +50 bp; caso contrário, o resultado é o limite `RUMOR_JA_CONHECIDO`, com deltas 0. Fato `RumorPerguntadoFact` com `fidelidade_alvo_bp`, `fidelidade_recebida_bp` (0 se não houve substituição) e tick.
+**Sucesso.** O alvo compartilha a cópia **ativa** de maior fidelidade: se `topic` foi indicado, a daquele rumor; caso contrário, a de maior fidelidade entre as elegíveis, com empate pelo menor `RumorId`. A cópia oferecida perde `TRANSFER_LOSS_BP`. Se a fidelidade resultante for menor que `MIN_COGNITION_BP`, a **cópia do destinatário** não é criada nem substitui cópia existente, e o resultado é `OFERTA_ABAIXO_DO_LIMIAR`; a cópia-fonte e o rumor permanecem inalterados, e o rumor só é `EXTINTO` quando nenhuma cópia ativa resta (9.4). Se o jogador não tem cópia ativa ou a cópia oferecida é maior que a sua, ele adquire/substitui a cópia e recebe confiança +100 bp e empatia +50 bp; caso contrário, o resultado é o limite `RUMOR_JA_CONHECIDO`, com deltas 0. `ConversationFact` v2 `RumorPerguntadoFact` (`intent = ASK_RUMOR`, `result_class` 1/2/3) com `topic`, `fidelidade_alvo_bp`, `fidelidade_recebida_bp` (0 se não houve substituição) e tick.
 
 **Falha resolvida.** Sorteio desfavorável com pré-condições válidas: custo integral de 3 ticks, 1 sorteio consumido, nenhuma cópia transferida, confiança -50 bp; fato `RumorPerguntadoFact` com resultado de recusa.
 
@@ -415,7 +442,7 @@ Sucesso se o valor for menor que a chance.
 
 ### 5.8 `contar_rumor` — semear e relatar
 
-**Intenção.** `kind = CONTAR_RUMOR`; `target` obrigatório; `rumor_id` ou `topic`; `seed_rumor` booleano; sem `offer_moeda`.
+**Intenção.** `kind = CONTAR_RUMOR`; `intent = SHARE_RUMOR` (código 6); `target` obrigatório; `rumor_id` (`RumorId` kind 5) ou `topic` (`TopicId`); `seed_rumor` booleano; sem `offer_moeda`. O payload registra `rumor_id`, `topic`, `seed_rumor`, `fidelity_offered_bp` e `fidelity_received_bp`.
 
 **Pré-condições e alvos.** Ator e alvo vivos, mesma localidade, mesmo `z`, alcance social, linha estrutural livre; ator em posse do rumor, **ou** `seed_rumor = true` com um `TestemunhoFact` elegível do ator para o tópico.
 
@@ -425,7 +452,7 @@ Sucesso se o valor for menor que a chance.
 
 Sucesso se o valor for menor que a chance e a fidelidade for maior ou igual a `MIN_COGNITION_BP`.
 
-**Sucesso.** Se o ouvinte não tem cópia ativa ou a cópia oferecida (fidelidade da fonte menos `TRANSFER_LOSS_BP`) é maior que a existente, ele adquire ou substitui a cópia, mantendo a origem original; confiança +100 bp, empatia +50 bp; fato `RumorContadoFact` com rumor, origem, `fidelidade_oferecida_bp` e tick.
+**Sucesso.** Se o ouvinte não tem cópia ativa ou a cópia oferecida (fidelidade da fonte menos `TRANSFER_LOSS_BP`) é maior que a existente, ele adquire ou substitui a cópia, mantendo a origem original; confiança +100 bp, empatia +50 bp; `ConversationFact` v2 `RumorContadoFact` (`intent = SHARE_RUMOR`, `result_class` 1/2/3) com rumor, origem, `fidelidade_oferecida_bp` e tick.
 
 **Falha resolvida.** Sorteio desfavorável com pré-condições válidas: custo integral de 3 ticks, 1 sorteio consumido, sem transferência, confiança -50 bp; fato `RumorContadoFact` com resultado de recusa.
 
@@ -441,7 +468,7 @@ Sucesso se o valor for menor que a chance e a fidelidade for maior ou igual a `M
 
 ### 5.9 `ameaçar` — coerção social mínima
 
-**Intenção.** `kind = AMEACAR`; `target` obrigatório; `exigencia` em enum fechado: `REVELAR_RUMOR`, `PASSAGEM`, `AFASTAR_SE`; `topic` opcional para `REVELAR_RUMOR`; `gate_id` e `validity_ticks` obrigatórios para `PASSAGEM`; `away_destination` obrigatório para `AFASTAR_SE`; sem `offer_moeda`.
+**Intenção.** `kind = AMEACAR`; `intent = EXTORTION` (código 3); `target` obrigatório; `exigencia` em enum fechado com códigos 1..3 (`REVELAR_RUMOR=1`, `PASSAGEM=2`, `AFASTAR_SE=3`); `topic` opcional para `REVELAR_RUMOR`; `gate_id` e `validity_ticks` obrigatórios para `PASSAGEM`; `away_destination` (`GridPoint`) obrigatório para `AFASTAR_SE`; `scheduled_tick` é calculado no tick e registado no payload, não recebido; `offer_moeda` MUST ser 0 (EXTORTION não transfere moeda).
 
 **Pré-condições e alvos.** Ator e alvo vivos, mesma localidade, mesmo `z`, alcance social, linha estrutural livre; alvo não em trânsito. Para `REVELAR_RUMOR`: `TopicId` inexistente no estado é rejeição `INTENCAO_INVALIDA`; `TopicId` existente sem cópia ativa no alvo é o limite `SEM_CONCESSAO`. Para `PASSAGEM`, `gate_id` precisa pertencer à localidade do alvo ou a uma adjacente e `validity_ticks` precisa estar em `1..=PASS_VALIDITY_TICKS`. Para `AFASTAR_SE`, `away_destination` precisa ser célula passável e livre na mesma localidade e no mesmo `z`, a pelo menos `AWAY_MIN_DISTANCE_CELLS` do ator, com caminho de custo menor ou igual a `AGENDA_LOCAL_ACTION_MAX_TICKS`; caso contrário é rejeição, não limite.
 
@@ -451,7 +478,7 @@ Sucesso se o valor for menor que a chance e a fidelidade for maior ou igual a `M
 
 Sucesso se o valor for menor que a chance. Não há dano, HP, iniciativa ou morte nesta ação; o confronto físico letal está fora do recorte (PD-04).
 
-**Sucesso.** O alvo cumpre a exigência quando possível: `REVELAR_RUMOR` compartilha a cópia ativa do rumor indicado por `topic`; se `topic` estiver ausente, compartilha a cópia ativa de maior fidelidade do alvo, com empate pelo menor `RumorId`, aplicando 9.2 (sub-resultado `RUMOR_JA_CONHECIDO` se não superar a cópia do ator, sem anular a concessão); `PASSAGEM` cria `PassagemFact` com `gate_id`, `valid_from_tick = t0` e `valid_until_tick = t0 + validity_ticks`; `AFASTAR_SE` cria `AfastamentoFact` com `away_destination` e `scheduled_tick` igual ao menor múltiplo de `AGENDA_INTERVAL_TICKS` estritamente maior que `t0`; o alvo executa um `MoverPlan` para essa célula na entrada de agenda desse tick, com o custo de caminho válido cobrado dentro do pulso. A célula é reservada para o alvo até a execução; a reserva entra no estado e no hash e impede que outro ator a ocupe antes do movimento. Efeitos: empatia -1000 bp, medo +2500 bp, confiança -1500 bp; fato `AmeacaFact`.
+**Sucesso.** O alvo cumpre a exigência quando possível: `REVELAR_RUMOR` compartilha a cópia ativa do rumor indicado por `topic`; se `topic` estiver ausente, compartilha a cópia ativa de maior fidelidade do alvo, com empate pelo menor `RumorId`, aplicando 9.2 (sub-resultado `RUMOR_JA_CONHECIDO` se não superar a cópia do ator, sem anular a concessão); `PASSAGEM` cria `PassagemFact` (evento INT-05) com `gate_id` e `validity_ticks` do payload — a janela materializada `[t0, t0 + validity_ticks]` é pendência de layout INT-05/CORE-02, não inventada aqui; `AFASTAR_SE` cria o evento INT-05 `AfastamentoFact` com `away_destination` e `scheduled_tick` igual ao menor múltiplo de `AGENDA_INTERVAL_TICKS` estritamente maior que `t0`; o alvo executa um `MoverPlan` para essa célula na entrada de agenda desse tick, com o custo de caminho válido cobrado dentro do pulso. A célula é reservada para o alvo até a execução; a reserva entra no estado e no hash e impede que outro ator a ocupe antes do movimento. Efeitos: empatia -1000 bp, medo +2500 bp, confiança -1500 bp; `ConversationFact` v2 `AmeacaFact` (`intent = EXTORTION`, `result_class` 1/2/3). `PassagemFact` e `AfastamentoFact` não são `ConversationFact` (5.11).
 
 **Falha resolvida.** Sorteio desfavorável com pré-condições válidas: custo integral de 4 ticks, 1 sorteio consumido, sem concessão; empatia -500 bp, medo +500 bp, confiança -800 bp; fato `AmeacaResistidaFact`.
 
@@ -479,6 +506,27 @@ Sucesso se o valor for menor que a chance. Não há dano, HP, iniciativa ou mort
 | `ameaçar` | ator | 4 | 1 `social` | concessão + medo | resistência | sem concessão | morto/fora de alcance |
 
 `FALHA_RESOLVIDA` é sempre uma ação que aconteceu: paga o custo integral, consome os sorteios indicados e aplica apenas os efeitos de falha da tabela 8.2. Rejeição é o único resultado com 0 tick e 0 RNG; a matriz não mistura os dois.
+
+### 5.11 Fatos e eventos no CTR-01 rev 3
+
+Nenhum `*Fact` nomeado nesta spec é automaticamente um `ConversationFact`. A classificação normativa segue o mapa do CTR-01 §4.5.2:
+
+| Fato DOC-02 | Representação | `intent`/evento | Campos e observação |
+| --- | --- | --- | --- |
+| `FalaFact` | `CONVERSATION_FACT` v2 | `SOCIAL_TALK` = 10 | `registro` 1..4, `topic` opcional; `result_class` 1 ou 4; `reason=8` no cooldown. |
+| `AcordoFact` / `AcordoRecusadoFact` | `CONVERSATION_FACT` v2 | `NEGOTIATE` = 2 (`pedido` 1..3) ou `INFORM_PATH` = 9 (`pedido=4`) | `pedido`, `offer_moeda`, `meeting_tick`, `meeting_locality`, `gate_id`, `validity_ticks`, `destination`; `result_class` 1/2/3. |
+| `MentiraDetectadaFact` / `MentiraRejeitadaFact` / `CrencaJaPresenteFact` | `CONVERSATION_FACT` v2 | `LIE` = 4 | `topic`, `claim_value`; `result_class=2`, `reason=10/11`; limite `result_class=3`, `reason=7`; `MENTIRA_ACEITA` usa `result_class=1` e `reason=9`. |
+| `RumorPerguntadoFact` | `CONVERSATION_FACT` v2 | `ASK_RUMOR` = 8 | `topic` opcional, `fidelity_offered_bp`, `fidelity_received_bp`; `result_class` 1/2/3. |
+| `RumorContadoFact` | `CONVERSATION_FACT` v2 | `SHARE_RUMOR` = 6 | `rumor_id` ou `topic`, `seed_rumor`, fidelidades; `result_class` 1/2/3. |
+| `AmeacaFact` / `AmeacaResistidaFact` | `CONVERSATION_FACT` v2 | `EXTORTION` = 3 | `exigencia` 1..3, `topic`, `gate_id`, `validity_ticks`, `away_destination`, `scheduled_tick`; `result_class` 1/2/3. |
+| `ActorMovedFact`, `TravelFact` | Evento de domínio INT-05 | — | Movimento/viagem pertencem a GAME-01/CORE-02; layout em CTR-02, não `ConversationFact`. |
+| `PassagemFact`, `AfastamentoFact` | Evento de domínio INT-05 | — | O fato social v2 regista o pedido/exigência e os campos; o evento materializa concessão/reserva; a janela `[t0, t0 + validity_ticks]` e a reserva são pendência de INT-05/CORE-02. |
+| `CaminhoReveladoFact` | Evento de domínio INT-05 | — | Rota/custo/`EdgeId`; layout em CTR-02/CTR-03, não inventado aqui. |
+| `CrencaFalsaFact`, `TestemunhoFact` | Evento de domínio INT-05 | — | Crença/testemunho são estado/consequência de domínio; o fato social não os duplica. |
+| Estado de rumor (`copies`, fidelidade, escopo) | Secção canónica `RUMORS` (tag 8) | — | Layout/canonicalização: CTR-01 §5.2; semântica: SOC-02/SOC-03. |
+| `offer_moeda` | Efeito `TRANSFER_CURRENCY` (kind 7) | `NEGOTIATE`/`INFORM_PATH` | `source=speaker`, `target=listener`, `amount=offer_moeda`; `offer_moeda=0` não emite efeito; só em `result_class=1`. |
+
+**Pendências de layout (não liberam consumidores):** os campos de materialização de `ActorMovedFact`/`TravelFact` (caminho, rota, portões), `PassagemFact`/`AfastamentoFact` (validade, reserva, `scheduled_tick`), `CaminhoReveladoFact` (rota/custo/`EdgeId`), `CrencaFalsaFact` e `TestemunhoFact` pertencem a INT-05/CORE-02 (layout em CTR-02/CTR-03). Esta spec **não inventa** esses campos nem declara o layout congelado; ficam bloqueados para consumir os eventos pendentes: **GAME-01, REPLAY-01, SOC-01, SOC-02, SOC-03, E2E-01 e STORE-02**. `TUI-01`, `APP-01` e `CLI-01` podem avançar apenas por recibos/projeções que não materializem esses eventos; se precisarem do evento materializado, entram no mesmo bloqueio. O `ConversationFact` v2 cobre o ato social e o payload; não substitui o evento de domínio.
 
 ## 6. Rejeição, cancelamento, obsolescência e dry-run
 
@@ -604,9 +652,9 @@ Limites declarados, não medições: `MAX_AGENDA_ENTRIES_PER_PULSE = 64` entrada
 
 ### 8.1 Eixos, faixa e rótulos derivados
 
-As relações são direcionais: o par `(observador, alvo)` guarda como o observador vê o alvo. Nesta sessão, os eixos autoritativos são **empatia**, **medo** e **confiança**, todos inteiros em `[-10000, 10000]` bp. Os eixos dependência e hostilidade citados na arquitetura não são usados por esta sessão; se `SOC-01` os introduzir, precisam de contrato próprio e não podem alterar os três eixos pinados aqui.
+As relações são direcionais: o par `(observador, alvo)` guarda como o observador vê o alvo. Nesta sessão, os eixos autoritativos são **empatia**, **medo** e **confiança**, todos inteiros com sinal em `[-10000, 10000]` bp. O estado guarda o valor em `RelationBp(i16)`; os fatos guardam o delta exato em `BasisPoints` e nunca reescrevem o valor com `UnitBp`. Os eixos dependência e hostilidade citados na arquitetura não são usados por esta sessão; se `SOC-01` os introduzir, precisam de contrato próprio e não podem alterar os três eixos pinados aqui.
 
-| Eixo | Faixa | Rótulo derivado | Limiar |
+| Eixo | Faixa | Rótulo derivado (apresentação) | Limiar |
 | --- | --- | --- | --- |
 | Empatia | -10000 a 10000 | `FRIA` | menor ou igual a -3000 |
 | Empatia | -10000 a 10000 | `NEUTRA` | -2999 a 2999 |
@@ -618,20 +666,20 @@ As relações são direcionais: o par `(observador, alvo)` guarda como o observa
 | Confiança | -10000 a 10000 | `NEUTRA` | -2999 a 2999 |
 | Confiança | -10000 a 10000 | `CONFIANCA` | maior ou igual a 3000 |
 
-Os rótulos são **derivados** dos valores e nunca armazenados como autoridade paralela; um único par de faixas decide o rótulo. Um rótulo não concede ação, alvo, alcance ou permissão. Valores fora da faixa só podem resultar de clamp autorizado, nunca de entrada inválida aceita.
+Os rótulos de faixa são **derivados** dos valores e nunca armazenados como autoridade paralela; um único par de faixas decide o rótulo. `LIAR` (label 6, CTR-01 §5.2) é um **label anexado** persistente, distinto desses rótulos derivados; ele é armazenado na secção canónica `LABELS` do estado, no par `(source, target, label) = (listener, speaker, 6)`, e não é recalculado a partir dos três eixos. Os únicos labels canónicos persistidos são os do enum 1..6 do CTR-01; `FRIA`, `NEUTRA`, `CALOROSA`, `BAIXO`, `ALTO`, `PANICO`, `DESCONFIANCA` e `CONFIANCA` são rótulos de apresentação derivados, não labels do estado nem valores do enum de labels. Um rótulo não concede ação, alvo, alcance ou permissão.
 
 ### 8.2 Deltas exatos por ação e resultado
 
-Os deltas abaixo são **solicitados** ao par alvo para ator; o valor aplicado pode ser reduzido pelo clamp da seção 8.3. O fato guarda o delta solicitado e o valor resultante, preservando 1 bp.
+Os deltas abaixo são **solicitados** ao par alvo para ator em `BasisPoints`; o estado aplica sobre `RelationBp(i16)`. `LIAR` é o label 6 (`ATTACH_LABEL`) do par `(listener, speaker)` e não um delta de eixo. O fato guarda o delta efetivo e o flag de saturação quando autorizado, preservando 1 bp.
 
 | Ação | Resultado | Empatia | Medo | Confiança | Observação |
 | --- | --- | --- | --- | --- | --- |
 | `falar` | sucesso | +100 | 0 | +50 | cooldown zera os deltas |
-| `negociar` | sucesso | +150 | 0 | +300 | transfere moedas |
+| `negociar` | sucesso | +150 | 0 | +300 | efeito `TRANSFER_CURRENCY` kind 7 |
 | `negociar` | falha | -50 | 0 | -100 | sem transferência |
 | `negociar` | `SEM_CONDICAO` | 0 | 0 | -50 | sem transferência |
 | `mentir` | `MENTIRA_ACEITA` | +50 | 0 | +100 | cria crença falsa |
-| `mentir` | `MENTIRA_DETECTADA` | -800 | +300 | -1500 | aplica rótulo `MENTIROSO` |
+| `mentir` | `MENTIRA_DETECTADA` | -800 | +300 | -1500 | aplica label `LIAR` = 6 |
 | `mentir` | `MENTIRA_REJEITADA` | -100 | 0 | -200 | sem crença |
 | `perguntar_rumor` | sucesso | +50 | 0 | +100 | rumor com perda de 1000 bp |
 | `perguntar_rumor` | falha | 0 | 0 | -50 | sem informação |
@@ -650,21 +698,23 @@ Os deltas abaixo são **solicitados** ao par alvo para ator; o valor aplicado po
 
 ### 8.3 Clamp autorizado versus rejeição
 
-- O clamp autorizado é o intervalo `[-10000, 10000]` bp. Quando um delta ultrapassa o limite, o valor é fixado no limite, o fato registra `clamp_aplicado = true`, o delta solicitado e o valor final. Isso **não** é erro, não é recusa e não consome RNG adicional.
-- Rejeição é outra coisa: intenção inválida, alvo morto ou inexistente, fora de alcance, recurso insuficiente, rota impossível ou ação fora do recorte. Rejeição não aplica clamp, não cobra tick e não consome RNG.
-- Clamp jamais transforma entrada inválida em válida: enum desconhecido, tópico inexistente, delta fora do tipo ou alvo morto continuam recusados.
-- Arredondamento: não há arredondamento de bp nesta sessão; todos os deltas são inteiros e aplicados como inteiros. `1 bp` é preservado no fato e no hash; conversões para apresentação são somente leitura.
+- O estado guarda a relação em `RelationBp(i16)`, `-10000..=10000`; o efeito `DELTA_RELATIONSHIP` (kind 2) carrega `BasisPoints` inteiro. A aplicação calcula `raw = old + delta` com aritmética verificada.
+- Se `raw` estiver em `[-10000, 10000]`, o novo valor é exato, sem flag.
+- Se `raw` estiver fora da faixa, só a política **`AuthorizedSaturation`** declarada pela regra/efeito pode fixar o valor no limite; o efeito efetivo é `novo - old`, o fato guarda o delta efetivo e o flag `AUTHORIZED_SATURATION`. Se o efeito efetivo for `0`, o efeito é omitido.
+- Sem `AuthorizedSaturation`, o resultado é `ClampNotAuthorized`/`DeltaOutOfRange`: o fato inteiro é rejeitado, sem efeito parcial, sem append e sem mudança de estado.
+- Rejeição de pré-condição é outra coisa: intenção inválida, alvo morto ou inexistente, fora de alcance, recurso insuficiente, rota impossível ou ação fora do recorte. Rejeição não aplica clamp, não cobra tick e não consome RNG.
+- `delta = 0` é `ZeroDelta`; não se emite efeito vazio. Não há arredondamento de bp: todos os deltas são inteiros; `1 bp` permanece `1` no fato e no hash, e conversões para apresentação são somente leitura.
 
 ### 8.4 Testemunho e presença
 
 - Presença para testemunho: mesma localidade, mesmo `z`, `Manhattan <= WITNESS_REACH_CELLS`, ator vivo e não em trânsito, linha estrutural livre. A percepção autoritativa futura pode restringir isso, mas **nunca** o overlay pode ampliar.
-- Testemunhas são ordenadas por `ActorId`; no máximo `MAX_WITNESSES` por ação. Cada testemunha recebe `TestemunhoFact` com ação, participantes, tick e localidade.
+- Testemunhas são ordenadas por `ActorId`; no máximo `MAX_WITNESSES` por ação. Cada testemunha recebe o evento de domínio INT-05 `TestemunhoFact` com ação, participantes, tick e localidade.
 - Testemunha de ameaça ou de mentira detectada pode receber o rumor correspondente, com escopo `LOCAL`, origem na parte prejudicada e fidelidade 10000.
 - Ver uma silhueta no overlay, abrir o diário ou consultar um resumo regional **não** conta como presença, não cria testemunho e não atualiza conhecimento.
 
 ### 8.5 Mentira, crença e detecção
 
-A mentira é um ato simbólico com dois sorteios, descrito em 5.6. A crença falsa é um fato do alvo, não um rumor; ela só vira rumor quando o alvo a relata com `contar_rumor`. A detecção é do alvo nesta sessão; detecção por testemunha, confronto posterior e retratação ficam para `SOC-01`/`SOC-02`, sem alterar os deltas pinados aqui. O rótulo `MENTIROSO` é persistente nesta sessão; sua remoção ou reabilitação exige contrato futuro e não é presumida.
+A mentira é um ato simbólico com dois sorteios, descrito em 5.6. A crença falsa é um fato do alvo, não um rumor; ela só vira rumor quando o alvo a relata com `contar_rumor`. A detecção é do alvo nesta sessão; detecção por testemunha, confronto posterior e retratação ficam para `SOC-01`/`SOC-02`, sem alterar os deltas pinados aqui. O label `LIAR` = 6 é persistente nesta sessão, armazenado em `LABELS` no par `(listener, speaker)`; sua remoção ou reabilitação exige contrato futuro e não é presumida. A distinção é explícita: rótulos de faixa são derivados dos eixos; `LIAR` é label anexado do CTR-01 §5.2.
 
 ## 9. Rumores
 
@@ -672,19 +722,19 @@ A mentira é um ato simbólico com dois sorteios, descrito em 5.6. A crença fal
 
 | Campo | Tipo lógico | Regra |
 | --- | --- | --- |
-| `rumor_id` | identidade sequencial | atribuído na criação, ordenado, estável |
-| `topic_id` | `TopicId` | fato referido; não contém prosa |
+| `rumor_id` | `EntityId` kind `RUMOR` = 5 | identidade geracional, não “sequencial” reutilizável; ordem numérica crescente |
+| `topic_id` | `TopicId` (`TopicKind` + `FactId`/`RumorId`) | referência tipada ao fato/rumor; não contém prosa |
 | `origin_actor` | `ActorId` | imutável após a criação |
 | `origin_tick` | `Tick` | tick da criação |
-| `origin_locality` | `LocalityId` | localidade da criação |
-| `copies` | mapa ordenado `ActorId -> CopyState` | uma entrada por ator que já ouviu o rumor; `CopyState` tem `fidelity_bp`, `state` (`ATIVO` ou `EXTINTO`) e `acquired_tick` |
+| `origin_locality` | `LocalityId` (alias `LocationId`) | localidade da criação |
+| `copies` | mapa ordenado `ActorId -> CopyState` | layout da secção `RUMORS` (tag 8) do CTR-01; `CopyState` tem `fidelity_bp`, `state` (`ATIVO` ou `EXTINTO`) e `acquired_tick` |
 | `half_life_ticks` | inteiro positivo | 1200 nesta proposta |
 | `scope` | `LOCAL` ou `REGIONAL` | `GROUP` fora desta sessão |
 | `carriers` | conjunto ordenado de `ActorId` | derivado das cópias com `state = ATIVO`; não é um segundo campo de fidelidade |
 | `min_cognition_bp` | inteiro | 4000 nesta proposta |
 | `state` | `ATIVO` ou `EXTINTO` | derivado: `ATIVO` se ao menos uma cópia estiver ativa; `EXTINTO` se nenhuma estiver; a extinção não apaga o fato |
 
-Os campos formais, a codificação e a preservação em evento pertencem a `SOC-02` e `CTR-01`; esta seção fixa a semântica que `SOC-03` deve implementar em `crates/af-conversation/src/rumors.rs`.
+A **propriedade da secção é dividida**: o layout binário, a canonicalização e a tag 8 de `RUMORS` pertencem ao CTR-01 §5.2; a semântica de origem, fidelidade, portadores, meia-vida e extinção pertence a `SOC-02`/`SOC-03`. Esta spec descreve o comportamento observável e **não atribui ao CTR-01** semântica nova de rumor, nem inventa campos de layout além dos que o contrato fixa. A implementação de referência futura é `crates/af-conversation/src/rumors.rs`, sob `SOC-03`.
 
 ### 9.2 Origem e fidelidade
 
@@ -945,7 +995,8 @@ Arquivo futuro: `crates/af-conversation/tests/social_relations.rs`.
 
 - `given_successful_speech_when_apply_then_exact_bp_deltas` — +100 empatia, +50 confiança.
 - `given_negotiation_success_when_apply_then_coins_transferred_and_deltas_exact` — +150/+300 e moedas.
-- `given_lie_detected_when_apply_then_trust_minus_1500_and_label_liar` — deltas e rótulo.
+- `given_lie_detected_when_apply_then_trust_minus_1500_and_label_liar` — deltas e label `LIAR` = 6.
+- `given_lie_when_target_already_believes_then_result_class_3_reason_7` — limite `CRENCA_JA_PRESENTE` classificado como `LIE` 3/7.
 - `given_delta_beyond_limit_when_apply_then_clamp_recorded_not_rejection` — clamp distinto de rejeição.
 - `given_one_bp_delta_when_encode_and_replay_then_value_preserved` — 1 bp.
 - `given_witness_present_when_threat_then_witness_fact_but_no_overlay_knowledge` — testemunho sem overlay.
@@ -1030,6 +1081,7 @@ Fora da tabela, continuam pendentes de decisão humana, em outros cartões: form
 | [ADR 0008](<../architecture/adr/0008-action-driven-simulation-time.md>) | tempo por ação, agenda regional, rejeição/cancelamento |
 | [Roadmap de arquitetura, tick e determinismo](<../architecture/roadmap.md#23-tick-tempo-e-determinismo>) | unidade `Tick`, streams, proibições de relógio/`f32`/`HashMap` |
 | [Arquitetura de software](<../architecture/overview.md>) | portas, fluxo de ação, invariantes de relação e IDs |
+| `CTR-01` rev 3, commit `563c521645c05b2ec1b2ad90d0801994e9610fcc` | IDs geracionais, `RelationBp(i16)`, labels 1..6 (`LIAR` = 6), intents 1..10, payload de 99 bytes, `TRANSFER_CURRENCY` kind 7 e classificação `ConversationFact`/evento INT-05 |
 | [Wave spec](<wave-spec.md>) | `INT-02`, `INT-04`, consumidores, anti-escopo, manifesto |
 | [ROADMAP](<../../ROADMAP.md>) | cartões DOC-02, GAME-01, SOC-01, SOC-03, TUI-01, E2E-01, REPLAY-01, APP-01 |
 | [Development rules](<../engineering/development-rules.md>) | idioma, unidades, testes `given_when_then`, determinismo |
