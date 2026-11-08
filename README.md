@@ -20,9 +20,11 @@
 Fortress*, com o mundo numa **grelha de blocos** e visualização final **2D isométrica**,
 com o motor **Hermeneutic Core**:
 
-- O mundo é uma **grelha de blocos** estilo *Dwarf Fortress*/*Minecraft*: cada bloco pode
-  ser casa, caverna, buraco, árvore, parede, água ou chão — escavar e construir é a
-  linguagem do mundo.
+- O mundo é uma **grelha de blocos** estilo *Dwarf Fortress*/*Minecraft*: todo o
+  **material de construção do mapa é um cubo** (pedra, madeira, parede, telhado, chão) e
+  **todas as construções são montadas a partir deles** — casa, caverna, buraco, árvore,
+  parede, água. Itens de uso, consumo, vestimenta e combate **não** são blocos: são itens
+  normais de inventário.
 - **Cada personagem é uma individualidade**: um **mini perceptron (MLP)** próprio,
   treinado pela experiência de vida e herdado/evoluído darwinianamente por raça/espécie.
 - A simulação é **matemática e determinística**: nenhum texto é gerado no *game loop*.
@@ -37,8 +39,22 @@ com o motor **Hermeneutic Core**:
 **A visualização final do jogo é 2D com visão isométrica** — os blocos são projetados em
 diamante, como nos clássicos isométricos. **Não haverá nada de 3D real, nem agora nem ao
 final**: sem câmara 3D, sem malhas, sem *engine* 3D. A profundidade é pura projeção
-isométrica 2D; a TUI/ASCII fica apenas como interface de depuração e *fallback*. A
-decisão está registada no [roadmap](docs/architecture/roadmap.md) (secções 2.9 e 2.10).
+isométrica 2D; a TUI/ASCII fica apenas como interface de depuração e *fallback*.
+
+**Renderiza-se apenas o que é visto** — lógica de *fog of war* à la *Dwarf Fortress* e
+*Age of Empires*, em três camadas:
+
+1. **Visão ativa** — onde o personagem **olha** (campo de visão com direção): o mundo ao
+   vivo, com criaturas e construções atualizadas.
+2. **Memória de ambientes** — onde já viu mas não olha agora: o caminho fica **meio
+   apagado** e **congelado** (sem atualizar criaturas nem mudanças de construção) — é a
+   **memória do personagem sobre o ambiente**.
+3. **Escuro** — onde nunca viu: **totalmente escuro**.
+
+Personagens (o próprio e outros) **por detrás de uma construção** aparecem como
+**silhueta**, e a câmara sobe/desce no eixo de altura para ver andares **acima ou abaixo**
+(z-levels). Tudo está registado no [roadmap](docs/architecture/roadmap.md) (secções 2.9
+a 2.11).
 
 ## Regra zero: tudo offline
 
