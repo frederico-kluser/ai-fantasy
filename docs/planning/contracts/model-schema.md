@@ -118,8 +118,8 @@ reply        = [ reasoning ] tool_call [ trailing_ws ]
 reasoning    = "<think" opaque "</think"
 tool_call    = "<tool_call>" call "</tool_call>"
 call         = "<function=propose_emergent_action>" parameter+ "</function=>"
-parameter    = "<parameter=" name ">" value "</parameter>"
-parameter-close = "</parameter" ">"
+parameter    = "<parameter=" name ">" value parameter-close
+parameter-close = "</parameter=>"
 ```
 
 Regras:
@@ -130,17 +130,20 @@ Regras:
 3. Cada parâmetro tem um `name` do conjunto canônico ou do conjunto de aliases da §3.1. Nome fora do
    conjunto é `UnknownParameter`; `name` vazio, com espaço, com aspas ou com `=` é
    `MalformedParameter`.
-4. O fecho do parâmetro é exatamente `</parameter` seguido de `>`. `</parameter >`, `</parameter/>`,
-   `</PARAMETER>` e `</parameter` sem `>` são `MalformedFrame`.
-5. O fecho da função é exatamente `</function=>`. `</function>`, `</function >` e `</function= >` são
-   `MalformedFrame`.
+4. O fecho do parâmetro é exatamente `</parameter=>`, o mesmo dialeto do exemplo histórico. O fecho
+   `</parameter` seguido de `>` (sem `=`), `</parameter >`, `</parameter/>` e `</PARAMETER=>` são
+   `MalformedFrame`. Não há variante aceite em v1: o template do prompt DEVE emitir
+   `</parameter=>`.
+5. O fecho da função é exatamente `</function=>`. `</function>`, `</function >` e `</function= >`
+   são `MalformedFrame`.
 6. O fecho da chamada é exatamente `</tool_call>`, uma vez. Texto não vazio depois dele é
    `TrailingContent`; espaços, tabs, CR e LF são permitidos.
 7. Não há texto entre `tool_call` e `call`, nem entre parâmetros, exceto espaços/tabs/CR/LF.
 8. A ordem dos parâmetros é livre. Cada campo obrigatório aparece exatamente uma vez, contando
    canônico e alias como o mesmo campo; duas ocorrências é `DuplicateParameter`.
-9. `reasoning` é opcional, aparece no máximo uma vez e antes de `tool_call`. O conteúdo é opaco: não
-   é interpretado, executado, procurado por marcadores ou usado para escolher uma segunda chamada.
+9. `reasoning` é opcional, aparece no máximo uma vez e antes de `tool_call`. O conteúdo é
+   semanticamente opaco: não é interpretado, executado ou usado para escolher uma segunda chamada,
+   mas os marcadores de framing são verificados (§2.7).
 10. `trailing_ws` não pode conter uma segunda chamada, um segundo bloco de raciocínio ou qualquer
     marcador de parâmetro.
 
@@ -154,27 +157,29 @@ peso a dívida e a testemunha.
 <function=propose_emergent_action>
 <parameter=schema_version>
 1
-</parameter>
+</parameter=>
 <parameter=action_label>
 ameacar_publicamente
-</parameter>
+</parameter=>
 <parameter=attributes>
 {"actor_primary":"LANGUAGE","actor_secondary":"INTELLIGENCE","target_primary":"PERCEPTION","target_secondary":"EMOTIONAL_STABILITY","required_item":1002}
-</parameter>
+</parameter=>
 <parameter=target_dc>
 16
-</parameter>
+</parameter=>
 <parameter=on_success>
 {"effects":[{"kind":"transfer_item","item":1001,"from":"target","to":"actor","quantity":1},{"kind":"delta_relationship","target":"target","axis":"fear","amount_bp":3500}]}
-</parameter>
+</parameter=>
 <parameter=on_failure>
 {"effects":[{"kind":"delta_relationship","target":"target","axis":"hostility","amount_bp":6000}]}
-</parameter>
+</parameter=>
 </function=>
 </tool_call>
 ```
 
-O exemplo canônico em JSON está na §3.10. Um exemplo não é um fixture e não implica que os IDs existam.
+O exemplo canônico em JSON está na §3.10. Um exemplo não é um fixture e não implica que os IDs
+existam; `transfer_item` e `required_item` só são aceites com `ActionFacts.items_enabled=true`
+(§3.6 e §4.4).
 
 ### 2.3 Valores, escapes e entidades
 
@@ -232,7 +237,10 @@ prompt/transporte, não do parser: o parser mede bytes e não confia no contador
 | `<parameter=nome>` sem aspas | sim | — | — |
 | `<parameter="nome">` | — | sim | `MalformedParameter` |
 | `<parameter=nome >` | — | sim | `MalformedParameter` |
+| `</parameter=>` | sim | — | — |
+| `</parameter` seguido de `>` | — | sim | `MalformedFrame` |
 | `</parameter >` | — | sim | `MalformedFrame` |
+| `</parameter/>` | — | sim | `MalformedFrame` |
 | `<think` … `</think` | sim, uma vez | duas vezes | `DuplicateReasoning` |
 | `<think` sem `</think` | — | sim | `TruncatedReasoning` |
 | `<thinkx` … `</thinkx>` | — | sim | `MalformedFrame` |
@@ -254,6 +262,7 @@ prompt/transporte, não do parser: o parser mede bytes e não confia no contador
 | Número decimal/expoente | — | sim | `JsonNonIntegerNumber` |
 | `null` | — | sim | `WrongType` |
 | Campo desconhecido no JSON | — | sim | `UnknownField` |
+| Nome de proveniência reservado | — | sim | `ProvenanceFieldForbidden` |
 
 ### 2.6 Fronteira de parser único
 
@@ -274,11 +283,13 @@ prompt/transporte, não do parser: o parser mede bytes e não confia no contador
 
 ### 2.7 Preâmbulo de raciocínio
 
-O bloco `<think` … `</think` é opaco e não é auditado semanticamente. PODE conter texto livre em
-UTF-8, mas NÃO PODE conter os marcadores `<tool_call>`, `<function=`, `<parameter=` ou
-`</parameter`; se contiver, é `MarkerInValue`. O bloco não é executado, não é obedecido, não é
+O bloco `<think` … `</think` é semanticamente opaco e não é auditado por conteúdo. PODE conter
+texto livre em UTF-8, mas NÃO PODE conter os marcadores `<tool_call>`, `<function=`, `<parameter=`
+ou `</parameter`; se contiver, é `MarkerInValue`. O bloco não é executado, não é obedecido, não é
 indexado e não é usado para escolher outra chamada; o host regista apenas o seu digest e o tamanho.
 Um bloco truncado ou com fecho divergente é rejeitado, mesmo que o resto da resposta pareça válido.
+A verificação de marcadores não é interpretação semântica: é a mesma fronteira de framing do resto
+da resposta.
 
 ## 3. Schema fechado da proposta
 
@@ -289,9 +300,9 @@ Um bloco truncado ou com fecho divergente é rejeitado, mesmo que o resto da res
 | `attributes_involved` | `attributes` | alias aceite em v1, deprecado |
 | `on_success_changes` | `on_success` | alias aceite em v1, deprecado |
 | `on_failure_changes` | `on_failure` | alias aceite em v1, deprecado |
+| `propagation_rules` | `propagation` | alias aceite em v1, deprecado |
 | `action_label` | `action_label` | canônico |
 | `target_dc` | `target_dc` | canônico |
-| `propagation` | `propagation` | canônico, opcional |
 | `schema_version` | `schema_version` | obrigatório; ausente no exemplo |
 
 Regras de alias:
@@ -299,28 +310,31 @@ Regras de alias:
 1. Um alias e o canônico correspondente contam como o mesmo campo. Enviar os dois é
    `DuplicateParameter`; enviar o mesmo alias duas vezes também.
 2. Não há aliases dentro do JSON (`effects`, `kind`, `amount_bp`, etc.) nem para labels, status,
-   eixos, atributos ou escopos. A compatibilidade limita-se aos três nomes de parâmetro acima.
+   eixos, atributos ou escopos. A compatibilidade limita-se aos quatro nomes de parâmetro acima.
 3. Os aliases existem apenas para aceitar respostas de um prompt antigo durante a migração. O prompt
    v1 usa os nomes canônicos; um prompt v2 remove os aliases e o parser passa a rejeitá-los como
    `UnknownParameter`.
 4. O exemplo canônico da §3.10 usa apenas nomes canônicos e inclui `schema_version`.
+5. `propagation_rules` é o nome do único exemplo histórico; `propagation` é o nome canônico. A linha
+   não afirma que o exemplo usava `propagation`.
 
 ### 3.2 Topo da proposta
 
 | Campo | Tipo | Obrigatório | Regra |
 | --- | --- | --- | --- |
-| `schema_version` | inteiro | sim | exatamente `1`; outro valor é `UnsupportedSchemaVersion`; ausente é `MissingField` |
+| `schema_version` | inteiro | sim | exatamente `1`; outro valor é `UnsupportedSchemaVersion`; ausente é `MissingParameter` com `parameter=schema_version` |
 | `action_label` | string | sim | token ASCII `[A-Za-z0-9_.-]{1,64}`; não é prosa |
-| `attributes` | objeto | sim | §3.3, exatamente cinco chaves |
+| `attributes` | objeto | sim | §3.3, quatro chaves obrigatórias e `required_item` opcional |
 | `target_dc` | inteiro | sim | `5..=25`, inclusive |
 | `on_success` | objeto | sim | `{"effects": [...]}` com `1..=8` efeitos |
 | `on_failure` | objeto | sim | `{"effects": []}` ou `1..=8` efeitos |
 | `propagation` | objeto | não | §3.7; ausente significa "sem semente de rumor" |
 
-O objeto raiz tem exatamente estas chaves. `deny_unknown_fields` é obrigatório em todos os níveis:
-`provenance`, `model`, `tick`, `revision`, `rule_id`, `fact_seq`, `seed`, `temperature`, `trace`,
-`draw`, `rng`, `timestamp` e `notes` são `UnknownField`, não metadados aceites. O modelo não fornece
-identidade, tempo, RNG, proveniência ou IDs de facto.
+O objeto raiz tem exatamente estas chaves. `deny_unknown_fields` é obrigatório em todos os níveis.
+Nomes reservados de proveniência (`provenance`, `model`, `model_id`, `tick`, `revision`, `rule_id`,
+`fact_seq`, `seed`, `temperature`, `trace`, `draw`, `rng`, `timestamp`, `notes`) são
+`ProvenanceFieldForbidden`, não `UnknownField`; qualquer outra chave não declarada é `UnknownField`.
+O modelo não fornece identidade, tempo, RNG, proveniência ou IDs de facto.
 
 ### 3.3 Atributos
 
@@ -330,12 +344,13 @@ identidade, tempo, RNG, proveniência ou IDs de facto.
 | `actor_secondary` | enum | sim | §3.8.1, diferente de `actor_primary` |
 | `target_primary` | enum | sim | §3.8.1 |
 | `target_secondary` | enum | sim | §3.8.1, diferente de `target_primary` |
-| `required_item` | inteiro | não | `ItemId > 0`; se presente, o ator DEVE possuir o item |
+| `required_item` | inteiro | não | `ItemId > 0`; exige `items_enabled=true` e posse pelo ator |
 
-`actor_*` e `target_*` podem coincidir entre si (o ator e o alvo podem partilhar um atributo); apenas
-o par primário/secundário de cada lado tem de ser distinto. O objeto tem exatamente estas cinco
-chaves. Os atributos não alteram `target_dc`; alimentam o modificador de check calculado pelo INT-04
-(§5.2), nunca um clamp.
+O objeto tem **quatro chaves obrigatórias** e, opcionalmente, `required_item`; portanto tem quatro
+ou cinco chaves, nunca outra contagem. `actor_*` e `target_*` podem coincidir entre si (o ator e o
+alvo podem partilhar um atributo); apenas o par primário/secundário de cada lado tem de ser
+distinto. Os atributos não alteram `target_dc`; alimentam o modificador de check calculado pelo
+INT-04 (§5.2), nunca um clamp.
 
 ### 3.4 Efeitos
 
@@ -346,8 +361,8 @@ para o seu `kind`; qualquer outra é `UnknownField`. Não há texto livre, `desc
 | `kind` | Kind CTR-01 | Campos | Alvos permitidos |
 | --- | --- | --- | --- |
 | `transfer_item` | `TRANSFER_ITEM` | `item`, `from`, `to`, `quantity?` | `actor`, `target` |
-| `delta_relationship` | `DELTA_RELATIONSHIP` | `target`, `axis`, `amount_bp`, `authorized_saturation?` | `actor`, `target`, `bystanders` |
-| `attach_label` | `ATTACH_LABEL` | `target`, `label` | `actor`, `target`, `bystanders` |
+| `delta_relationship` | `DELTA_RELATIONSHIP` | `target`, `axis`, `amount_bp`, `authorized_saturation?` | `target`, `bystanders` |
+| `attach_label` | `ATTACH_LABEL` | `target`, `label` | `target`, `bystanders` |
 | `apply_status` | `APPLY_STATUS` | `target`, `status`, `duration_ticks` | `actor`, `target`, `bystanders` |
 | `propagate_rumor` | `PROPAGATE_RUMOR` | `rumor`, `target`, `amount_bp` | `target`, `bystanders` |
 | `delta_hp` | `DELTA_HP` | `target`, `amount`, `authorized_saturation?` | `actor`, `target`, `bystanders` |
@@ -357,24 +372,30 @@ Regras por efeito:
 
 1. `transfer_item`: `item` é `ItemId > 0`; `from` e `to` são `actor` ou `target` e têm de ser
    diferentes (`SelfTransfer`); `quantity` ausente vale `1`, presente é inteiro `1..=2147483647`.
-   O materializador verifica posse, quantidade e duplicação; não move itens de `bystanders`.
-2. `delta_relationship`: `amount_bp` é inteiro `-10000..=10000`, diferente de zero (`ZeroDelta`).
-   A fonte é sempre o ator; o efeito altera `(actor, target, axis)`. `target=actor` é
-   `SelfTarget`; `bystanders` expande para cada testemunha elegível.
+   Exige `ActionFacts.items_enabled=true`; caso contrário é `ItemEffectNotEnabled` (o recorte
+   DOC-02/PD-04 exclui itens por omissão). Verifica posse, quantidade e duplicação; não move itens
+   de `bystanders`.
+2. `delta_relationship`: `amount_bp` é inteiro `-10000..=10000`, diferente de zero (`ZeroDelta`
+   quando zero; `AmountOutOfRange` quando fora do intervalo). A fonte é sempre o ator; o efeito
+   altera `(actor, target, axis)`. `target=actor` é `SelfTarget`; `bystanders` expande para cada
+   testemunha elegível.
 3. `attach_label`: a fonte é sempre o ator; `target=actor` é `SelfTarget`; o rótulo é único por
    `(actor, target)` e o ramo tem no máximo três `attach_label` (`LabelCountExceeded`).
 4. `apply_status`: `duration_ticks` é inteiro `1..=525600`; um estado já presente no alvo é
    `StatusAlreadyPresent` (não há refresh nem stack); o catálogo é o da §3.8.4.
-5. `propagate_rumor`: `rumor` é `RumorId > 0`; `amount_bp` é inteiro `1..=10000`; a fonte é o ator
-   e tem de possuir uma cópia com fidelidade suficiente; este efeito **não cria** rumor nem escolhe
-   testemunhas. A criação de um rumor novo é o bloco `propagation`, cuja semântica pertence ao
-   SOC-02/SOC-03.
+5. `propagate_rumor`: `rumor` é `RumorId > 0`; `amount_bp` é inteiro `1..=10000` e DEVE ser
+   exatamente a fidelidade da cópia de origem em `ActionFacts` (`RumorFidelityMismatch` caso
+   contrário). O host aplica `TRANSFER_LOSS_BP` e as regras de portador do SOC-03; o modelo não
+   escolhe a perda, as testemunhas nem cria rumor. A criação de um rumor novo é o bloco
+   `propagation`.
 6. `delta_hp`: `amount` é inteiro `-1000000..=1000000`, diferente de zero. Dano que leve o alvo a
-   menos de `1` é `LethalDamageNotAuthorized`; não há morte em v1. Cura acima do máximo só é aceite
-   com saturação autorizada (§4.4).
+   menos de `1` é `LethalDamageNotAuthorized`; não há morte em v1. Cura acima do máximo sem
+   saturação autorizada é `ClampNotAuthorized`; com a flag, satura e registra.
 7. `transfer_currency`: `from` e `to` são `actor` ou `target`, diferentes; `amount` é inteiro
    `1..=10000`; a soma conserva-se e a carteira do destino não pode exceder `10000`
-   (`WalletOverflow`).
+   (`WalletOverflow`). Só é válido quando o `intent` do facto é `NEGOTIATE` (2) ou `INFORM_PATH` (9)
+   e `ActionFacts.offer_currency` é coerente com `from/to/amount` (CTR-01 §4.5.6); caso contrário é
+   `IntentEffectMismatch`.
 8. `authorized_saturation` só existe em `delta_relationship` e `delta_hp`; em qualquer outro `kind`
    é `UnsupportedSaturation`. Ausente vale `false`.
 9. `damage`, `heal`, `spawn_rumor`, `set_flag`, `teleport`, `give_xp` e `kill` não são kinds v1;
@@ -387,8 +408,8 @@ Regras por efeito:
 
 | Selector | Liga a | Contextos válidos | Expansão |
 | --- | --- | --- | --- |
-| `actor` | ator da ação | alvos de efeito, `from`/`to` | um ator |
-| `target` | alvo da ação | alvos de efeito, `from`/`to` | um ator, se existir |
+| `actor` | ator da ação | `from`/`to` de transferências; alvo de `apply_status`/`delta_hp` | um ator |
+| `target` | alvo da ação | alvo de qualquer efeito; `from`/`to` de transferências | um ator, se existir |
 | `bystanders` | testemunhas elegíveis | `delta_relationship`, `attach_label`, `apply_status`, `delta_hp`, `propagate_rumor` | lista ordenada, 0..N |
 | `region` | região | apenas `propagation.scope` | não é alvo de efeito |
 
@@ -397,21 +418,24 @@ Regras:
 1. Não há IDs de ator numéricos no lugar de selectores. Um inteiro ou um nome de ator em `target`,
    `from` ou `to` é `InvalidSelector`; o host liga os símbolos `actor`/`target` a `ActorId`
    concretos e nunca aceita um ID escolhido pelo modelo.
-2. `region` como alvo de efeito, `from`, `to` ou `holder` é `InvalidSelector`. O escopo regional é
+2. `actor` como alvo de `delta_relationship`, `attach_label` ou `propagate_rumor` é `SelfTarget`
+   (a fonte é o próprio ator); a tabela de contextos acima já exclui esses usos. `actor` como alvo
+   de `apply_status`/`delta_hp` é permitido (autoestado), mas dano letal continua rejeitado.
+3. `region` como alvo de efeito, `from`, `to` ou `holder` é `InvalidSelector`. O escopo regional é
    metadado de propagação, não um efeito sobre todos os atores da região.
-3. `bystanders` é a lista que o INT-04 projeta a partir de percepção autoritativa, alcance e linha
+4. `bystanders` é a lista que o INT-04 projeta a partir de percepção autoritativa, alcance e linha
    de visão, já filtrada pelas regras de testemunha do DOC-02. O materializador não calcula
    testemunhas e NÃO PODE ler overlay, câmara ou `player_silhouettes`.
-4. A lista de `bystanders` é ordenada por `ActorId` ascendente e não contém o ator. A expansão de
+5. A lista de `bystanders` é ordenada por `ActorId` ascendente e não contém o ator. A expansão de
    um template ocorre na posição do template, na ordem da lista; duplicados são removidos; o total
    de efeitos depois da expansão não pode exceder oito (`EffectSetOverflow`).
-5. Se `target` for `bystanders` e a lista estiver vazia, o template não produz efeito. Um ramo de
-   sucesso só com templates de testemunhas pode materializar zero efeitos; isso é registado como
-   `NoMaterializedEffect`, não é erro de schema.
-6. `transfer_item` e `transfer_currency` não aceitam `bystanders`; um item ou quantia não é
+6. Se `target` for `bystanders` e a lista estiver vazia, o template não produz efeito. Um ramo de
+   sucesso só com templates de testemunhas pode materializar zero efeitos; isso é registado com
+   `no_effect_reason=NO_ELIGIBLE_BYSTANDER`, não é erro de schema.
+7. `transfer_item` e `transfer_currency` não aceitam `bystanders`; um item ou quantia não é
    transferido para "todos os presentes". `propagate_rumor` aceita, porque uma cópia de rumor por
    testemunha é uma operação social definida pelo SOC-03.
-7. `quantity` de `transfer_item` é por par `(from,to)`; se o mesmo item for transferido duas vezes
+8. `quantity` de `transfer_item` é por par `(from,to)`; se o mesmo item for transferido duas vezes
    no mesmo ramo, é `DuplicateItemEffect`.
 
 ### 3.6 IDs, existência e posse
@@ -443,9 +467,9 @@ Regras:
 | --- | --- | --- |
 | `scope` | enum | `LOCAL` ou `REGIONAL`; `GROUP` é `UnknownScope` |
 | `initial_fidelity_bp` | inteiro | `1..=10000` |
-| `half_life_ticks` | inteiro | `1..=525600` |
+| `half_life_ticks` | inteiro | `1200..=525600` (piso DOC-02) |
 | `requires_living_carrier` | booleano | DEVE ser `true`; `false` é `UnsupportedPropagation` |
-| `min_cognition_bp` | inteiro | `1..=10000` |
+| `min_cognition_bp` | inteiro | `4000..=10000` (piso DOC-02) |
 
 1. O bloco é metadado para a criação de um rumor novo pelo SOC-02/SOC-03; não é um efeito CTR-01 e
    não é aplicado pelo materializador. A materialização apenas o transporta e valida os limites.
@@ -453,31 +477,34 @@ Regras:
    regras do DOC-02; não significa telepatia nem conhecimento imediato de toda a região.
 3. O bloco só é aplicável se `ActionFacts.rumor_seed_allowed` for `true` (ação social com
    testemunhas ou intenção compatível); caso contrário é `PropagationNotApplicable`.
-4. `half_life_ticks` e `min_cognition_bp` usam os valores do DOC-02 como referência de produto
-   (`HALF_LIFE_TICKS = 1200`, `MIN_COGNITION_BP = 4000`), mas o modelo pode propor outros valores
-   dentro dos limites; não há clamp para os defaults.
-5. Não há RNG, relógio ou escrita de mundo na validação. A semente efectiva, a perda de fidelidade
-   e a escolha de portadores pertencem ao passo social e ao CTR-02.
+4. O orçamento de propagação tem pisos de produto: `half_life_ticks >= 1200` e
+   `min_cognition_bp >= 4000` (DOC-02 §4.2). O modelo pode propor valores mais conservadores
+   (meia-vida maior, limiar maior), mas NÃO PODE reduzir a degradação nem baixar o limiar de
+   cognição. Não há clamp: um valor abaixo do piso é `DurationOutOfRange` ou `AmountOutOfRange`.
+5. Não há RNG, relógio ou escrita de mundo na validação. A semente efectiva, a perda de fidelidade,
+   os portadores e os 16 sorteios por pulso pertencem ao passo social e ao CTR-02.
 
 ### 3.8 Catálogos
 
 #### 3.8.1 Atributos
 
-| Nome | Código | Nota |
+| Nome | Nota | Fonte |
 | --- | --- | --- |
-| `STRENGTH` | 1 | físico |
-| `AGILITY` | 2 | físico |
-| `RESILIENCE` | 3 | físico |
-| `PERCEPTION` | 4 | mental |
-| `INTELLIGENCE` | 5 | mental; dependência P-07 |
-| `LANGUAGE` | 6 | social; dependência P-07 |
-| `MEMORY` | 7 | mental |
-| `EMOTIONAL_STABILITY` | 8 | social; dependência P-07 |
+| `STRENGTH` | físico | overview §7.2 |
+| `AGILITY` | físico | overview §7.2 |
+| `RESILIENCE` | físico | overview §7.2 |
+| `PERCEPTION` | mental | overview §7.2; DOC-02 usa `percepcao_bp` |
+| `INTELLIGENCE` | mental | overview §7.2; DOC-02 usa `inteligencia_bp`; P-07 |
+| `LANGUAGE` | social | overview §7.2; DOC-02 usa `linguagem_bp`; P-07 |
+| `MEMORY` | mental | overview §7.2 |
+| `EMOTIONAL_STABILITY` | social | overview §7.2; exemplo do roadmap |
 
-Os oito nomes são o vocabulário canônico do modelo em v1 e exigem que o INT-04 os projete no
-`ActionFacts`. A pendência P-07 (atributos de linguagem/inteligência no CTR-01) continua aberta: este
-contrato **requer** a projeção, não afirma que o armazenamento já a tem. Enquanto P-07 não fechar,
-um atributo ausente é `MissingFact`, nunca um valor inventado.
+Os oito nomes são o vocabulário canônico do modelo em v1, com origem no componente `Attributes` do
+overview (§7.2). Este contrato NÃO lhes atribui códigos numéricos: a codificação física e a
+normalização em `0..=10000` pertencem ao CTR-01/DOC-02, e o INT-04 projeta os valores no
+`ActionFacts`. A pendência P-07 (atributos de linguagem/inteligência no CTR-01) continua aberta:
+enquanto não fechar, um atributo ausente é `MissingFact`, nunca um valor inventado. Um nome fora
+desta tabela é `UnknownAttribute`.
 
 #### 3.8.2 Eixos de relação
 
@@ -509,18 +536,20 @@ Nomes em minúsculas, exatamente estes; `TRUST`, `Trust`, `affection` e `love` s
 
 | Código | Nome canônico | Nota |
 | --- | --- | --- |
-| 1 | `BLEEDING` | flag fisiológica do overview §7.2 |
-| 2 | `BLINDED` | flag fisiológica |
-| 3 | `BURNING` | flag fisiológica |
-| 4 | `STARVING` | flag fisiológica |
-| 5 | `FATIGUED` | flag fisiológica |
+| 1 | `BLEEDING` | status temporizado que espelha a flag fisiológica |
+| 2 | `BLINDED` | status temporizado que espelha a flag fisiológica |
+| 3 | `BURNING` | status temporizado que espelha a flag fisiológica |
+| 4 | `STARVING` | status temporizado que espelha a flag fisiológica |
+| 5 | `FATIGUED` | status temporizado que espelha a flag fisiológica |
 | 6 | reservado | NÃO PODE ser usado em v1 |
 | 7 | `INTIMIDATED` | alinhado com o vetor do CTR-01 e com o exemplo |
 | 8..32 | reservado | rejeitado até `schema_version` novo |
 
-O código 6 é deliberadamente não atribuído em v1; o código 7 existe para que o vetor canônico do
-CTR-01 (`status=7`, `duration=600`) permaneça válido. Um código reservado é `UnknownStatus`. Não há
-aliases (`INTIMIDATE`, `FEARED`) nem refresh de estado.
+O código 6 fica deliberadamente vago para preservar `7 = INTIMIDATED` no vetor dourado do CTR-01
+(`identity-events.md`, `status=7`, `duration=600`); renumerar 7 para 6 quebraria o vetor. Os códigos
+1..5 são status temporizados que espelham as cinco flags fisiológicas do overview §7.2; a duração
+vem de `APPLY_STATUS`, e a flag de fisiologia continua a ser o estado de leitura. Um código
+reservado é `UnknownStatus`. Não há aliases (`INTIMIDATE`, `FEARED`) nem refresh de estado.
 
 #### 3.8.5 Kinds
 
@@ -637,18 +666,23 @@ nomes canônicos, os catálogos e os limites deste contrato.
 | `attributes_involved` | `attributes` | nome canônico |
 | `on_success_changes` | `on_success` | nome canônico |
 | `on_failure_changes` | `on_failure` | nome canônico |
+| `propagation_rules` | `propagation` | nome canônico; alias aceite |
+| `</parameter=>` no fecho | `</parameter=>` | dialeto histórico mantido; `</parameter` sem `=` é rejeitado |
 | `"item": "carta_falsa_de_divida"` | `"item": 1001` | `ItemId` inteiro; nomes simbólicos são inválidos |
-| `"required_item": "carta_falsa_de_divida"` | `"required_item": 1002` | idem |
+| `"required_item": "carta_falsa_de_divida"` | `"required_item": 1002` | idem; exige `items_enabled=true` |
 | `"label": "ENEMY"` | `"label": "ENMITY"` | catálogo CTR-01 |
 | `"label": "EXPOSED_LIAR"` | `"label": "LIAR"` | catálogo CTR-01 |
 | `"status": "INTIMIDATED"`, `duration` 600 | `status: "INTIMIDATED"`, `duration_ticks: 600` | nome do campo canônico |
 | `"scope": "GROUP"` | `"scope": "LOCAL"` | `GROUP` não existe no DOC-02 |
+| `half_life_ticks: 2400` | `1200..=525600` | piso DOC-02 |
 | `target_dc: 16` | mantido | dentro de `5..=25` |
-| `LANGUAGE`/`INTELLIGENCE` | mantidos | dependência P-07, §3.8.1 |
+| `LANGUAGE`/`INTELLIGENCE` | mantidos | nomes do overview; P-07 em aberto |
 
 O exemplo histórico continua a ser um artefacto de referência, não um fixture. A reconciliação não
 altera o CTR-01, o DOC-02 nem a decisão de produto sobre `GROUP`; apenas escolhe o vocabulário
-canônico da fronteira do modelo.
+canônico da fronteira do modelo. O exemplo usa `transfer_item`/`required_item`, que só são aceites
+com `items_enabled=true`; no recorte DOC-02/PD-04 por omissão, uma proposta com itens é
+`ItemEffectNotEnabled`.
 
 ## 4. Parse, validação e auditoria
 
@@ -667,15 +701,18 @@ desenha, não chama modelo e não consome RNG.
 
 | Tipo | Campos mínimos | Dono |
 | --- | --- | --- |
-| `RawModelReply` | `bytes`, `blake3_digest`, `model_id`, `prompt_version`, `finish_reason`, `truncated` | INT-12 |
+| `RawModelReply` | `bytes`, `raw_digest` (BLAKE3-256), `model_id`, `prompt_version`, `finish_reason`, `truncated` | INT-12 |
 | `RuleProposal` | `schema_version`, `action_label`, `attributes`, `target_dc`, `on_success`, `on_failure`, `propagation`, `raw_digest` | INT-08 |
 | `ValidatedRule` | `schema_version`, `proposal_hash`, `action_label`, `check`, `bindings`, `success_effects`, `failure_effects`, `propagation`, `facts_hash`, `tick`, `revision`, `check_modifier`, `saturation_policies`, `validator_version` | INT-08 |
 | `RuleError` | `stage`, `code`, `path`, `byte_offset`, `parameter`, `expected`, `actual_digest` | INT-08 |
 | `RuleSchema` | `schema_id`, `schema_version`, `frame_version` e as constantes da §4.1.2 | INT-08 |
+| `ProposalContext` | `region_id`, `actor`, `target?`, `intent`, `attributes`, `candidates`, `locale`, `prompt_version` | INT-12 |
 
-`RuleError.stage` é um de `FRAME`, `JSON`, `SCHEMA`, `SEMANTIC`, `MATERIALIZE`. O erro não inclui o
-texto bruto do modelo na mensagem ao utilizador; inclui o caminho do campo, o deslocamento em bytes e
-o digest. `RuleError` não é `retryable` por omissão: repetir a mesma resposta produz o mesmo erro.
+`ValidatedRule.check` contém `target_dc`, `stream`, `domain` e os atributos usados; `stream` e
+`domain` são os do `DrawSpec` do passo, não números inventados por este contrato. `RuleError.stage`
+é um de `FRAME`, `JSON`, `SCHEMA`, `SEMANTIC`, `MATERIALIZE`. O erro não inclui o texto bruto do
+modelo na mensagem ao utilizador; inclui o caminho do campo, o deslocamento em bytes e o digest.
+`RuleError` não é `retryable` por omissão: repetir a mesma resposta produz o mesmo erro.
 
 #### 4.1.1 Projeções exigidas de `ActionFacts`
 
@@ -686,15 +723,18 @@ mínimo:
 | --- | --- |
 | Contexto | `tick`, `revision`, `region_id`, `actor`, `target?`, `intent`, `location`, `cell`, `facts_hash` |
 | Atores | `alive`, `attributes`, `hp`, `hp_max`, `wallet`, `inventory`, `labels`, `statuses`, `relationships`, `rumor_copies` |
-| Itens | `exists`, `holder`, `quantity` |
+| Itens | `exists`, `holder`, `quantity`, `items_enabled` |
 | Rumores | `exists`, `copies` com fidelidade por ator |
 | Testemunhas | `bystanders` ordenados por `ActorId`, já filtrados por percepção/alcance/LOS |
-| Check | `check_modifier: i16`, calculado pelo INT-04 a partir dos atributos e do alvo |
+| Check | `check_modifier: i16` no intervalo `-20..=20`, calculado pelo INT-04 a partir dos atributos e do alvo |
 | Propagação | `rumor_seed_allowed: bool` |
+| Moeda | `offer_currency: Option<u32>`, `currency_transfer_allowed: bool` |
 
 Se um campo necessário faltar ou for inconsistente, o resultado é `MissingFact`; o consumidor NÃO
 PODE inventar, inferir de overlay ou ler o mundo por outra via. A lista de `bystanders` é imutável
-durante a validação e a materialização: se mudar entre as duas, é `StaleFacts`.
+durante a validação e a materialização: se mudar entre as duas, é `StaleFacts`. `items_enabled=false`
+é o default do recorte DOC-02/PD-04; nesse caso qualquer `transfer_item`/`required_item` é
+`ItemEffectNotEnabled`.
 
 #### 4.1.2 Constantes de schema
 
@@ -702,12 +742,14 @@ durante a validação e a materialização: se mudar entre as duas, é `StaleFac
 | --- | --- | --- |
 | `schema_id` | `af.rule-proposal` | identidade do schema |
 | `schema_version` | `1` | obrigatório no payload |
-| `frame_version` | `1` | dialeto da §2 |
+| `frame_version` | `1` | dialeto da §2, com `</parameter=>` |
 | `check_die` | `20` | d20; valor da draw em `0..=19`, rolagem `1..=20` |
+| `check_modifier_min/max` | `-20` / `20` | guarda de validação; a fórmula é do INT-04 |
 | `target_dc_min/max` | `5` / `25` | inclusive |
-| `amount_bp_min/max` | `-10000` / `10000` | inclusive, exceto zero |
+| `amount_bp_min/max` | `-10000` / `10000` | inclusive; zero é `ZeroDelta` |
 | `duration_ticks_max` | `525600` | decisão de freeze; ver §10 |
-| `half_life_ticks_max` | `525600` | idem |
+| `half_life_ticks_min/max` | `1200` / `525600` | piso DOC-02 |
+| `min_cognition_bp_min/max` | `4000` / `10000` | piso DOC-02 |
 | `max_quantity` | `2147483647` | `i32::MAX` |
 | `max_effects` | `8` | por ramo |
 | `max_labels` | `3` | por ramo |
@@ -717,7 +759,9 @@ durante a validação e a materialização: se mudar entre as duas, é `StaleFac
 | `effect_catalog_version` | `1` | §3.8.5 |
 
 Qualquer alteração a estes valores é uma alteração de schema e exige revisão; não há override por
-ambiente, ficheiro de configuração ou prompt.
+ambiente, ficheiro de configuração ou prompt. O modificador de check tem guarda `-20..=20`; a
+derivação concreta (soma de atributos, divisão, arredondamento) é dependência aberta do INT-04 e
+está registada em F-13.
 
 ### 4.2 Erros de framing e JSON
 
@@ -755,10 +799,11 @@ ambiente, ficheiro de configuração ou prompt.
 
 | Código | Quando |
 | --- | --- |
-| `MissingSchemaVersion` | `schema_version` ausente |
-| `UnsupportedSchemaVersion` | versão diferente de `1` |
-| `UnknownField` | chave não declarada em qualquer nível |
-| `MissingField` | chave obrigatória ausente |
+| `MissingParameter` | parâmetro obrigatório ausente, incluindo `schema_version` |
+| `UnsupportedSchemaVersion` | versão presente e diferente de `1` |
+| `UnknownField` | chave não declarada, exceto nomes reservados de proveniência |
+| `ProvenanceFieldForbidden` | `provenance`, `model`, `model_id`, `tick`, `revision`, `rule_id`, `fact_seq`, `seed`, `temperature`, `trace`, `draw`, `rng`, `timestamp`, `notes` |
+| `MissingField` | chave obrigatória ausente dentro de um objeto já parseado |
 | `WrongType` | tipo JSON errado, incluindo `null` |
 | `InvalidActionLabel` | token fora de `[A-Za-z0-9_.-]{1,64}` |
 | `DcOutOfRange` | `target_dc` fora de `5..=25` |
@@ -769,9 +814,9 @@ ambiente, ficheiro de configuração ou prompt.
 | `UnknownStatus` | estado fora da §3.8.4, incluindo reservados |
 | `UnknownEffect` | `kind` fora do allowlist |
 | `UnsupportedSaturation` | `authorized_saturation` num kind que não o aceita |
-| `AmountOutOfRange` | `amount_bp` fora de `-10000..=10000` ou zero |
+| `AmountOutOfRange` | `amount_bp` fora de `-10000..=10000`; zero é `ZeroDelta` |
 | `ZeroDelta` | delta de relação ou HP igual a zero |
-| `DurationOutOfRange` | `duration_ticks` fora de `1..=525600` |
+| `DurationOutOfRange` | `duration_ticks` fora de `1..=525600`, ou piso de propagação violado |
 | `EffectCountExceeded` | mais de oito efeitos num ramo |
 | `LabelCountExceeded` | mais de três `attach_label` num ramo |
 | `DuplicateLabel` | mesmo alvo e rótulo duas vezes |
@@ -793,25 +838,26 @@ ambiente, ficheiro de configuração ou prompt.
 | `TargetDead` | alvo morto |
 | `TargetOutOfReach` | alvo fora de alcance/LOS |
 | `MissingPossession` | `required_item` não está com o ator |
+| `ItemEffectNotEnabled` | `items_enabled=false` e a proposta usa item |
 | `ItemNotFound` | item inexistente |
 | `ItemNotHeld` | item não está com `from` |
 | `QuantityOutOfRange` | quantidade insuficiente ou acima do estoque |
 | `ItemAlreadyHeld` | `to` já tem o mesmo `ItemId` |
 | `InsufficientCurrency` | carteira de `from` insuficiente |
+| `IntentEffectMismatch` | efeito incompatível com o `intent` ou `offer_currency` incoerente |
 | `WalletOverflow` | carteira de `to` acima de `10000` |
 | `RumorNotFound` | rumor inexistente |
 | `RumorNotKnown` | ator sem cópia ativa |
+| `RumorFidelityMismatch` | `amount_bp` diferente da fidelidade da cópia de origem |
 | `RumorFidelityTooLow` | cópia abaixo de `min_cognition_bp` |
 | `StatusAlreadyPresent` | estado já presente no alvo |
 | `LethalDamageNotAuthorized` | dano levaria o alvo a menos de 1 |
-| `HpOutOfRange` | HP resultante fora de `1..=hp_max` sem saturação válida |
-| `ClampNotAuthorized` | soma fora do intervalo sem `authorized_saturation` |
+| `ClampNotAuthorized` | soma de relação ou cura fora do intervalo sem `authorized_saturation` |
+| `CheckDrawNotAllocated` | o passo não alocou um desenho `CHECK` |
 | `MissingFact` | projeção necessária ausente |
 | `StaleTarget` | alvo mudou entre contexto e validação |
 | `StaleFacts` | `facts_hash`/`revision` divergente |
-| `IntentEffectMismatch` | efeito incompatível com a intenção da ação |
 | `OverlayNotKnowledge` | tentativa de usar overlay/silhueta como facto |
-| `ProvenanceFieldForbidden` | campo de proveniência vindo do modelo |
 
 ### 4.4 Rejeição versus saturação autorizada
 
@@ -822,8 +868,9 @@ saturado.
 | Situação | Resultado | Código |
 | --- | --- | --- |
 | `target_dc` fora de `5..=25` | rejeita | `DcOutOfRange` |
-| `amount_bp` fora de `-10000..=10000` ou zero | rejeita | `AmountOutOfRange` / `ZeroDelta` |
-| `duration_ticks`/`half_life_ticks` fora do limite | rejeita | `DurationOutOfRange` |
+| `amount_bp` fora de `-10000..=10000` | rejeita | `AmountOutOfRange` |
+| `amount_bp` igual a zero | rejeita | `ZeroDelta` |
+| `duration_ticks`/`half_life_ticks`/`min_cognition_bp` fora do limite | rejeita | `DurationOutOfRange` / `AmountOutOfRange` |
 | `scope=GROUP` | rejeita | `UnknownScope` |
 | `requires_living_carrier=false` | rejeita | `UnsupportedPropagation` |
 | soma de relação fora de `-10000..=10000`, sem flag | rejeita | `ClampNotAuthorized` |
@@ -834,6 +881,8 @@ saturado.
 | carteira de destino acima de `10000` | rejeita | `WalletOverflow` |
 | item já com o destino | rejeita | `ItemAlreadyHeld` |
 | estado já presente | rejeita | `StatusAlreadyPresent` |
+| item usado com `items_enabled=false` | rejeita | `ItemEffectNotEnabled` |
+| moeda com intent/oferta incoerentes | rejeita | `IntentEffectMismatch` |
 | DC/duração/quantidade/escopo fora do limite | nunca satura | rejeição |
 
 Regras de saturação:
@@ -844,13 +893,17 @@ Regras de saturação:
 2. A saturação só pode tornar um valor **válido mas fora do intervalo de domínio** num valor de
    fronteira. Nunca transforma um alvo morto, um item inexistente, uma posse ausente ou um DC
    inválido em aceite.
-3. Cada saturação produz um registo com `requested_amount`, `effective_amount`,
-   `saturation_policy`, `saturation_axis`, `rule_id` e `fact_seq`. O efeito no `EffectSet` usa o
-   valor efetivo; o pedido original fica na auditoria. Isto satisfaz o requisito do CTR-01 de
+3. A validação calcula `old + delta` a partir de `ActionFacts` e é o **primeiro** estágio que pode
+   detectar a saturação; devolve `ClampNotAuthorized` quando a flag falta. A materialização repete a
+   verificação na staging e devolve o mesmo código, com `stage=MATERIALIZE`, se os factos tiverem
+   mudado. Não existe um segundo código para o mesmo caso.
+4. Cada saturação produz um registo com `requested_amount`, `effective_amount`,
+   `saturation_policy`, `saturation_axis`, `rule_id` e `planned_fact_seq`. O efeito no `EffectSet`
+   usa o valor efetivo; o pedido original fica na auditoria. Isto satisfaz o requisito do CTR-01 de
    registar delta pedido, valor final, regra/política e `fact_seq`.
-4. O `EffectSet` pode omitir um efeito cujo delta efetivo seja zero (por exemplo, relação já no
-   limite). A omissão é registada em auditoria; não é um clamp silencioso.
-5. O mapeamento `score`→DC do System One (§6.3) é uma tabela total, não um clamp: um score fora de
+5. O `EffectSet` pode omitir um efeito cujo delta efetivo seja zero (por exemplo, relação já no
+   limite), com `no_effect_reason=SATURATED_TO_ZERO`; não é um clamp silencioso.
+6. O mapeamento `score`→DC do System One (§6.3) é uma tabela total, não um clamp: um score fora de
    `1..=5` é resposta inválida, não um DC ajustado.
 
 ### 4.5 Atomicidade e tratamento de erro
@@ -885,7 +938,7 @@ payload. Os campos abaixo são anexados pelo host ao registo de auditoria, nunca
 | `tick`/`revision`/`region_id` | factos | contexto da ação |
 | `actor_id`/`target_id` | factos | ligação dos selectores |
 | `facts_hash` | factos | BLAKE3-256 da projeção |
-| `raw_reply_sha256`/`raw_reply_bytes` | host | digest BLAKE3-256 e tamanho |
+| `raw_digest`/`raw_reply_bytes` | host | digest BLAKE3-256 e tamanho |
 | `parse_status`/`validation_status` | host | aceite/rejeitado |
 | `error_stage`/`error_code` | host | quando rejeitado |
 | `rule_content_hash` | host | BLAKE3-256 do `ValidatedRule` |
@@ -899,12 +952,12 @@ Regras de auditoria:
 
 1. Uma proposta aceite é registada na **mesma transação durável** que a revisão e o `fact_seq` da
    ação. O `planned_fact_seq` é o próximo valor e é verificado no commit; se divergir, a transação
-   falha e nada é publicado.
+   falha e nada é publicado. O nome `fact_seq` só aparece no facto já publicado.
 2. Uma proposta rejeitada é registada numa transação própria, com `planned_fact_seq=0`, sem efeito,
-   sem tick e sem RNG. O registo inclui estágio, código, caminho, `raw_reply_sha256` e tamanho; o
-   texto bruto pode ser guardado como blob local para diagnóstico, com retenção definida pelo host.
-3. `raw_reply_sha256` é o mesmo `raw_digest` de 32 bytes que o CTR-02 regista como entrada externa;
-   não há duas verdades sobre o que o modelo devolveu.
+   sem tick e sem RNG. O registo inclui estágio, código, caminho, `raw_digest` e tamanho; o texto
+   bruto pode ser guardado como blob local para diagnóstico, com retenção definida pelo host.
+3. `raw_digest` é o mesmo digest de 32 bytes (BLAKE3-256) que o CTR-02 regista como entrada externa;
+   não há duas verdades sobre o que o modelo devolveu. Não existe campo `raw_reply_sha256`.
 4. A auditoria NÃO faz parte do `WorldState`, NÃO entra no hash canônico, NÃO é reproduzida pelo
    replay e NÃO é necessária para reconstruir o mundo. Pode ser rotacionada ou apagada sem alterar
    o estado; a ausência de um registo de rejeição não altera o hash.
@@ -914,7 +967,7 @@ Regras de auditoria:
    `prompt_hash` identifica o template sem o armazenar.
 7. O modelo NÃO PODE enviar `proposal_id`, `rule_id`, `tick`, `revision`, `fact_seq`, `model_id`,
    `prompt_hash`, `cassette_id`, `seed`, `temperature`, `request_id` ou `timestamp`; a presença de
-   qualquer um é `ProvenanceFieldForbidden` ou `UnknownField`.
+   qualquer um é sempre `ProvenanceFieldForbidden`, nunca `UnknownField`.
 
 ## 5. Materialização de efeitos
 
@@ -925,19 +978,23 @@ materialize(rule: &ValidatedRule, facts: &ActionFacts, draws: &ResolvedDraws)
     -> Result<EffectSet, RuleError>
 ```
 
-`ResolvedDraws` pertence ao CTR-02/INT-05 e NÃO é redefinido aqui. Este contrato exige:
+`ResolvedDraws` é uma **vista read-only exigida por este contrato**, montada pelo host a partir dos
+`DrawOutcome` do CTR-02; a alocação de desenhos pertence ao CTR-02/INT-02 e este contrato não
+inventa streams, domínios ou ordem. Campos exigidos:
 
 | Campo | Regra |
 | --- | --- |
-| `ordered` | lista ordenada de `DrawOutcome` já resolvidos, com `stream`, `domain`, `index`, `bound`, `value`, `position_after` |
-| `check` | exatamente um outcome de check com `bound=20`, `value` em `0..=19` |
+| `ordered` | lista ordenada de outcomes já resolvidos, com `stream`, `domain`, `purpose`, `index`, `bound`, `value`, `words_consumed`, `position_after` |
+| `check` | exatamente um outcome com `purpose=CHECK`; `bound=20`; `value` em `0..=19` |
 | `facts_hash`/`revision` | eco da revisão usada; divergência é `StaleFacts` |
 | `draw_refs` | referências para auditoria; não alteram a materialização |
 
 O materializador NÃO cria, promove ou rebobina desenhos. Recebe valores já consumidos pelo núcleo,
 verifica que o check existe e é único, e não lê `RngState`. Um check ausente é `DrawMissing`; dois
-checks ou um `bound` diferente de 20 é `InvalidCheckDraw`; um valor fora de `0..=19` é
-`DrawOutOfRange`.
+checks, `bound != 20` ou `purpose` diferente de `CHECK` é `InvalidCheckDraw`; um valor fora de
+`0..=19` é `DrawOutOfRange`. O contrato exige que o CTR-02/INT-05 aloque um desenho `CHECK` com
+`stream` e `domain` do `DrawSpec` da ação; enquanto essa alocação não existir, o materializador
+falha com `CheckDrawNotAllocated` e não adivinha um índice. Esta dependência está em F-13.
 
 ### 5.2 Check e seleção de ramo
 
@@ -946,11 +1003,13 @@ checks ou um `bound` diferente de 20 é `InvalidCheckDraw`; um valor fora de `0.
 3. `success = total >= rule.check.target_dc`; não há crítico, falha automática, empate especial ou
    segundo desenho.
 4. `facts.check_modifier` é calculado pelo INT-04 a partir dos atributos primário/secundário do ator
-   e do alvo. Este contrato NÃO inventa a fórmula: se o modificador faltar, é `MissingFact`; se não
-   for um inteiro compatível com o intervalo declarado pelo INT-04, é `InvalidCheckModifier`.
-5. O ramo escolhido é `on_success` quando `success=true` e `on_failure` caso contrário. O ramo não
+   e do alvo. A fórmula concreta é dependência aberta do INT-04 (F-13); este contrato fixa apenas a
+   guarda `-20..=20`. Se faltar, é `MissingFact`; fora da guarda é `InvalidCheckModifier`.
+5. O `draws.check.stream` e `draws.check.domain` têm de coincidir com `rule.check.stream` e
+   `rule.check.domain`; um desvio é `InvalidCheckDraw`.
+6. O ramo escolhido é `on_success` quando `success=true` e `on_failure` caso contrário. O ramo não
    escolhido não é materializado e não produz efeitos, mas o seu conteúdo já foi validado.
-6. `target_dc` é o DC validado, não um valor recalculado a partir de `score` ou de atributos.
+7. `target_dc` é o DC validado, não um valor recalculado a partir de `score` ou de atributos.
 
 ### 5.3 Resolução, expansão e staging
 
@@ -958,25 +1017,31 @@ checks ou um `bound` diferente de 20 é `InvalidCheckDraw`; um valor fora de `0.
    do template, pela ordem ascendente de `ActorId` da lista ligada em `ValidatedRule`.
 2. Cada efeito bound é aplicado a uma **cópia de staging** dos factos, na ordem de expansão. A cópia
    não é o mundo e não é escrita; serve para calcular valores efetivos e detectar conflitos.
-3. `transfer_item`: verifica de novo posse/quantidade na staging, decrementa a origem, incrementa o
-   destino e rejeita duplicação de `ItemId`. O item não é clonado; a identidade conserva-se.
+3. `transfer_item`: verifica `items_enabled`, posse/quantidade na staging, decrementa a origem,
+   incrementa o destino e rejeita duplicação de `ItemId`. O item não é clonado; a identidade
+   conserva-se.
 4. `delta_relationship`: `raw = old + amount_bp`. Se `raw` estiver em `-10000..=10000`, aplica o
    delta exato. Se estiver fora e `authorized_saturation=true`, satura no limite e regista
    `requested`/`effective`. Se estiver fora sem flag, `ClampNotAuthorized`. O delta proposto tem de
    ser válido antes da soma.
-5. `delta_hp`: `raw = old + amount`. Cura acima de `hp_max` satura em `hp_max` apenas com flag; dano
-   que leve a menos de 1 é sempre `LethalDamageNotAuthorized`; qualquer outro resultado fora de
-   `1..=hp_max` sem flag é `HpOutOfRange`.
+5. `delta_hp`: `raw = old + amount`. Cura acima de `hp_max` satura em `hp_max` apenas com flag; sem
+   flag é `ClampNotAuthorized`; dano que leve a menos de 1 é sempre `LethalDamageNotAuthorized`.
 6. `attach_label`, `apply_status`, `transfer_currency` e `propagate_rumor` verificam duplicados,
-   catálogo, carteira, fidelidade e existência na staging; não há criação implícita de rumor.
-7. Um efeito cujo valor efetivo é zero (saturação no limite, delta anulado) é omitido do `EffectSet`
-   e registado em auditoria; a contagem final pode ser menor que a dos templates.
-8. Se a expansão ultrapassar oito efeitos, é `EffectSetOverflow`; se dois efeitos entrarem em
+   catálogo, carteira, intent/oferta, fidelidade e existência na staging; não há criação implícita
+   de rumor. `transfer_currency` rejeita `IntentEffectMismatch` se o intent não for `NEGOTIATE`/
+   `INFORM_PATH` ou se `offer_currency` não for coerente.
+7. `propagate_rumor` não escolhe a perda: usa a fidelidade da cópia de origem validada e deixa a
+   aplicação de `TRANSFER_LOSS_BP` e as testemunhas para o SOC-03. Um `amount_bp` diferente da
+   fidelidade de origem é `RumorFidelityMismatch`.
+8. Um efeito cujo valor efetivo é zero (saturação no limite, delta anulado) é omitido do `EffectSet`
+   com `no_effect_reason=SATURATED_TO_ZERO` e registado em auditoria; a contagem final pode ser
+   menor que a dos templates.
+9. Se a expansão ultrapassar oito efeitos, é `EffectSetOverflow`; se dois efeitos entrarem em
    conflito (item movido duas vezes, carteira inconsistente, HP impossível), é `EffectConflict`. Não
    há aplicação parcial: o conjunto inteiro é rejeitado.
-9. Um ramo de sucesso com apenas templates de testemunhas pode materializar zero efeitos; o
-   `EffectSet` fica vazio com `no_effect_reason=NO_ELIGIBLE_BYSTANDER`. Um ramo de sucesso sem
-   templates é impossível pelo schema.
+10. Um ramo de sucesso com apenas templates de testemunhas pode materializar zero efeitos; o
+    `EffectSet` fica vazio com `no_effect_reason=NO_ELIGIBLE_BYSTANDER`. Um ramo de sucesso sem
+    templates é impossível pelo schema.
 
 ### 5.4 Pureza, determinismo e 1 bp
 
@@ -1017,17 +1082,23 @@ checks ou um `bound` diferente de 20 é `InvalidCheckDraw`; um valor fora de `0.
 | Código | Quando |
 | --- | --- |
 | `DrawMissing` | check ausente |
-| `InvalidCheckDraw` | check duplicado, `bound != 20` ou stream/domain errado |
+| `CheckDrawNotAllocated` | o passo não alocou um desenho `CHECK` |
+| `InvalidCheckDraw` | check duplicado, `bound != 20`, stream/domain divergente |
 | `DrawOutOfRange` | valor fora de `0..=19` |
-| `InvalidCheckModifier` | modificador ausente ou fora de `i16` |
+| `InvalidCheckModifier` | modificador fora de `-20..=20` (ausente é `MissingFact`) |
 | `EffectSetOverflow` | mais de oito efeitos após expansão |
 | `EffectConflict` | conflito entre efeitos na staging |
 | `NoLossFailure` | tentativa de aplicar efeito sem respeitar a conservação |
-| `HpOutOfRange` | HP efetivo inválido |
+| `ClampNotAuthorized` | saturação ausente numa soma que a exigia |
+| `LethalDamageNotAuthorized` | dano efetivo levaria a HP < 1 |
 | `WalletOverflow` | carteira efetiva acima de 10000 |
+| `InsufficientCurrency` | saldo efetivo insuficiente |
+| `ItemEffectNotEnabled` | item usado com `items_enabled=false` |
 | `ItemAlreadyHeld` | destino já tem o item |
 | `QuantityOutOfRange` | stock efetivo insuficiente |
 | `StatusAlreadyPresent` | estado já presente |
+| `RumorFidelityMismatch` | fidelidade de origem diferente do `amount_bp` |
+| `IntentEffectMismatch` | intent/oferta incoerentes na staging |
 | `PreviewDiverged` | hash da prévia diferente do commit |
 | `StaleFacts`/`StaleTarget` | revisão/alvo mudou |
 | `ArithmeticOverflow` | soma inteira excedeu o tipo |
@@ -1055,9 +1126,11 @@ prompt. `TypedQuestion` tem `id` (`1..=16`, único e ascendente), `kind` (`NOUL`
    `TooManyQuestions`.
 2. `OTHER` e `NONE` são opções explícitas com códigos reservados; não são um "catch-all" para uma
    opção desconhecida. Uma opção não listada é `MalformedAnswer` e leva a abstenção.
-3. `DecisionAnswers` contém respostas finitas, `confidence_bp` inteiro `0..=10000`, `abstain`
-   opcional com razão `TIMEOUT`, `UNAVAILABLE`, `MALFORMED`, `LOW_CONFIDENCE` ou `OTHER`, e o
-   `raw_digest`. Não contém floats.
+3. `DecisionAnswers` contém respostas finitas, `confidence_bp` inteiro `0..=10000`, `margin_bp`
+   inteiro `0..=10000` (diferença entre a probabilidade mais alta e a segunda mais alta, em bp;
+   para `NOUL`/`SCORE` sem distribuição, `margin_bp=10000`), `abstain` opcional com razão
+   `TIMEOUT`, `UNAVAILABLE`, `MALFORMED`, `LOW_CONFIDENCE` ou `OTHER`, e o `raw_digest`. Não contém
+   floats.
 4. Probabilidades do fornecedor podem chegar como `f32` na fronteira, mas são convertidas
    imediatamente para bp inteiros com arredondamento "meio para longe de zero" e normalização por
    maior resto para somar 10000. `NaN`, `Inf`, negativo, `>1` ou soma zero são `MalformedAnswer` ou
@@ -1076,25 +1149,26 @@ nulo/ausente, quando a confiança é insuficiente ou quando o fornecedor não re
 
 | Faixa | Condição | Efeito |
 | --- | --- | --- |
-| `act` | confiança ≥ `8000` bp, margem ≥ `1000` bp e resposta não ambígua | host pode agir |
-| `review` | confiança `5000..=7999` bp ou margem < `1000` bp | host revê/abstem |
+| `act` | confiança ≥ `8000` bp, `margin_bp` ≥ `1000` e resposta não ambígua | host pode agir |
+| `review` | confiança `5000..=7999` bp ou `margin_bp` < `1000` | host revê/abstem |
 | `abstain` | confiança < `5000` bp, `UNKNOWN`, `OTHER`, `NONE`, timeout ou inválido | sem decisão |
 
-A faixa da chamada é a **pior** faixa entre as respostas: `act` só se todas forem `act`; `abstain`
-se qualquer for `abstain`; caso contrário `review`. A tabela `score`→DC é total e fixa:
-`1→5`, `2→10`, `3→15`, `4→20`, `5→25`; não há clamp. Um `score` fora de `1..=5` é resposta
-inválida, não um DC saturado.
+`margin_bp` é o campo da §6.1.3: diferença entre a opção mais provável e a segunda, em bp, após
+normalização; é `10000` quando só existe uma resposta possível (`NOUL`/`SCORE`). A faixa da chamada
+é a **pior** faixa entre as respostas: `act` só se todas forem `act`; `abstain` se qualquer for
+`abstain`; caso contrário `review`. A tabela `score`→DC é total e fixa: `1→5`, `2→10`, `3→15`,
+`4→20`, `5→25`; não há clamp. Um `score` fora de `1..=5` é resposta inválida, não um DC saturado.
 
 ### 6.4 `LlmPort`
 
 ```text
-propose_rule(context: &RuleContext) -> Result<RawModelReply, ModelError>
+propose_rule(context: &ProposalContext) -> Result<RawModelReply, ModelError>
 render_narrative(context: &NarrativeContext) -> Result<RawModelReply, ModelError>
 ```
 
 1. A porta transporta bytes e metadados; não faz parse, não valida, não aplica e não escolhe efeitos.
-2. `propose_rule` impõe `MAX_REPLY_BYTES`, timeout, identidade do modelo e versão do prompt; o parser
-   reimpõe os limites e é a única autoridade sobre a forma.
+2. `propose_rule` recebe `ProposalContext` (INT-12), impõe `MAX_REPLY_BYTES`, timeout, identidade do
+   modelo e versão do prompt; o parser reimpõe os limites e é a única autoridade sobre a forma.
 3. `render_narrative` devolve bytes de narrativa; a NLG (§7) faz o parse do formato de narrativa. O
    parser de propostas não é reutilizado para narrativa.
 4. Uma resposta truncada (`finish_reason=length` ou `truncated=true`) é entregue como
@@ -1127,12 +1201,17 @@ build_context(events: &[ConversationFact], request: &NarrativeRequest)
 2. `NarrativeRequest` inclui `fact_seq`, `locale` BCP-47, `perspective`, identidade do modelo e
    `anchor` (`tick`, `revision`, `state_hash`). Sem âncora é `MissingAnchor`.
 3. `NarrativeContext` inclui `context_version=1`, `fact_seq`, `origin_tick`, `anchor_tick`,
-   `anchor_revision`, `anchor_state_hash`, `locale`, `facts`, `ledger` (claims derivadas dos factos)
-   e `identity`. Não inclui prosa.
+   `anchor_revision`, `anchor_state_hash`, `locale`, `perspective`, `fact_flags` (`DIRECT`/
+   `RETOLD`), `facts`, `ledger` (claims derivadas dos factos), `ledger_hash` e `identity`. Não
+   inclui prosa.
 4. O contexto respeita `DIRECT`/`RETOLD`: um facto recontado não é apresentado como testemunho
-   direto; a perspetiva e as bandeiras fazem parte do contexto e do cache key.
-5. O contexto tem limites: até 16 factos, 32 claims, 16 KiB de JSON e 8 KiB de prosa. Acima disso é
-   `ContextTooLarge`; não há truncagem silenciosa.
+   direto; `perspective` e `fact_flags` fazem parte do contexto e do cache key.
+5. Limites do contexto: até 16 factos, 32 claims e 16 KiB de JSON canónico (sem prosa). Acima disso
+   é `ContextTooLarge`; não há truncagem silenciosa. O limite de 8 KiB de prosa pertence à resposta
+   do modelo (§7.2), não ao contexto.
+6. `ledger_hash` é BLAKE3-256 sobre a codificação canônica do ledger (claims ordenadas e os seus
+   campos), calculado pelo host antes da geração. É esse hash que entra no cache key, não as claims
+   do modelo.
 
 ### 7.2 Prosa e claims separadas
 
@@ -1192,12 +1271,13 @@ verify_claims(claims: &NarrativeClaims, facts: &NarrativeContext)
 ### 7.4 `cache_key` e leitura preguiçosa
 
 1. `cache_key = BLAKE3-256(context_version || fact_seq || origin_tick || anchor_tick ||
-   anchor_revision || anchor_state_hash || locale || prompt_version || model_id || model_version ||
-   narrative_schema_version || claims_hash)`.
+   anchor_revision || anchor_state_hash || locale || perspective || fact_flags ||
+   ledger_hash || prompt_version || model_id || model_version || narrative_schema_version)`.
 2. O key NÃO inclui o tick atual, a câmara, a UI, o overlay, o caminho do save ou o relógio. Ler a
    cache não altera `Tick`, `revision` ou hash do mundo.
-3. Uma mudança de locale, modelo, prompt, schema, factos ou âncora invalida a entrada; não há
-   tradução automática de uma entrada antiga.
+3. Duas perspetivas ou flags `DIRECT`/`RETOLD` diferentes sobre o mesmo facto e âncora produzem
+   chaves diferentes; não há reutilização de narrativa entre observadores. Uma mudança de locale,
+   modelo, prompt, schema, factos, perspectiva ou âncora invalida a entrada.
 4. A cache é local, não autoritativa e não entra no save. Pode ser apagada sem perda de estado.
 5. A geração é preguiçosa e fora do tick: só quando o texto é pedido; um timeout do modelo produz
    fallback e não bloqueia o núcleo.
@@ -1256,16 +1336,16 @@ Casos válidos (10 categorias × 20):
 
 | Categoria | Cobertura |
 | --- | --- |
-| mínimo | `schema_version`, `action_label`, um atributo, DC, um efeito de sucesso, falha vazia |
+| mínimo | `schema_version`, `action_label`, quatro atributos obrigatórios, DC, um efeito de sucesso, falha vazia |
 | completo | todos os campos, ambos os ramos, propagação |
-| aliases | os três nomes históricos, um por caso |
+| aliases | os quatro nomes históricos (`attributes_involved`, `on_success_changes`, `on_failure_changes`, `propagation_rules`), um por caso |
 | efeitos | cada um dos sete kinds, isolado e combinado |
 | selectores | `actor`, `target`, `bystanders` com 0, 1 e N testemunhas |
-| fronteiras | DC 5/25, `amount_bp` ±10000, `duration` 1/525600, `half_life` 1/525600 |
+| fronteiras | DC 5/25, `amount_bp` ±10000, `duration` 1/525600, `half_life` 1200/525600 |
 | catálogos | cada atributo, eixo, rótulo e estado válido |
-| propagação | `LOCAL`, `REGIONAL`, defaults e extremos |
+| propagação | `LOCAL`, `REGIONAL`, pisos e extremos |
 | raciocínio | ausente, presente, 8192 bytes exatos |
-| cardinalidade | oito efeitos, três labels, 16 KiB de JSON |
+| cardinalidade | oito efeitos, três labels, resposta de 65535 bytes |
 
 Casos inválidos (12 categorias, 200 casos):
 
@@ -1276,7 +1356,7 @@ Casos inválidos (12 categorias, 200 casos):
 | XML/XXE/entidades | 15 | `ForbiddenXmlConstruct`, `MalformedFrame` |
 | tamanho/profundidade | 10 | `PayloadTooLarge`, `JsonDepthExceeded`, `TooManyParameters` |
 | múltiplas chamadas/parâmetros | 15 | `MultipleCalls`, `DuplicateParameter`, `UnknownParameter` |
-| versão | 10 | `MissingField`, `UnsupportedSchemaVersion` |
+| versão | 10 | `MissingParameter`, `UnsupportedSchemaVersion` |
 | desconhecidos/duplicados | 20 | `UnknownField`, `JsonDuplicateKey`, `DuplicateLabel` |
 | tipos/números | 20 | `WrongType`, `JsonNonIntegerNumber`, `JsonNumberOutOfRange` |
 | intervalos | 20 | `DcOutOfRange`, `AmountOutOfRange`, `DurationOutOfRange` |
@@ -1296,6 +1376,9 @@ Regras do corpus:
 5. RULE-03 implementa o corpus em `crates/af-rules/tests/` com um fixture de propostas e um fake de
    modelo. O corpus é o gate de aceitação do parser; uma mudança de gramática ou schema exige correr
    os 400 casos.
+6. O caso mínimo válido inclui os **quatro** atributos obrigatórios; não existe um caso "com um
+   atributo". O caso de cardinalidade usa 65535 bytes de resposta, abaixo de `MAX_REPLY_BYTES`
+   (65536), não um limite de JSON que o schema não tem.
 
 ### 8.3 Testes futuros
 
@@ -1307,17 +1390,24 @@ given_standard_xml_function_when_parsed_then_malformed_frame
 given_doctype_when_parsed_then_forbidden_xml_construct
 given_reply_over_64k_when_parsed_then_payload_too_large
 given_truncated_parameter_when_parsed_then_truncated_frame
+given_parameter_close_without_equals_when_parsed_then_malformed_frame
 given_alias_and_canonical_when_parsed_then_duplicate_parameter
-given_missing_schema_version_when_parsed_then_missing_field
+given_propagation_rules_alias_when_parsed_then_propagation_bound
+given_missing_schema_version_when_parsed_then_missing_parameter
 given_unknown_field_when_parsed_then_unknown_field
+given_provenance_field_when_parsed_then_provenance_forbidden
 given_float_amount_when_parsed_then_json_non_integer_number
 given_dc_26_when_validated_then_dc_out_of_range
 given_group_scope_when_validated_then_unknown_scope
 given_symbolic_item_when_validated_then_invalid_id
 given_absent_item_when_validated_then_item_not_found
 given_item_not_held_when_validated_then_item_not_held
+given_item_with_items_disabled_when_validated_then_item_effect_not_enabled
 given_self_transfer_when_validated_then_self_transfer
+given_relationship_target_actor_when_validated_then_self_target
+given_label_target_actor_when_validated_then_self_target
 given_four_labels_when_validated_then_label_count_exceeded
+given_zero_relationship_delta_when_validated_then_zero_delta
 given_relationship_sum_over_range_without_flag_when_validated_then_clamp_not_authorized
 given_relationship_sum_over_range_with_flag_when_materialized_then_saturated_with_record
 given_heal_over_max_without_flag_when_validated_then_clamp_not_authorized
@@ -1327,10 +1417,13 @@ given_same_inputs_when_materialized_twice_then_same_hash
 given_one_bp_delta_when_materialized_then_one_bp_preserved
 given_preview_and_commit_when_unchanged_then_same_effect_set_hash
 given_stale_revision_when_committed_then_stale_facts
+given_check_draw_not_allocated_when_materialized_then_check_draw_not_allocated
 given_seventeen_questions_when_deciding_then_too_many_questions
 given_score_six_when_normalized_then_malformed_answer
 given_timeout_when_deciding_then_abstain_without_tick
+given_margin_999_when_deciding_then_review
 given_invented_item_claim_when_verified_then_fallback
+given_two_perspectives_when_cache_key_then_different_keys
 given_retold_fact_when_context_built_then_retold_flag
 given_overlay_silhouette_when_context_built_then_not_used
 given_cache_hit_when_read_then_tick_unchanged
@@ -1393,22 +1486,24 @@ NLG, cache e corpus.
 
 | # | Decisão | Recomendação | Impacto se recusada |
 | --- | --- | --- | --- |
-| F-01 | Dialeto exato e não XML | aceitar o dialeto da §2; XML convencional rejeitado | novo `frame_version` e prompt alternativo |
-| F-02 | Aliases de parâmetro | manter os três aliases em v1; remover em v2 | respostas do prompt antigo rejeitadas |
-| F-03 | `schema_version` obrigatório | `1` explícito, sem default | payload sem versão rejeitado |
+| F-01 | Dialeto exato e não XML | aceitar `</parameter=>` e `</function=>` exatos; XML convencional rejeitado | novo `frame_version` e prompt alternativo |
+| F-02 | Aliases de parâmetro | manter os quatro aliases em v1; remover em v2 | respostas do prompt antigo rejeitadas |
+| F-03 | `schema_version` obrigatório | `1` explícito; ausente é `MissingParameter` | payload sem versão rejeitado |
 | F-04 | Allowlist de efeitos | sete kinds CTR-01; `damage`/`heal` mapeiam para `delta_hp`; `spawn_rumor` não é efeito | schema maior e revisão do CTR-01 |
-| F-05 | Catálogos | atributos §3.8.1, eixos §3.8.2, rótulos §3.8.3, estados §3.8.4 (6 reservado, 7 `INTIMIDATED`) | conflito com o vetor CTR-01 e com o exemplo |
-| F-06 | Selectores | `actor`/`target`/`bystanders`; `region` só em propagação | IDs de ator no payload e risco de spoofing |
-| F-07 | Rejeição vs saturação | rejeitar por omissão; saturação só com flag nas duas políticas | clamps silenciosos e perda de auditabilidade |
+| F-05 | Catálogos | oito atributos do overview sem códigos; eixos §3.8.2; rótulos §3.8.3; estados §3.8.4 (6 reservado, 7 `INTIMIDATED`) | conflito com o vetor CTR-01 e com o exemplo |
+| F-06 | Selectores | `actor`/`target`/`bystanders`; `actor` não é alvo relacional/rótulo/rumor; `region` só em propagação | IDs de ator no payload e risco de spoofing |
+| F-07 | Rejeição vs saturação | rejeitar por omissão; saturação só com flag nas duas políticas; um único código por condição | clamps silenciosos e perda de auditabilidade |
 | F-08 | Limite de duração | `525600` ticks como teto de produto | sem teto testável; revisão do DOC-02 |
-| F-09 | Faixas System One | `act` ≥8000, `review` 5000–7999, `abstain` <5000; score 1–5 → 5/10/15/20/25 | decisões inconsistentes entre ações |
-| F-10 | NLG | claims + verificação conservadora + fallback `pt-PT` + cache por âncoras | prosa alucinada mostrada como facto |
-| F-11 | Auditoria | mesma transação para aceite; rejeição separada; sem relógio de parede | perda de prova e de `fact_seq` |
+| F-09 | Faixas System One | `act` ≥8000 e margem ≥1000; `review` 5000–7999 ou margem <1000; `abstain` <5000; score 1–5 → 5/10/15/20/25 | decisões inconsistentes entre ações |
+| F-10 | Propagação | pisos `half_life>=1200` e `min_cognition>=4000`; sem escolha de perda pelo modelo | undercut do DOC-02 e do SOC-03 |
+| F-11 | Auditoria | mesma transação para aceite; rejeição separada; sem relógio de parede; `raw_digest` BLAKE3 | perda de prova e de `planned_fact_seq` |
 | F-12 | Corpus | 200 válidos + 200 inválidos, sem cópias | parser sem gate adversarial |
+| F-13 | Check de regra emergente | alocar um desenho `CHECK` no CTR-02/INT-05; modificador do INT-04 com guarda `-20..=20` | materializador não tem desenho nem modificador testável |
+| F-14 | Itens vs PD-04 | manter o kind CTR-01 atrás de `items_enabled`; default `false` no recorte DOC-02 | contradição com "sem itens" ou remoção de `transfer_item` |
 
 As decisões F-01, F-03, F-04, F-05, F-06, F-07 e F-10 são as que mais afetam outros contratos; devem
-ser confirmadas no freeze antes de RULE-01/RULE-02/NLG-01 começarem. F-08, F-09 e F-11 são
-constantes de produto/engenharia e podem ser confirmadas com o maintainer.
+ser confirmadas no freeze antes de RULE-01/RULE-02/NLG-01 começarem. F-08, F-09, F-11, F-13 e F-14
+são constantes de produto/engenharia e podem ser confirmadas com o maintainer.
 
 ## 11. Consumo e interfaces
 
@@ -1417,8 +1512,8 @@ constantes de produto/engenharia e podem ser confirmadas com o maintainer.
 | RULE-01 | `parse_proposal` | §2, §3, §4.2, corpus | segundo parser, regex, `serde_json` sobre fatia |
 | RULE-02 | `validate_rule`, `materialize` | §4–§5, catálogos, saturação | clamp silencioso, RNG, leitura de overlay |
 | RULE-03 | corpus/fixtures/fakes | §8 | casos copiados, rede, relógio |
-| AI-02 | `SystemOnePort`, `LlmPort` | §6 | inferência no tick, floats no estado, live por omissão |
-| NLG-01/02 | `build_context`, `verify_claims`, `cache_key` | §7 | prosa como facto, overlay, cache por tick atual |
+| AI-02 | `SystemOnePort`, `LlmPort` | §6; `ProposalContext` | inferência no tick, floats no estado, live por omissão |
+| NLG-01/02 | `build_context`, `verify_claims`, `cache_key` | §7; `perspective`/`fact_flags`/`ledger_hash` | prosa como facto, overlay, cache por tick atual |
 | APP-01 | orquestração e auditoria | §4.6, §5.5 | proveniência inventada, commit sem auditoria |
 | E2E-01 | fake/cassette | §6.5, §8 | modelo real em teste de PR |
 | REVIEW-CTR-04 | verificações independentes | §9 | aceitar sem prova ou sem corpus |
@@ -1427,20 +1522,27 @@ constantes de produto/engenharia e podem ser confirmadas com o maintainer.
 
 1. Este é um documento de contrato; não há código, testes executados, crate, binário ou prompt.
 2. O status é proposta; o freeze exige revisão independente e decisão de produto. `DELIVERED_TO_REVIEW`
-   não é `DONE`.
+   não é `DONE`. A R1 independente levantou B-01..B-07 e D-01..D-13; esta revisão responde a todos,
+   mas uma R2 independente continua obrigatória.
 3. O ADR 0012 é novo e o índice de ADRs não é editado aqui; a atualização do índice é tarefa de
-   integração.
-4. P-07 (atributos de linguagem/inteligência) continua aberta; o catálogo §3.8.1 exige a projeção,
-   mas não afirma que o armazenamento já a tem.
-5. A fórmula do modificador de check é do INT-04; este contrato exige o campo, não a redefine. Se o
-   INT-04 não a fornecer, a validação falha com `MissingFact`.
-6. A semântica de criação/perda de rumor é do SOC-02/SOC-03; este contrato valida o pedido e
-   transporta o metadado, não implementa a propagação.
-7. Os testes live não foram executados; não há pesos, rede, GPU ou sidecar neste estágio.
-8. Os exemplos não são fixtures e não afirmam existência de atores, itens ou rumores.
-9. O limite `525600` e as faixas de confiança são decisões de freeze, não constantes já ratificadas
-   pelo DOC-02.
-10. Nenhuma alteração foi feita a `ROADMAP.md`, `wave-spec.md`, `decisions.md`, prompts, outros
+   integração. O manifesto lista apenas o contrato em `files_allowed`; o ADR é o artefacto
+   companion autorizado pelo brief do orquestrador e deve ser reconciliado no manifesto/juiz.
+4. P-07 (atributos de linguagem/inteligência) continua aberta; o catálogo §3.8.1 exige a projeção
+   dos oito nomes do overview, mas não afirma que o armazenamento já os tem.
+5. A fórmula do modificador de check é do INT-04; este contrato fixa a guarda `-20..=20`, não a
+   derivação. O desenho `CHECK` também depende do CTR-02/INT-05; sem ele, o materializador falha com
+   `CheckDrawNotAllocated` em vez de inventar um índice.
+6. A semântica de criação/perda de rumor é do SOC-02/SOC-03; este contrato valida o pedido, exige a
+   fidelidade de origem e transporta o metadado, mas não aplica `TRANSFER_LOSS_BP` nem escolhe
+   portadores.
+7. Itens: o CTR-01 tem `TRANSFER_ITEM`, mas o recorte DOC-02/PD-04 exclui itens. O schema mantém o
+   kind atrás de `items_enabled` (default `false`); sem decisão de produto, uma proposta com itens é
+   `ItemEffectNotEnabled`. F-14 regista a decisão.
+8. Os testes live não foram executados; não há pesos, rede, GPU ou sidecar neste estágio.
+9. Os exemplos não são fixtures e não afirmam existência de atores, itens ou rumores.
+10. O limite `525600`, as faixas de confiança, os pisos de propagação e a guarda de check são
+    decisões de freeze, não constantes já ratificadas pelo DOC-02.
+11. Nenhuma alteração foi feita a `ROADMAP.md`, `wave-spec.md`, `decisions.md`, prompts, outros
     contratos, índice de ADRs ou ledger.
 
 ## 13. Referências
