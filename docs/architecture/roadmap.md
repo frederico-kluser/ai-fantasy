@@ -123,6 +123,10 @@ sem qualquer runtime associado. O produto real da TypeSafe é este:
   casa, caverna, buraco, árvore, parede ou água; detalhe na **secção 2.9**.
 - **Visualização 2D isométrica, sem 3D real.** O render final é 2D com visão isométrica;
   **não haverá qualquer visualização 3D real**; detalhe na **secção 2.10**.
+- **Visibilidade e memória de ambientes (*fog of war*).** Três camadas — visão ativa
+  (onde o personagem olha), memória desvanecida e congelada (onde já viu: é a memória do
+  personagem sobre o ambiente) e escuro (onde nunca viu) — com silhuetas em occlusão e
+  navegação por z-levels; detalhe na **secção 2.11**.
 
 ---
 
@@ -356,6 +360,13 @@ de construção que pode ser **casa, caverna, buraco, árvore, parede, água, ro
 chão**. Escavar, construir, cortar árvores e abrir buracos é a linguagem do mundo — e o
 estado do mundo é 100% determinístico e serializável.
 
+**Cubos de construção — e só de construção.** Todo o **material de construção do mapa** é
+um **cubo** (tipo *Minecraft*, projetado em isométrico): pedra, madeira, terra, parede,
+telhado, chão. **Todas as construções são montadas a partir destes cubos** — casas,
+muros, pontes, escadas, cavernas escavadas. Itens de **uso, consumo, vestimenta e
+combate não são cubos**: são itens normais (entidades de inventário, secção 2.1), sem
+papel estrutural na grelha.
+
 | Peça | Desenho |
 | --- | --- |
 | Bloco | Tipo + estado (ex.: `TREE`, `WALL`, `CAVE`, `HOLE`, `HOUSE`, `WATER`, `FLOOR`), com material e flags; identidade estável. |
@@ -379,10 +390,62 @@ Regras: grelha em inteiros (sem `f32`); mesmo *seed* + comandos ⇒ mesma grelha
 - O núcleo não renderiza: expõe o estado do mundo (blocos, atores, eventos) por uma API
   de leitura estável; a **visualização 2D isométrica** é feita por um cliente dessa API
   (renderização assegurada pelo maintainer do projeto).
+- **Renderizar apenas o que é visto:** o render não desenha o mundo às cegas — desenha
+  exatamente as camadas de visibilidade da secção 2.11 (visão ativa, memória
+  desvanecida, escuro).
+- **Navegação por eixos de altura:** o jogador sobe/desce a câmara no eixo de altura para
+  ver andares **acima ou abaixo** (z-levels, como no *Dwarf Fortress*).
+- **Silhuetas em occlusão:** um personagem (o próprio ou outros) que passe **por detrás
+  de uma construção** continua visível como **silhueta** — a construção oculta o corpo,
+  nunca a presença.
 - A TUI/ASCII continua a existir como interface de depuração, testes E2E e *fallback* —
   nunca é a visualização final do jogo.
 - Orçamentos de render (sprites por ecrã, camadas, *culling* isométrico) entram na fase
   do render (**F9**); a simulação nunca espera pelo render.
+
+### 2.11 Visibilidade, campo de visão e memória de ambientes (*fog of war*)
+
+> **Decisão:** a visualização segue a lógica de *fog of war* do *Dwarf Fortress* e do
+> *Age of Empires* — com um significado extra: **o que já foi visto e não está à vista é
+> a memória do personagem sobre o ambiente**, e vive no estado da simulação, não só no
+> render.
+
+Cada ponto do mundo está num de **três estados de visibilidade**:
+
+| Estado | O que é | O que se vê | Atualiza? |
+| --- | --- | --- | --- |
+| **Visão ativa** | Onde o personagem **olha** (campo de visão com direção) | O mundo **ao vivo**: criaturas, construções e mudanças em tempo real | ✅ sempre |
+| **Memória de ambientes** | Onde **não olha agora, mas já olhou/passou** | O caminho/área vista **meio apagada** (desvanecida), exatamente como foi vista da última vez | ❌ **nunca**: sem atualizar criaturas nem mudanças de construção |
+| **Escuro** | Onde **nunca viu** | **Totalmente escuro** | — não existe em memória |
+
+Regras:
+
+1. **Campo de visão direcional** — só se vê para onde o personagem **olha**; o FOV é
+   calculado sobre a grelha de blocos (inteiros, determinístico).
+2. **Silhuetas em occlusão** — personagens (o próprio e outros) **por detrás de uma
+   construção** são desenhados como **silhueta**: a construção oculta o corpo, não a
+   presença.
+3. **Eixo de altura** — a câmara sobe/desce por andares (z-levels): ver andares **acima
+   ou abaixo** é navegação de visão, não mudança de posição.
+4. **Memória é dado de simulação** — a camada “memória” é o **modelo de memória do
+   personagem sobre ambientes** (liga-se ao componente `Memory`, secção 2.1): *snapshot*
+   do último estado visto, congelado até haver nova linha de visão. Testável: a memória
+   só muda quando há nova visão.
+5. **Determinismo** — mesmo estado + mesma direção ⇒ mesmo conjunto visível; a memória
+   é reproduzível (mesmo *seed* + trajetória ⇒ mesmo mapa de memória).
+6. **O render consome, não decide** — as três camadas são produzidas pelo núcleo e
+   expostas pela API de leitura; o render 2D isométrico apenas as pinta: visível ao vivo,
+   memória desvanecida, nunca visto a preto.
+
+**Critérios de aceitação:**
+
+- [ ] Cenário E2E: entrar numa sala, sair e olhar para outro lado ⇒ a camada de memória
+      fica congelada (uma criatura que se moveu não aparece atualizada).
+- [ ] Cenário E2E: área nunca vista renderiza totalmente escura; área vista e fora do
+      olhar renderiza desvanecida.
+- [ ] Personagem por detrás de construção aparece como silhueta nos testes de UI.
+- [ ] Subir/descer z-levels não altera o estado da simulação (apenas a visão).
+- [ ] Memória reproduzível: mesmo *seed* + trajetória ⇒ mesmo mapa de memória (hash igual).
 
 ---
 
@@ -1034,7 +1097,7 @@ Resumo; o contrato completo está em
 | **F6 — UI** | TUI, input, modal de conversa, saves, settings | E2E de UI; acessibilidade texto |
 | **F7 — Hardening** | Soak 12 h, performance, packaging, SBOM, release | memória < 2,8 GB; release `v0.1.0` |
 | **F8 — Comportamento neural** | Mini-MLP por personagem (individualidade) + arquétipos por raça/espécie, treino por reforço, evolução darwiniana (secção 2.8) | genomas determinísticos; individualidade observável; cenário E2E de 100 gerações; mutação ≥ 90% |
-| **F9 — Mundo em blocos e render 2D** | Grelha de blocos (casas, cavernas, buracos, árvores — secção 2.9) e visualização isométrica 2D, sem 3D (secção 2.10) | grelha determinística e reproduzível; render consome estado sem tocar na simulação; cenário E2E de construção/escavação |
+| **F9 — Mundo em blocos e render 2D** | Grelha de blocos (casas, cavernas, buracos, árvores — secção 2.9), visualização isométrica 2D sem 3D (secção 2.10) e visibilidade/memória de ambientes (secção 2.11) | grelha determinística e reproduzível; render consome estado sem tocar na simulação; FOV determinístico e memória congelada validados por E2E; cenário E2E de construção/escavação |
 
 Cada fase só começa quando a anterior tem os testes e a documentação verdes. Não se
 “avança para a UI” com o core instável.
@@ -1073,6 +1136,7 @@ Questões abertas: ver [`overview.md`](overview.md#15-decisões-abertas).
 | “Zero alucinações” | 🎯 meta | verificação factual + testes |
 | “100% testável” | 🎯 meta arquitetural | definição + gates |
 | Visualização final é 2D isométrica, sem 3D real | ✅ decisão | secção 2.10; reforçada no README |
+| *Fog of war* em 3 camadas (visão/memória/escuro) com silhuetas | ✅ decisão | secção 2.11; memória é dado de simulação |
 
 O documento original citava fontes secundárias e imagens de *marketing*. Aqui, cada número
 tem um estado: verificado, alegação ou meta. Nenhum número de fabricante é tratado como
@@ -1128,6 +1192,8 @@ contrato.
 - [ ] As redes neurais da secção 2.8 mantêm determinismo e testabilidade.
 - [ ] O nome do documento é apenas `roadmap` e a decisão está registada na secção 0.8.
 - [ ] O mundo é grelha de blocos e a visualização final é 2D isométrica (sem 3D real).
+- [ ] As três camadas de visibilidade (visão ativa, memória desvanecida, escuro), as
+      silhuetas e a navegação por z-levels estão especificadas e testadas (secção 2.11).
 - [ ] Os números externos estão marcados como alegação/meta.
 - [ ] As licenças estão corretas e os pesos não são distribuídos.
 - [ ] O roadmap tem fases com critérios de saída testáveis.
