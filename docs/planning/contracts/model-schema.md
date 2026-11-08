@@ -115,6 +115,7 @@ Assim, XML convencional (`<function name="...">`, `</function>`, atributos citad
 
 ```text
 reply        = [ reasoning ] tool_call [ trailing_ws ]
+trailing_ws  = { " " | "\t" | "\r" | "\n" }
 reasoning    = "<think" opaque "</think"
 tool_call    = "<tool_call>" call "</tool_call>"
 call         = "<function=propose_emergent_action>" parameter+ "</function=>"
@@ -127,8 +128,10 @@ Regras:
 1. `tool_call` aparece **exatamente uma vez**. Zero chamadas é `MissingCall`; duas ou mais é
    `MultipleCalls`. Não há chamadas em paralelo, nem chamada dentro de `reasoning`.
 2. O nome da função é exatamente `propose_emergent_action`. Qualquer outro nome é `UnknownTool`.
-3. Cada parâmetro tem um `name` do conjunto canônico ou do conjunto de aliases da §3.1. Nome fora do
-   conjunto é `UnknownParameter`; `name` vazio, com espaço, com aspas ou com `=` é
+3. Cada parâmetro tem um `name` do conjunto canônico ou do conjunto de aliases da §3.1. O parser
+   verifica primeiro o conjunto reservado da §3.2.1; um nome reservado é
+   `ProvenanceFieldForbidden` (stage `FRAME`), mesmo que também não seja canônico. Nome fora dos
+   dois conjuntos é `UnknownParameter`; `name` vazio, com espaço, com aspas ou com `=` é
    `MalformedParameter`.
 4. O fecho do parâmetro é exatamente `</parameter=>`, o mesmo dialeto do exemplo histórico. O fecho
    `</parameter` seguido de `>` (sem `=`), `</parameter >`, `</parameter/>` e `</PARAMETER=>` são
@@ -284,8 +287,8 @@ prompt/transporte, não do parser: o parser mede bytes e não confia no contador
 ### 2.7 Preâmbulo de raciocínio
 
 O bloco `<think` … `</think` é semanticamente opaco e não é auditado por conteúdo. PODE conter
-texto livre em UTF-8, mas NÃO PODE conter os marcadores `<tool_call>`, `<function=`, `<parameter=`
-ou `</parameter`; se contiver, é `MarkerInValue`. O bloco não é executado, não é obedecido, não é
+texto livre em UTF-8, mas NÃO PODE conter os marcadores `<tool_call>`, `</tool_call>`,
+`<function=`, `</function=>`, `<parameter=` ou `</parameter`; se contiver, é `MarkerInValue`. O bloco não é executado, não é obedecido, não é
 indexado e não é usado para escolher outra chamada; o host regista apenas o seu digest e o tamanho.
 Um bloco truncado ou com fecho divergente é rejeitado, mesmo que o resto da resposta pareça válido.
 A verificação de marcadores não é interpretação semântica: é a mesma fronteira de framing do resto
@@ -331,10 +334,24 @@ Regras de alias:
 | `propagation` | objeto | não | §3.7; ausente significa "sem semente de rumor" |
 
 O objeto raiz tem exatamente estas chaves. `deny_unknown_fields` é obrigatório em todos os níveis.
-Nomes reservados de proveniência (`provenance`, `model`, `model_id`, `tick`, `revision`, `rule_id`,
-`fact_seq`, `seed`, `temperature`, `trace`, `draw`, `rng`, `timestamp`, `notes`) são
-`ProvenanceFieldForbidden`, não `UnknownField`; qualquer outra chave não declarada é `UnknownField`.
-O modelo não fornece identidade, tempo, RNG, proveniência ou IDs de facto.
+Qualquer chave não declarada é `UnknownField`, exceto os nomes reservados da §3.2.1, que são
+sempre `ProvenanceFieldForbidden`. O modelo não fornece identidade, tempo, RNG, proveniência ou IDs
+de facto.
+
+#### 3.2.1 Nomes reservados
+
+O conjunto reservado é exaustivo e único para parâmetros e chaves JSON:
+
+```text
+proposal_id, rule_id, schema_id, model, model_id, model_sha256, prompt, prompt_hash,
+prompt_version, cassette_id, request_id, tick, revision, fact_seq, planned_fact_seq,
+seed, temperature, trace, draw, rng, timestamp, notes, raw_digest, rule_content_hash,
+effect_set_hash, validator_version
+```
+
+Um nome deste conjunto, como parâmetro ou como chave em qualquer objeto, é
+`ProvenanceFieldForbidden`, verificado **antes** de `UnknownParameter`/`UnknownField`. Isto é
+normativo para §2.2, §2.5, §4.2, §4.3 e §4.6.7; não há uma segunda lista.
 
 ### 3.3 Atributos
 
@@ -391,11 +408,12 @@ Regras por efeito:
 6. `delta_hp`: `amount` é inteiro `-1000000..=1000000`, diferente de zero. Dano que leve o alvo a
    menos de `1` é `LethalDamageNotAuthorized`; não há morte em v1. Cura acima do máximo sem
    saturação autorizada é `ClampNotAuthorized`; com a flag, satura e registra.
-7. `transfer_currency`: `from` e `to` são `actor` ou `target`, diferentes; `amount` é inteiro
-   `1..=10000`; a soma conserva-se e a carteira do destino não pode exceder `10000`
-   (`WalletOverflow`). Só é válido quando o `intent` do facto é `NEGOTIATE` (2) ou `INFORM_PATH` (9)
-   e `ActionFacts.offer_currency` é coerente com `from/to/amount` (CTR-01 §4.5.6); caso contrário é
-   `IntentEffectMismatch`.
+7. `transfer_currency`: `from` é `actor` e `to` é `target` (com `actor=speaker` e
+   `target=listener`), `amount` é inteiro `1..=10000`, `ActionFacts.offer_currency` é `Some(amount)`
+   e `ActionFacts.currency_transfer_allowed=true`; a soma conserva-se e a carteira do destino não
+   pode exceder `10000` (`WalletOverflow`). Só é válido quando o `intent` do facto é `NEGOTIATE` (2)
+   ou `INFORM_PATH` (9) conforme `identity-events.md` §4.5.2. Qualquer desvio —
+   intent, direção invertida, oferta incoerente ou gate `false` — é `IntentEffectMismatch`.
 8. `authorized_saturation` só existe em `delta_relationship` e `delta_hp`; em qualquer outro `kind`
    é `UnsupportedSaturation`. Ausente vale `false`.
 9. `damage`, `heal`, `spawn_rumor`, `set_flag`, `teleport`, `give_xp` e `kill` não são kinds v1;
@@ -461,26 +479,27 @@ Regras:
 
 ### 3.7 Propagação
 
-`propagation` é um objeto opcional com exatamente cinco chaves:
+`propagation` é um objeto opcional com exatamente cinco chaves. Em v1 os valores de orçamento são
+constantes do DOC-02/PD-07, não uma escolha do modelo:
 
-| Campo | Tipo | Regra |
+| Campo | Valor v1 | Regra |
 | --- | --- | --- |
-| `scope` | enum | `LOCAL` ou `REGIONAL`; `GROUP` é `UnknownScope` |
-| `initial_fidelity_bp` | inteiro | `1..=10000` |
-| `half_life_ticks` | inteiro | `1200..=525600` (piso DOC-02) |
-| `requires_living_carrier` | booleano | DEVE ser `true`; `false` é `UnsupportedPropagation` |
-| `min_cognition_bp` | inteiro | `4000..=10000` (piso DOC-02) |
+| `scope` | `LOCAL` ou `REGIONAL` | `GROUP` é `UnknownScope` |
+| `initial_fidelity_bp` | `10000` | exatamente a semente DOC-02; outro valor é `PropagationBudgetMismatch` |
+| `half_life_ticks` | `1200` | exatamente `HALF_LIFE_TICKS`; outro valor é `PropagationBudgetMismatch` |
+| `requires_living_carrier` | `true` | `false` é `UnsupportedPropagation` |
+| `min_cognition_bp` | `4000` | exatamente `MIN_COGNITION_BP`; outro valor é `PropagationBudgetMismatch` |
 
 1. O bloco é metadado para a criação de um rumor novo pelo SOC-02/SOC-03; não é um efeito CTR-01 e
-   não é aplicado pelo materializador. A materialização apenas o transporta e valida os limites.
+   não é aplicado pelo materializador. A materialização apenas o transporta e valida os valores.
 2. `scope=REGIONAL` significa que a semente pode atravessar a localidade de origem segundo as
    regras do DOC-02; não significa telepatia nem conhecimento imediato de toda a região.
 3. O bloco só é aplicável se `ActionFacts.rumor_seed_allowed` for `true` (ação social com
    testemunhas ou intenção compatível); caso contrário é `PropagationNotApplicable`.
-4. O orçamento de propagação tem pisos de produto: `half_life_ticks >= 1200` e
-   `min_cognition_bp >= 4000` (DOC-02 §4.2). O modelo pode propor valores mais conservadores
-   (meia-vida maior, limiar maior), mas NÃO PODE reduzir a degradação nem baixar o limiar de
-   cognição. Não há clamp: um valor abaixo do piso é `DurationOutOfRange` ou `AmountOutOfRange`.
+4. `half_life_ticks`, `min_cognition_bp` e `initial_fidelity_bp` são exatamente os valores
+   contratados. O modelo NÃO PODE propor 2400, 3999 ou 9999; fazê-lo é `PropagationBudgetMismatch`.
+   Alterar estes valores exige re-pinagem de produto do DOC-02/PD-07 e `schema_version` novo, não
+   um clamp.
 5. Não há RNG, relógio ou escrita de mundo na validação. A semente efectiva, a perda de fidelidade,
    os portadores e os 16 sorteios por pulso pertencem ao passo social e ao CTR-02.
 
@@ -674,7 +693,7 @@ nomes canônicos, os catálogos e os limites deste contrato.
 | `"label": "EXPOSED_LIAR"` | `"label": "LIAR"` | catálogo CTR-01 |
 | `"status": "INTIMIDATED"`, `duration` 600 | `status: "INTIMIDATED"`, `duration_ticks: 600` | nome do campo canônico |
 | `"scope": "GROUP"` | `"scope": "LOCAL"` | `GROUP` não existe no DOC-02 |
-| `half_life_ticks: 2400` | `1200..=525600` | piso DOC-02 |
+| `half_life_ticks: 2400` | `1200` exato | valor DOC-02/PD-07; 2400 exigiria re-pinagem |
 | `target_dc: 16` | mantido | dentro de `5..=25` |
 | `LANGUAGE`/`INTELLIGENCE` | mantidos | nomes do overview; P-07 em aberto |
 
@@ -708,8 +727,8 @@ desenha, não chama modelo e não consome RNG.
 | `RuleSchema` | `schema_id`, `schema_version`, `frame_version` e as constantes da §4.1.2 | INT-08 |
 | `ProposalContext` | `region_id`, `actor`, `target?`, `intent`, `attributes`, `candidates`, `locale`, `prompt_version` | INT-12 |
 
-`ValidatedRule.check` contém `target_dc`, `stream`, `domain` e os atributos usados; `stream` e
-`domain` são os do `DrawSpec` do passo, não números inventados por este contrato. `RuleError.stage`
+`ValidatedRule.check` contém `target_dc` e os atributos usados; a resolução do check (`roll`,
+`total`, `success`, `modifier`) chega em `ResolvedDraws.check`, produzida pelo INT-04/INT-07. `RuleError.stage`
 é um de `FRAME`, `JSON`, `SCHEMA`, `SEMANTIC`, `MATERIALIZE`. O erro não inclui o texto bruto do
 modelo na mensagem ao utilizador; inclui o caminho do campo, o deslocamento em bytes e o digest.
 `RuleError` não é `retryable` por omissão: repetir a mesma resposta produz o mesmo erro.
@@ -728,7 +747,7 @@ mínimo:
 | Testemunhas | `bystanders` ordenados por `ActorId`, já filtrados por percepção/alcance/LOS |
 | Check | `check_modifier: i16` no intervalo `-20..=20`, calculado pelo INT-04 a partir dos atributos e do alvo |
 | Propagação | `rumor_seed_allowed: bool` |
-| Moeda | `offer_currency: Option<u32>`, `currency_transfer_allowed: bool` |
+| Moeda | `offer_currency: Option<u32>` (igual a `amount` quando usado) e `currency_transfer_allowed: bool` (falso ⇒ `IntentEffectMismatch`) |
 
 Se um campo necessário faltar ou for inconsistente, o resultado é `MissingFact`; o consumidor NÃO
 PODE inventar, inferir de overlay ou ler o mundo por outra via. A lista de `bystanders` é imutável
@@ -743,13 +762,14 @@ durante a validação e a materialização: se mudar entre as duas, é `StaleFac
 | `schema_id` | `af.rule-proposal` | identidade do schema |
 | `schema_version` | `1` | obrigatório no payload |
 | `frame_version` | `1` | dialeto da §2, com `</parameter=>` |
-| `check_die` | `20` | d20; valor da draw em `0..=19`, rolagem `1..=20` |
+| `check_die` | `20` | escala d20; `roll` em `1..=20` no `ResolvedCheck` |
 | `check_modifier_min/max` | `-20` / `20` | guarda de validação; a fórmula é do INT-04 |
 | `target_dc_min/max` | `5` / `25` | inclusive |
 | `amount_bp_min/max` | `-10000` / `10000` | inclusive; zero é `ZeroDelta` |
 | `duration_ticks_max` | `525600` | decisão de freeze; ver §10 |
-| `half_life_ticks_min/max` | `1200` / `525600` | piso DOC-02 |
-| `min_cognition_bp_min/max` | `4000` / `10000` | piso DOC-02 |
+| `initial_fidelity_bp` | `10000` | semente DOC-02/PD-07 |
+| `half_life_ticks` | `1200` | constante DOC-02/PD-07 |
+| `min_cognition_bp` | `4000` | constante DOC-02/PD-07 |
 | `max_quantity` | `2147483647` | `i32::MAX` |
 | `max_effects` | `8` | por ramo |
 | `max_labels` | `3` | por ramo |
@@ -802,7 +822,7 @@ está registada em F-13.
 | `MissingParameter` | parâmetro obrigatório ausente, incluindo `schema_version` |
 | `UnsupportedSchemaVersion` | versão presente e diferente de `1` |
 | `UnknownField` | chave não declarada, exceto nomes reservados de proveniência |
-| `ProvenanceFieldForbidden` | `provenance`, `model`, `model_id`, `tick`, `revision`, `rule_id`, `fact_seq`, `seed`, `temperature`, `trace`, `draw`, `rng`, `timestamp`, `notes` |
+| `ProvenanceFieldForbidden` | qualquer nome do conjunto reservado da §3.2.1, como parâmetro ou chave JSON; verificado antes de `UnknownParameter`/`UnknownField` |
 | `MissingField` | chave obrigatória ausente dentro de um objeto já parseado |
 | `WrongType` | tipo JSON errado, incluindo `null` |
 | `InvalidActionLabel` | token fora de `[A-Za-z0-9_.-]{1,64}` |
@@ -816,7 +836,7 @@ está registada em F-13.
 | `UnsupportedSaturation` | `authorized_saturation` num kind que não o aceita |
 | `AmountOutOfRange` | `amount_bp` fora de `-10000..=10000`; zero é `ZeroDelta` |
 | `ZeroDelta` | delta de relação ou HP igual a zero |
-| `DurationOutOfRange` | `duration_ticks` fora de `1..=525600`, ou piso de propagação violado |
+| `DurationOutOfRange` | `duration_ticks` fora de `1..=525600` |
 | `EffectCountExceeded` | mais de oito efeitos num ramo |
 | `LabelCountExceeded` | mais de três `attach_label` num ramo |
 | `DuplicateLabel` | mesmo alvo e rótulo duas vezes |
@@ -830,6 +850,7 @@ está registada em F-13.
 | `UnknownScope` | escopo fora de `LOCAL`/`REGIONAL`; `GROUP` incluído |
 | `UnsupportedPropagation` | `requires_living_carrier=false` ou bloco inválido |
 | `PropagationNotApplicable` | `rumor_seed_allowed=false` |
+| `PropagationBudgetMismatch` | `initial_fidelity_bp != 10000`, `half_life_ticks != 1200` ou `min_cognition_bp != 4000` |
 | `SelfTransfer` | `from` e `to` iguais |
 | `SelfTarget` | alvo relacional/rótulo/rumor igual ao ator |
 | `ActorNotFound` | ator ausente dos factos |
@@ -844,7 +865,7 @@ está registada em F-13.
 | `QuantityOutOfRange` | quantidade insuficiente ou acima do estoque |
 | `ItemAlreadyHeld` | `to` já tem o mesmo `ItemId` |
 | `InsufficientCurrency` | carteira de `from` insuficiente |
-| `IntentEffectMismatch` | efeito incompatível com o `intent` ou `offer_currency` incoerente |
+| `IntentEffectMismatch` | `transfer_currency` com intent diferente de `NEGOTIATE`/`INFORM_PATH`, direção `from!=actor`/`to!=target`, `offer_currency != Some(amount)` ou `currency_transfer_allowed=false` |
 | `WalletOverflow` | carteira de `to` acima de `10000` |
 | `RumorNotFound` | rumor inexistente |
 | `RumorNotKnown` | ator sem cópia ativa |
@@ -853,7 +874,8 @@ está registada em F-13.
 | `StatusAlreadyPresent` | estado já presente no alvo |
 | `LethalDamageNotAuthorized` | dano levaria o alvo a menos de 1 |
 | `ClampNotAuthorized` | soma de relação ou cura fora do intervalo sem `authorized_saturation` |
-| `CheckDrawNotAllocated` | o passo não alocou um desenho `CHECK` |
+| `CheckResolutionMissing` | `ResolvedDraws.check` ausente |
+| `CheckMismatch` | `roll`/`total`/`target_dc`/`modifier`/`success` incoerentes |
 | `MissingFact` | projeção necessária ausente |
 | `StaleTarget` | alvo mudou entre contexto e validação |
 | `StaleFacts` | `facts_hash`/`revision` divergente |
@@ -870,7 +892,8 @@ saturado.
 | `target_dc` fora de `5..=25` | rejeita | `DcOutOfRange` |
 | `amount_bp` fora de `-10000..=10000` | rejeita | `AmountOutOfRange` |
 | `amount_bp` igual a zero | rejeita | `ZeroDelta` |
-| `duration_ticks`/`half_life_ticks`/`min_cognition_bp` fora do limite | rejeita | `DurationOutOfRange` / `AmountOutOfRange` |
+| `duration_ticks` fora de `1..=525600` | rejeita | `DurationOutOfRange` |
+| orçamento de propagação diferente de 10000/1200/4000 | rejeita | `PropagationBudgetMismatch` |
 | `scope=GROUP` | rejeita | `UnknownScope` |
 | `requires_living_carrier=false` | rejeita | `UnsupportedPropagation` |
 | soma de relação fora de `-10000..=10000`, sem flag | rejeita | `ClampNotAuthorized` |
@@ -882,7 +905,7 @@ saturado.
 | item já com o destino | rejeita | `ItemAlreadyHeld` |
 | estado já presente | rejeita | `StatusAlreadyPresent` |
 | item usado com `items_enabled=false` | rejeita | `ItemEffectNotEnabled` |
-| moeda com intent/oferta incoerentes | rejeita | `IntentEffectMismatch` |
+| moeda com intent, direção, oferta ou gate incoerentes | rejeita | `IntentEffectMismatch` |
 | DC/duração/quantidade/escopo fora do limite | nunca satura | rejeição |
 
 Regras de saturação:
@@ -965,9 +988,9 @@ Regras de auditoria:
    existir, fica fora do registo durável e não é autoritativo.
 6. Não são guardados segredos, chaves, pesos, prompts completos de sistema ou dados pessoais. O
    `prompt_hash` identifica o template sem o armazenar.
-7. O modelo NÃO PODE enviar `proposal_id`, `rule_id`, `tick`, `revision`, `fact_seq`, `model_id`,
-   `prompt_hash`, `cassette_id`, `seed`, `temperature`, `request_id` ou `timestamp`; a presença de
-   qualquer um é sempre `ProvenanceFieldForbidden`, nunca `UnknownField`.
+7. O modelo NÃO PODE enviar qualquer nome do conjunto reservado da §3.2.1, como parâmetro ou chave
+   JSON; a presença de qualquer um é sempre `ProvenanceFieldForbidden`, verificada antes de
+   `UnknownParameter`/`UnknownField`, e nunca `UnknownField`.
 
 ## 5. Materialização de efeitos
 
@@ -978,38 +1001,45 @@ materialize(rule: &ValidatedRule, facts: &ActionFacts, draws: &ResolvedDraws)
     -> Result<EffectSet, RuleError>
 ```
 
-`ResolvedDraws` é uma **vista read-only exigida por este contrato**, montada pelo host a partir dos
-`DrawOutcome` do CTR-02; a alocação de desenhos pertence ao CTR-02/INT-02 e este contrato não
-inventa streams, domínios ou ordem. Campos exigidos:
+`ResolvedDraws` é uma **vista read-only exigida por este contrato**, montada pelo host a partir da
+resolução nativa/social. Este contrato NÃO aloca desenhos, streams ou domínios e NÃO lê `RngState`.
+Campos exigidos:
 
 | Campo | Regra |
 | --- | --- |
-| `ordered` | lista ordenada de outcomes já resolvidos, com `stream`, `domain`, `purpose`, `index`, `bound`, `value`, `words_consumed`, `position_after` |
-| `check` | exatamente um outcome com `purpose=CHECK`; `bound=20`; `value` em `0..=19` |
+| `check` | exatamente um `ResolvedCheck`; ausente é `CheckResolutionMissing` |
 | `facts_hash`/`revision` | eco da revisão usada; divergência é `StaleFacts` |
 | `draw_refs` | referências para auditoria; não alteram a materialização |
 
-O materializador NÃO cria, promove ou rebobina desenhos. Recebe valores já consumidos pelo núcleo,
-verifica que o check existe e é único, e não lê `RngState`. Um check ausente é `DrawMissing`; dois
-checks, `bound != 20` ou `purpose` diferente de `CHECK` é `InvalidCheckDraw`; um valor fora de
-`0..=19` é `DrawOutOfRange`. O contrato exige que o CTR-02/INT-05 aloque um desenho `CHECK` com
-`stream` e `domain` do `DrawSpec` da ação; enquanto essa alocação não existir, o materializador
-falha com `CheckDrawNotAllocated` e não adivinha um índice. Esta dependência está em F-13.
+`ResolvedCheck` é produzido pelo INT-04/INT-07 (resolução social/nativa), não pelo materializador:
+
+| Campo | Regra |
+| --- | --- |
+| `success` | booleano final do check |
+| `roll` | inteiro `1..=20` |
+| `total` | inteiro; DEVE ser `roll + modifier` |
+| `target_dc` | inteiro `5..=25`; DEVE ser igual a `rule.check.target_dc` |
+| `modifier` | inteiro `-20..=20`; DEVE ser igual a `facts.check_modifier` |
+
+O materializador NÃO cria, promove ou rebobina desenhos e NÃO calcula a fórmula do check; verifica a
+coerência do `ResolvedCheck` e escolhe o ramo. A ausência do check é `CheckResolutionMissing`; uma
+incoerência de `roll`/`total`/`target_dc`/`modifier`/`success` é `CheckMismatch`. O contrato exige
+que o INT-04/INT-07 forneça esta resolução; enquanto não existir, a materialização falha fechada com
+`CheckResolutionMissing` e não adivinha um índice. Esta dependência está em F-13.
 
 ### 5.2 Check e seleção de ramo
 
-1. `roll = draws.check.value + 1`, portanto `1..=20`.
-2. `total = roll + facts.check_modifier`, em aritmética inteira com verificação de overflow.
-3. `success = total >= rule.check.target_dc`; não há crítico, falha automática, empate especial ou
-   segundo desenho.
-4. `facts.check_modifier` é calculado pelo INT-04 a partir dos atributos primário/secundário do ator
+1. `check = draws.check`; se ausente, `CheckResolutionMissing`.
+2. Verifica `1 <= check.roll <= 20`; `check.target_dc == rule.check.target_dc`;
+   `check.modifier == facts.check_modifier`; `check.total == check.roll + check.modifier`;
+   `check.success == (check.total >= check.target_dc)`. Qualquer desvio é `CheckMismatch`.
+3. `facts.check_modifier` é calculado pelo INT-04 a partir dos atributos primário/secundário do ator
    e do alvo. A fórmula concreta é dependência aberta do INT-04 (F-13); este contrato fixa apenas a
    guarda `-20..=20`. Se faltar, é `MissingFact`; fora da guarda é `InvalidCheckModifier`.
-5. O `draws.check.stream` e `draws.check.domain` têm de coincidir com `rule.check.stream` e
-   `rule.check.domain`; um desvio é `InvalidCheckDraw`.
-6. O ramo escolhido é `on_success` quando `success=true` e `on_failure` caso contrário. O ramo não
-   escolhido não é materializado e não produz efeitos, mas o seu conteúdo já foi validado.
-7. `target_dc` é o DC validado, não um valor recalculado a partir de `score` ou de atributos.
+4. O ramo escolhido é `on_success` quando `check.success=true` e `on_failure` caso contrário. O ramo
+   não escolhido não é materializado e não produz efeitos, mas o seu conteúdo já foi validado.
+5. Não há crítico, falha automática, empate especial ou segundo desenho; `target_dc` é o DC
+   validado, não um valor recalculado a partir de `score` ou de atributos.
 
 ### 5.3 Resolução, expansão e staging
 
@@ -1028,8 +1058,9 @@ falha com `CheckDrawNotAllocated` e não adivinha um índice. Esta dependência 
    flag é `ClampNotAuthorized`; dano que leve a menos de 1 é sempre `LethalDamageNotAuthorized`.
 6. `attach_label`, `apply_status`, `transfer_currency` e `propagate_rumor` verificam duplicados,
    catálogo, carteira, intent/oferta, fidelidade e existência na staging; não há criação implícita
-   de rumor. `transfer_currency` rejeita `IntentEffectMismatch` se o intent não for `NEGOTIATE`/
-   `INFORM_PATH` ou se `offer_currency` não for coerente.
+   de rumor. `transfer_currency` exige `from=actor`, `to=target`, `offer_currency=Some(amount)`,
+   `currency_transfer_allowed=true` e intent `NEGOTIATE`/`INFORM_PATH`; qualquer desvio é
+   `IntentEffectMismatch`.
 7. `propagate_rumor` não escolhe a perda: usa a fidelidade da cópia de origem validada e deixa a
    aplicação de `TRANSFER_LOSS_BP` e as testemunhas para o SOC-03. Um `amount_bp` diferente da
    fidelidade de origem é `RumorFidelityMismatch`.
@@ -1055,7 +1086,9 @@ falha com `CheckDrawNotAllocated` e não adivinha um índice. Esta dependência 
 4. As mesmas entradas (`ValidatedRule`, `ActionFacts`, `ResolvedDraws`) produzem o mesmo `EffectSet`
    e o mesmo `effect_set_hash` em qualquer máquina, execução ou ordem de validação.
 5. `EffectSet` contém: `branch`, `effects` (valores CTR-01 canônicos, na ordem), `effect_set_hash`,
-   `saturation_records`, `no_effect_reason?`, `facts_hash`, `revision`, `rule_content_hash`.
+   `saturation_records`, `no_effect_reason: Option<NoEffectReason>`, `facts_hash`, `revision`,
+   `rule_content_hash`. `NoEffectReason` é o enum fechado
+   `NO_ELIGIBLE_BYSTANDER | SATURATED_TO_ZERO`; não há outros valores.
 6. `effect_set_hash` é BLAKE3-256 sobre `schema_version || branch || effect_count ||` a codificação
    canônica CTR-01 de cada efeito, seguida dos registos de saturação. Não inclui tick, ator, path ou
    texto; esses ficam na auditoria.
@@ -1081,27 +1114,37 @@ falha com `CheckDrawNotAllocated` e não adivinha um índice. Esta dependência 
 
 | Código | Quando |
 | --- | --- |
-| `DrawMissing` | check ausente |
-| `CheckDrawNotAllocated` | o passo não alocou um desenho `CHECK` |
-| `InvalidCheckDraw` | check duplicado, `bound != 20`, stream/domain divergente |
-| `DrawOutOfRange` | valor fora de `0..=19` |
+| `CheckResolutionMissing` | `ResolvedDraws.check` ausente |
+| `CheckMismatch` | `roll`/`total`/`target_dc`/`modifier`/`success` incoerentes |
 | `InvalidCheckModifier` | modificador fora de `-20..=20` (ausente é `MissingFact`) |
 | `EffectSetOverflow` | mais de oito efeitos após expansão |
 | `EffectConflict` | conflito entre efeitos na staging |
-| `NoLossFailure` | tentativa de aplicar efeito sem respeitar a conservação |
 | `ClampNotAuthorized` | saturação ausente numa soma que a exigia |
 | `LethalDamageNotAuthorized` | dano efetivo levaria a HP < 1 |
 | `WalletOverflow` | carteira efetiva acima de 10000 |
 | `InsufficientCurrency` | saldo efetivo insuficiente |
+| `IntentEffectMismatch` | intent/oferta/direção/gate de moeda incoerentes |
 | `ItemEffectNotEnabled` | item usado com `items_enabled=false` |
+| `ItemNotFound` | item ausente na staging |
+| `ItemNotHeld` | item não está com a origem |
 | `ItemAlreadyHeld` | destino já tem o item |
 | `QuantityOutOfRange` | stock efetivo insuficiente |
+| `MissingPossession` | `required_item` não está com o ator |
 | `StatusAlreadyPresent` | estado já presente |
+| `RumorNotFound` | rumor ausente na staging |
+| `RumorNotKnown` | origem sem cópia ativa |
+| `RumorFidelityTooLow` | cópia abaixo do limiar |
 | `RumorFidelityMismatch` | fidelidade de origem diferente do `amount_bp` |
-| `IntentEffectMismatch` | intent/oferta incoerentes na staging |
+| `ActorDead`/`TargetDead` | ator/alvo morreu entre validação e materialização |
+| `StaleTarget` | alvo mudou entre validação e materialização |
 | `PreviewDiverged` | hash da prévia diferente do commit |
-| `StaleFacts`/`StaleTarget` | revisão/alvo mudou |
+| `StaleFacts` | revisão mudou |
 | `ArithmeticOverflow` | soma inteira excedeu o tipo |
+
+Duplicados, catálogo, intervalos e posse já verificados na validação não são reemitidos na
+materialização, exceto quando a staging prova que os factos mudaram (`ActorDead`, `TargetDead`,
+`StaleTarget`, `StaleFacts`). Um erro de conservação é `EffectConflict`; não existe um segundo
+código para o mesmo caso.
 
 ## 6. Portas de modelo
 
@@ -1272,12 +1315,16 @@ verify_claims(claims: &NarrativeClaims, facts: &NarrativeContext)
 
 1. `cache_key = BLAKE3-256(context_version || fact_seq || origin_tick || anchor_tick ||
    anchor_revision || anchor_state_hash || locale || perspective || fact_flags ||
-   ledger_hash || prompt_version || model_id || model_version || narrative_schema_version)`.
+   ledger_hash || prompt_version || model_id || model_version || narrative_schema_version ||
+   fallback_template_version)`.
 2. O key NÃO inclui o tick atual, a câmara, a UI, o overlay, o caminho do save ou o relógio. Ler a
    cache não altera `Tick`, `revision` ou hash do mundo.
 3. Duas perspetivas ou flags `DIRECT`/`RETOLD` diferentes sobre o mesmo facto e âncora produzem
    chaves diferentes; não há reutilização de narrativa entre observadores. Uma mudança de locale,
-   modelo, prompt, schema, factos, perspectiva ou âncora invalida a entrada.
+   modelo, prompt, schema, factos, perspectiva, âncora ou template de fallback invalida a entrada.
+   `context_version` versiona o contexto, `narrative_version` é o campo de versão da resposta e
+   `narrative_schema_version` versiona prosa/claims; `fallback_template_version` versiona o catálogo
+   de fallback. São quatro versões distintas, não sinónimos.
 4. A cache é local, não autoritativa e não entra no save. Pode ser apagada sem perda de estado.
 5. A geração é preguiçosa e fora do tick: só quando o texto é pedido; um timeout do modelo produz
    fallback e não bloqueia o núcleo.
@@ -1395,7 +1442,8 @@ given_alias_and_canonical_when_parsed_then_duplicate_parameter
 given_propagation_rules_alias_when_parsed_then_propagation_bound
 given_missing_schema_version_when_parsed_then_missing_parameter
 given_unknown_field_when_parsed_then_unknown_field
-given_provenance_field_when_parsed_then_provenance_forbidden
+given_provenance_parameter_when_parsed_then_provenance_forbidden
+given_provenance_json_field_when_parsed_then_provenance_forbidden
 given_float_amount_when_parsed_then_json_non_integer_number
 given_dc_26_when_validated_then_dc_out_of_range
 given_group_scope_when_validated_then_unknown_scope
@@ -1417,9 +1465,19 @@ given_same_inputs_when_materialized_twice_then_same_hash
 given_one_bp_delta_when_materialized_then_one_bp_preserved
 given_preview_and_commit_when_unchanged_then_same_effect_set_hash
 given_stale_revision_when_committed_then_stale_facts
-given_check_draw_not_allocated_when_materialized_then_check_draw_not_allocated
+given_check_resolution_missing_when_materialized_then_check_resolution_missing
+given_check_mismatch_when_materialized_then_check_mismatch
+given_check_modifier_21_when_validated_then_invalid_check_modifier
+given_currency_without_negotiate_intent_when_validated_then_intent_effect_mismatch
+given_currency_reversed_when_validated_then_intent_effect_mismatch
+given_currency_offer_mismatch_when_validated_then_intent_effect_mismatch
+given_currency_gate_false_when_validated_then_intent_effect_mismatch
+given_half_life_2400_when_validated_then_propagation_budget_mismatch
+given_min_cognition_3999_when_validated_then_propagation_budget_mismatch
+given_initial_fidelity_9999_when_validated_then_propagation_budget_mismatch
 given_seventeen_questions_when_deciding_then_too_many_questions
 given_score_six_when_normalized_then_malformed_answer
+given_single_choice_when_normalized_then_margin_10000
 given_timeout_when_deciding_then_abstain_without_tick
 given_margin_999_when_deciding_then_review
 given_invented_item_claim_when_verified_then_fallback
@@ -1428,6 +1486,7 @@ given_retold_fact_when_context_built_then_retold_flag
 given_overlay_silhouette_when_context_built_then_not_used
 given_cache_hit_when_read_then_tick_unchanged
 given_locale_change_when_cache_key_then_different_key
+given_fallback_template_change_when_cache_key_then_different_key
 ```
 
 Estes testes são um plano; nenhum foi executado neste estágio documental.
@@ -1473,13 +1532,14 @@ NLG, cache e corpus.
 
 | Requisito do cartão | Secções | Testes futuros |
 | --- | --- | --- |
-| framing/dialeto, uma call, XML/XXE, 64 KiB | §2, §9.1 | parsing 01–07 |
-| schema fechado, versão, aliases, tipos, allowlist | §3, §9.2 | schema 08–17 |
-| DC/deltas/duração, rejeição vs saturação, ≤8 | §4.4, §5, §9.3 | saturação/hash 18–25 |
-| selectores, IDs, posse, alvos, overlay | §3.5–§3.7, §9.2 | semântica 14–17, 31–32 |
-| portas System One/LLM, fakes/cassettes | §6, §9.4 | portas 26–28 |
-| NLG âncoras/claims/fallback/cache | §7, §9.4 | NLG 29–33 |
-| parser único e corpus 200+200 | §8, §9.4 | corpus completo |
+| framing/dialeto, uma call, XML/XXE, 64 KiB | §2, §9.1 | `multiple_calls`, `standard_xml_function`, `parameter_close_without_equals`, `payload_too_large` |
+| schema fechado, versão, aliases, tipos, allowlist | §3, §9.2 | `missing_schema_version`, `propagation_rules_alias`, `provenance_parameter`, `unknown_field` |
+| DC/deltas/duração, rejeição vs saturação, ≤8 | §4.4, §5, §9.3 | `zero_relationship_delta`, `clamp_not_authorized`, `saturated_with_record`, `effect_set_overflow` |
+| selectores, IDs, posse, alvos, overlay | §3.5–§3.7, §9.2 | `self_transfer`, `self_target`, `item_not_held`, `item_effect_not_enabled` |
+| check e propaganda de orçamento | §3.7, §5.2 | `check_resolution_missing`, `check_mismatch`, `propagation_budget_mismatch` |
+| portas System One/LLM, fakes/cassettes | §6, §9.4 | `too_many_questions`, `malformed_answer`, `abstain_without_tick`, `margin_999` |
+| NLG âncoras/claims/fallback/cache | §7, §9.4 | `invented_item_claim`, `two_perspectives`, `retold_fact`, `cache_hit_tick_unchanged` |
+| parser único e corpus 200+200 | §8, §9.4 | corpus completo (400 casos) |
 | proveniência/auditoria host-side | §4.6 | auditoria (RULE-02/APP-01) |
 
 ## 10. Decisões para freeze
@@ -1495,10 +1555,10 @@ NLG, cache e corpus.
 | F-07 | Rejeição vs saturação | rejeitar por omissão; saturação só com flag nas duas políticas; um único código por condição | clamps silenciosos e perda de auditabilidade |
 | F-08 | Limite de duração | `525600` ticks como teto de produto | sem teto testável; revisão do DOC-02 |
 | F-09 | Faixas System One | `act` ≥8000 e margem ≥1000; `review` 5000–7999 ou margem <1000; `abstain` <5000; score 1–5 → 5/10/15/20/25 | decisões inconsistentes entre ações |
-| F-10 | Propagação | pisos `half_life>=1200` e `min_cognition>=4000`; sem escolha de perda pelo modelo | undercut do DOC-02 e do SOC-03 |
+| F-10 | Propagação | constantes exatas DOC-02/PD-07: `initial=10000`, `half_life=1200`, `min_cognition=4000`; sem escolha de perda pelo modelo | undercut do DOC-02 e do SOC-03; outro valor exige re-pinagem |
 | F-11 | Auditoria | mesma transação para aceite; rejeição separada; sem relógio de parede; `raw_digest` BLAKE3 | perda de prova e de `planned_fact_seq` |
 | F-12 | Corpus | 200 válidos + 200 inválidos, sem cópias | parser sem gate adversarial |
-| F-13 | Check de regra emergente | alocar um desenho `CHECK` no CTR-02/INT-05; modificador do INT-04 com guarda `-20..=20` | materializador não tem desenho nem modificador testável |
+| F-13 | Check de regra emergente | `ResolvedCheck` fornecido pelo INT-04/INT-07; materializador verifica, não sorteia; modificador com guarda `-20..=20` | materializador sem resolução de check testável |
 | F-14 | Itens vs PD-04 | manter o kind CTR-01 atrás de `items_enabled`; default `false` no recorte DOC-02 | contradição com "sem itens" ou remoção de `transfer_item` |
 
 As decisões F-01, F-03, F-04, F-05, F-06, F-07 e F-10 são as que mais afetam outros contratos; devem
@@ -1522,16 +1582,17 @@ são constantes de produto/engenharia e podem ser confirmadas com o maintainer.
 
 1. Este é um documento de contrato; não há código, testes executados, crate, binário ou prompt.
 2. O status é proposta; o freeze exige revisão independente e decisão de produto. `DELIVERED_TO_REVIEW`
-   não é `DONE`. A R1 independente levantou B-01..B-07 e D-01..D-13; esta revisão responde a todos,
-   mas uma R2 independente continua obrigatória.
+   não é `DONE`. A R1 levantou B-01..B-07 e D-01..D-13; a R2 fechou os B e nove D, deixando D-01,
+   D-05, D-08 e D-10 e notas. Esta revisão responde a esses pontos; uma R3 independente continua
+   obrigatória.
 3. O ADR 0012 é novo e o índice de ADRs não é editado aqui; a atualização do índice é tarefa de
    integração. O manifesto lista apenas o contrato em `files_allowed`; o ADR é o artefacto
    companion autorizado pelo brief do orquestrador e deve ser reconciliado no manifesto/juiz.
 4. P-07 (atributos de linguagem/inteligência) continua aberta; o catálogo §3.8.1 exige a projeção
    dos oito nomes do overview, mas não afirma que o armazenamento já os tem.
 5. A fórmula do modificador de check é do INT-04; este contrato fixa a guarda `-20..=20`, não a
-   derivação. O desenho `CHECK` também depende do CTR-02/INT-05; sem ele, o materializador falha com
-   `CheckDrawNotAllocated` em vez de inventar um índice.
+   derivação. A resolução do check é fornecida pelo INT-04/INT-07 como `ResolvedCheck`; sem ela, o
+   materializador falha com `CheckResolutionMissing` e não sorteia nem inventa um índice.
 6. A semântica de criação/perda de rumor é do SOC-02/SOC-03; este contrato valida o pedido, exige a
    fidelidade de origem e transporta o metadado, mas não aplica `TRANSFER_LOSS_BP` nem escolhe
    portadores.
@@ -1540,8 +1601,9 @@ são constantes de produto/engenharia e podem ser confirmadas com o maintainer.
    `ItemEffectNotEnabled`. F-14 regista a decisão.
 8. Os testes live não foram executados; não há pesos, rede, GPU ou sidecar neste estágio.
 9. Os exemplos não são fixtures e não afirmam existência de atores, itens ou rumores.
-10. O limite `525600`, as faixas de confiança, os pisos de propagação e a guarda de check são
-    decisões de freeze, não constantes já ratificadas pelo DOC-02.
+10. O limite `525600`, as faixas de confiança e a guarda de check são decisões de freeze. Os valores
+    de propagação (10000/1200/4000) são constantes DOC-02/PD-07, não pisos ajustáveis; alterá-los
+    exige re-pinagem de produto e `schema_version` novo.
 11. Nenhuma alteração foi feita a `ROADMAP.md`, `wave-spec.md`, `decisions.md`, prompts, outros
     contratos, índice de ADRs ou ledger.
 

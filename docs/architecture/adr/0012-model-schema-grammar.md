@@ -35,30 +35,34 @@ registar a decisão estrutural.
 2. **Parser único e schema v1 fechado.** `parse_proposal` é a única função que transforma bytes em
    `RuleProposal`. `schema_version=1` é obrigatório; a ausência é `MissingParameter`; campos
    desconhecidos são rejeitados em todos os níveis, exceto os nomes reservados de proveniência, que
-   são `ProvenanceFieldForbidden`. Os quatro nomes históricos são aliases de migração e serão
-   removidos em v2.
+   são `ProvenanceFieldForbidden`, a partir de um único conjunto reservado; os quatro nomes
+   históricos são aliases de migração e serão removidos em v2.
 3. **Allowlist fechada sobre o CTR-01.** Os únicos kinds são `transfer_item`,
    `delta_relationship`, `attach_label`, `apply_status`, `propagate_rumor`, `delta_hp` e
    `transfer_currency`. `damage`/`heal` mapeiam conceptualmente para `delta_hp`; `spawn_rumor` não é
    efeito. Atributos (oito nomes do overview, sem códigos), eixos, rótulos e estados têm catálogo
    versionado; `GROUP` não existe. `transfer_item`/`required_item` ficam atrás de
-   `ActionFacts.items_enabled` (default `false` no recorte DOC-02/PD-04).
+   `ActionFacts.items_enabled` (default `false` no recorte DOC-02/PD-04). `transfer_currency` só é
+   válido em `NEGOTIATE`/`INFORM_PATH`, com `from=actor`, `to=target`, `offer_currency=Some(amount)`
+   e `currency_transfer_allowed=true`.
 4. **Rejeitar por omissão; saturar só com autorização explícita.** DC, deltas, durações, IDs,
    escopos, carteiras e quantidades fora do intervalo são rejeitados. A saturação só existe em
    `delta_relationship` e `delta_hp` (cura), com `authorized_saturation=true`, e regista pedido,
    efetivo, política e `planned_fact_seq`. Dano letal é sempre rejeitado. Zero é `ZeroDelta`; fora
-   do intervalo é `AmountOutOfRange`. Não há clamp silencioso e não há dois códigos para a mesma
-   condição.
+   do intervalo é `AmountOutOfRange`. A propagação usa exatamente 10000/1200/4000 (DOC-02/PD-07);
+   outro valor é `PropagationBudgetMismatch`, não um piso ajustável. Não há clamp silencioso e não há
+   dois códigos para a mesma condição.
 5. **Proveniência e auditoria host-side.** O modelo não fornece identidade, tempo, RNG, prompt,
    modelo ou `fact_seq`. O host anexa esses campos e escreve o registo aceite na mesma transação
    durável do facto; rejeições têm registo próprio, sem publicar. O digest é `raw_digest`
    (BLAKE3-256), não `sha256`. A auditoria não entra no `WorldState`, no hash canônico ou no replay.
 6. **Materializador puro e determinístico.** `materialize` recebe a regra validada, os factos e os
    desenhos já resolvidos; não lê relógio, RNG, rede ou overlay. Usa aritmética inteira, preserva
-   1 bp, expande testemunhas por `ActorId`, limita a oito efeitos e recusa conflitos. O check é d20
-   mais o modificador do INT-04, com guarda `-20..=20`; o desenho `CHECK` depende do CTR-02/INT-05 e,
-   sem ele, a materialização falha com `CheckDrawNotAllocated`. Dry-run e commit têm de produzir o
-   mesmo `effect_set_hash`.
+   1 bp, expande testemunhas por `ActorId`, limita a oito efeitos e recusa conflitos. O check chega
+   como `ResolvedCheck` do INT-04/INT-07 (roll, total, DC, modificador, sucesso), com guarda
+   `-20..=20`; o materializador verifica a coerência, não sorteia. Sem resolução, falha com
+   `CheckResolutionMissing`; incoerência é `CheckMismatch`. Dry-run e commit têm de produzir o mesmo
+   `effect_set_hash`.
 7. **Portas e NLG com respostas finitas.** System One aceita até 16 perguntas `NOUL`/`CHOICE`/`SCORE`
    e normaliza tudo para inteiros, com `margin_bp` definido; timeout abstém sem consumir tick/RNG. A
    NLG constrói contexto com âncoras, `perspective` e `fact_flags`, separa prosa e claims, usa
@@ -86,11 +90,12 @@ Negativas e riscos:
 - O schema fechado exige revisão e novo `schema_version` para cada kind/atributo/estado novo.
 - P-07 (atributos de linguagem/inteligência) continua aberta; o contrato exige a projeção dos oito
   nomes, mas a implementação fica bloqueada até o INT-04 a fornecer.
-- A fórmula do modificador de check e a alocação do desenho `CHECK` pertencem ao INT-04/CTR-02; sem
-  elas, a validação/materialização falha em vez de inventar matemática ou índices.
+- A fórmula do modificador e a resolução do check pertencem ao INT-04/INT-07; sem elas, a
+  validação/materialização falha em vez de inventar matemática, índices ou sorteios.
 - O recorte DOC-02/PD-04 exclui itens; o kind CTR-01 fica atrás de `items_enabled=false` até decisão
   de produto (F-14).
-- O limite de 525600 ticks é uma decisão de produto provisional, não um calendário ratificado.
+- O limite de 525600 ticks é uma decisão de produto provisional, não um calendário ratificado; os
+  valores de propagação são constantes DOC-02/PD-07 e exigiram re-pinagem para mudar.
 - A verificação de prosa é conservadora, não universal; a NLG pode cair em fallback com mais
   frequência do que o desejável, e isso é preferível a mostrar ficção como facto.
 
@@ -124,7 +129,7 @@ Negativas e riscos:
 - Testes de validação: posse, item/rumor, `items_enabled`, alvo morto/ausente, auto-transferência,
   auto-alvo relacional, intent/oferta de moeda, escopo, pisos de propagação.
 - Testes de materialização: saturação autorizada, dano letal, 1 bp, oito efeitos, hash,
-  preview/commit, desenho `CHECK` ausente.
+  preview/commit, `CheckResolutionMissing`/`CheckMismatch`, moeda e orçamento de propagação.
 - Testes de portas: 16 perguntas, timeout, score inválido, margem 999/1000, fakes/cassettes, live
   ignorado.
 - Testes de NLG: claim inventada, prosa contraditória, fallback, cache/locale, duas perspetivas,
