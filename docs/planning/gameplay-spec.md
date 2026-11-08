@@ -468,7 +468,7 @@ Sucesso se o valor for menor que a chance e a fidelidade for maior ou igual a `M
 
 ### 5.9 `ameaçar` — coerção social mínima
 
-**Intenção.** `kind = AMEACAR`; `intent = EXTORTION` (código 3); `target` obrigatório; `exigencia` em enum fechado com códigos 1..3 (`REVELAR_RUMOR=1`, `PASSAGEM=2`, `AFASTAR_SE=3`); `topic` opcional para `REVELAR_RUMOR`; `gate_id` e `validity_ticks` obrigatórios para `PASSAGEM`; `away_destination` (`GridPoint`) e `scheduled_tick` obrigatórios para `AFASTAR_SE`; `offer_moeda` MUST ser 0 (EXTORTION não transfere moeda).
+**Intenção.** `kind = AMEACAR`; `intent = EXTORTION` (código 3); `target` obrigatório; `exigencia` em enum fechado com códigos 1..3 (`REVELAR_RUMOR=1`, `PASSAGEM=2`, `AFASTAR_SE=3`); `topic` opcional para `REVELAR_RUMOR`; `gate_id` e `validity_ticks` obrigatórios para `PASSAGEM`; `away_destination` (`GridPoint`) obrigatório para `AFASTAR_SE`; `scheduled_tick` é calculado no tick e registado no payload, não recebido; `offer_moeda` MUST ser 0 (EXTORTION não transfere moeda).
 
 **Pré-condições e alvos.** Ator e alvo vivos, mesma localidade, mesmo `z`, alcance social, linha estrutural livre; alvo não em trânsito. Para `REVELAR_RUMOR`: `TopicId` inexistente no estado é rejeição `INTENCAO_INVALIDA`; `TopicId` existente sem cópia ativa no alvo é o limite `SEM_CONCESSAO`. Para `PASSAGEM`, `gate_id` precisa pertencer à localidade do alvo ou a uma adjacente e `validity_ticks` precisa estar em `1..=PASS_VALIDITY_TICKS`. Para `AFASTAR_SE`, `away_destination` precisa ser célula passável e livre na mesma localidade e no mesmo `z`, a pelo menos `AWAY_MIN_DISTANCE_CELLS` do ator, com caminho de custo menor ou igual a `AGENDA_LOCAL_ACTION_MAX_TICKS`; caso contrário é rejeição, não limite.
 
