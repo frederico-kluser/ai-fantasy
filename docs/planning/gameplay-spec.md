@@ -270,12 +270,12 @@ Campos sem valor para a ação ficam `None`. Combinação inválida, campo obrig
 | `MOVER` | — (evento INT-05) | — | `GridPoint` de destino e caminho | `ActorMovedFact` |
 | `VIAJAR` | — (evento INT-05) | — | `LocalityId` de destino, rota e portões | `TravelFact` |
 | `FALAR` | `SOCIAL_TALK` | 10 | `registro` 1..4, `topic` opcional | `FalaFact` |
-| `NEGOCIAR` (`REVELAR_RUMOR`, `ENCONTRO_FUTURO`, `PASSAGEM`) | `NEGOTIATE` | 2 | `pedido` 1..3, `offer_moeda`, `meeting_tick`, `meeting_locality`, `gate_id`, `validity_ticks` | `AcordoFact`/`AcordoRecusadoFact` |
+| `NEGOCIAR` (`REVELAR_RUMOR`, `ENCONTRO_FUTURO`, `PASSAGEM`) | `NEGOTIATE` | 2 | `pedido` 1..3, `offer_moeda`, `meeting_tick`, `meeting_locality`, `gate_id`, `validity_ticks` | `AcordoFact`/`AcordoRecusadoFact`; `PassagemFact` (INT-05) quando `PASSAGEM` |
 | `NEGOCIAR` (`INFORMAR_CAMINHO`) | `INFORM_PATH` | 9 | `pedido=4`, `destination` | `AcordoFact` + `CaminhoReveladoFact` (INT-05) |
-| `MENTIR` | `LIE` | 4 | `topic`, `claim_value` | `MentiraDetectadaFact`/`MentiraRejeitadaFact`; `MENTIRA_ACEITA` |
+| `MENTIR` | `LIE` | 4 | `topic`, `claim_value` | `MentiraDetectadaFact`/`MentiraRejeitadaFact` (2/10–11), `CrencaJaPresenteFact` (3/7), `MENTIRA_ACEITA` (1/9) |
 | `PERGUNTAR_RUMOR` | `ASK_RUMOR` | 8 | `topic` opcional, `fidelity_offered_bp`, `fidelity_received_bp` | `RumorPerguntadoFact` |
 | `CONTAR_RUMOR` | `SHARE_RUMOR` | 6 | `rumor_id` ou `topic`, `seed_rumor`, fidelidades | `RumorContadoFact` |
-| `AMEACAR` | `EXTORTION` | 3 | `exigencia` 1..3, `topic`, `gate_id`, `validity_ticks`, `away_destination`, `scheduled_tick` | `AmeacaFact`/`AmeacaResistidaFact` |
+| `AMEACAR` | `EXTORTION` | 3 | `exigencia` 1..3, `topic`, `gate_id`, `validity_ticks`, `away_destination`, `scheduled_tick` | `AmeacaFact`/`AmeacaResistidaFact`; `PassagemFact`/`AfastamentoFact` (INT-05) quando aplicável |
 
 `GREETING`, `BRIBE` e `APPEASE` são legados e não são usados nesta sessão; `SOCIAL_TALK` cobre os quatro `registro` de `falar` (CTR-01 §4.5.2). Os nomes de ação em português são aliases de produto; o `intent` canónico é o da coluna 2. O `intent_payload` v2 tem 99 bytes e usa exatamente os campos do CTR-01 §4.5.2; ausência é codificada como 0/`None` e esta spec não acrescenta bytes. `result_class` é 1 sucesso, 2 falha resolvida, 3 limite e 4 sem efeito/cooldown; `reason` usa a tabela do CTR-01 §4.5.1.
 
@@ -406,7 +406,7 @@ Onde `trust` e `empatia` são os eixos do alvo em relação ao ator. Sucesso se 
 
 **Erro.** Alvo morto, inexistente, em trânsito, fora de alcance, `topic` inexistente ou `claim_value` incompatível: rejeição, 0 tick, 0 RNG. Mentira detectada não é erro de resolução: é falha resolvida, com custo integral.
 
-**Limite.** `CRENCA_JA_PRESENTE` quando o alvo já tem a mesma crença: custo 4 ticks, dois sorteios consumidos, deltas 0, fato registrado. Nenhum efeito parcial é aplicado.
+**Limite.** `CRENCA_JA_PRESENTE` quando o alvo já tem a mesma crença: custo 4 ticks, dois sorteios consumidos, deltas 0; `ConversationFact` v2 `CrencaJaPresenteFact` (`intent = LIE`, `result_class = 3`, `reason = 7`). Nenhum efeito parcial é aplicado.
 
 **Efeitos, fatos e replay.** Deltas de 8.2, na direção alvo para ator. O replay registra os dois sorteios, o resultado, o tópico e a crença; não registra o texto da mentira, o prompt de NLG ou a reação narrada.
 
@@ -515,7 +515,7 @@ Nenhum `*Fact` nomeado nesta spec é automaticamente um `ConversationFact`. A cl
 | --- | --- | --- | --- |
 | `FalaFact` | `CONVERSATION_FACT` v2 | `SOCIAL_TALK` = 10 | `registro` 1..4, `topic` opcional; `result_class` 1 ou 4; `reason=8` no cooldown. |
 | `AcordoFact` / `AcordoRecusadoFact` | `CONVERSATION_FACT` v2 | `NEGOTIATE` = 2 (`pedido` 1..3) ou `INFORM_PATH` = 9 (`pedido=4`) | `pedido`, `offer_moeda`, `meeting_tick`, `meeting_locality`, `gate_id`, `validity_ticks`, `destination`; `result_class` 1/2/3. |
-| `MentiraDetectadaFact` / `MentiraRejeitadaFact` | `CONVERSATION_FACT` v2 | `LIE` = 4 | `topic`, `claim_value`; `result_class=2`, `reason=10/11`; `MENTIRA_ACEITA` usa `result_class=1` e `reason=9`. |
+| `MentiraDetectadaFact` / `MentiraRejeitadaFact` / `CrencaJaPresenteFact` | `CONVERSATION_FACT` v2 | `LIE` = 4 | `topic`, `claim_value`; `result_class=2`, `reason=10/11`; limite `result_class=3`, `reason=7`; `MENTIRA_ACEITA` usa `result_class=1` e `reason=9`. |
 | `RumorPerguntadoFact` | `CONVERSATION_FACT` v2 | `ASK_RUMOR` = 8 | `topic` opcional, `fidelity_offered_bp`, `fidelity_received_bp`; `result_class` 1/2/3. |
 | `RumorContadoFact` | `CONVERSATION_FACT` v2 | `SHARE_RUMOR` = 6 | `rumor_id` ou `topic`, `seed_rumor`, fidelidades; `result_class` 1/2/3. |
 | `AmeacaFact` / `AmeacaResistidaFact` | `CONVERSATION_FACT` v2 | `EXTORTION` = 3 | `exigencia` 1..3, `topic`, `gate_id`, `validity_ticks`, `away_destination`, `scheduled_tick`; `result_class` 1/2/3. |
@@ -526,7 +526,7 @@ Nenhum `*Fact` nomeado nesta spec é automaticamente um `ConversationFact`. A cl
 | Estado de rumor (`copies`, fidelidade, escopo) | Secção canónica `RUMORS` (tag 8) | — | Layout/canonicalização: CTR-01 §5.2; semântica: SOC-02/SOC-03. |
 | `offer_moeda` | Efeito `TRANSFER_CURRENCY` (kind 7) | `NEGOTIATE`/`INFORM_PATH` | `source=speaker`, `target=listener`, `amount=offer_moeda`; `offer_moeda=0` não emite efeito; só em `result_class=1`. |
 
-**Pendências de layout (não liberam consumidores):** os campos de materialização de `ActorMovedFact`/`TravelFact` (caminho, rota, portões), `PassagemFact`/`AfastamentoFact` (validade, reserva, `scheduled_tick`), `CaminhoReveladoFact` (rota/custo/`EdgeId`), `CrencaFalsaFact` e `TestemunhoFact` pertencem a INT-05/CORE-02 (layout em CTR-02/CTR-03). Esta spec **não inventa** esses campos nem declara o layout congelado; GAME-01, REPLAY-01, SOC-02/SOC-03 e STORE-02 permanecem bloqueados até o contrato correspondente fixar o evento. O `ConversationFact` v2 cobre o ato social e o payload; não substitui o evento de domínio.
+**Pendências de layout (não liberam consumidores):** os campos de materialização de `ActorMovedFact`/`TravelFact` (caminho, rota, portões), `PassagemFact`/`AfastamentoFact` (validade, reserva, `scheduled_tick`), `CaminhoReveladoFact` (rota/custo/`EdgeId`), `CrencaFalsaFact` e `TestemunhoFact` pertencem a INT-05/CORE-02 (layout em CTR-02/CTR-03). Esta spec **não inventa** esses campos nem declara o layout congelado; ficam bloqueados para consumir os eventos pendentes: **GAME-01, REPLAY-01, SOC-01, SOC-02, SOC-03, E2E-01 e STORE-02**. `TUI-01`, `APP-01` e `CLI-01` podem avançar apenas por recibos/projeções que não materializem esses eventos; se precisarem do evento materializado, entram no mesmo bloqueio. O `ConversationFact` v2 cobre o ato social e o payload; não substitui o evento de domínio.
 
 ## 6. Rejeição, cancelamento, obsolescência e dry-run
 
@@ -996,6 +996,7 @@ Arquivo futuro: `crates/af-conversation/tests/social_relations.rs`.
 - `given_successful_speech_when_apply_then_exact_bp_deltas` — +100 empatia, +50 confiança.
 - `given_negotiation_success_when_apply_then_coins_transferred_and_deltas_exact` — +150/+300 e moedas.
 - `given_lie_detected_when_apply_then_trust_minus_1500_and_label_liar` — deltas e label `LIAR` = 6.
+- `given_lie_when_target_already_believes_then_result_class_3_reason_7` — limite `CRENCA_JA_PRESENTE` classificado como `LIE` 3/7.
 - `given_delta_beyond_limit_when_apply_then_clamp_recorded_not_rejection` — clamp distinto de rejeição.
 - `given_one_bp_delta_when_encode_and_replay_then_value_preserved` — 1 bp.
 - `given_witness_present_when_threat_then_witness_fact_but_no_overlay_knowledge` — testemunho sem overlay.
