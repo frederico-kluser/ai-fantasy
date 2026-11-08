@@ -13,6 +13,7 @@
 | Fronteira | `03` |
 | Data | `2026-11-08` |
 | Base SHA | `b0cc40efa439d26d1b785c99e76daf5006a956ee` |
+| Onda 03 integrada | `c93ded1903d1cfffd72ef60bc1b62f4e7f07430f` (juiz; referência da correção G-01…G-04) |
 | Manifesto | `docs/planning/wave-spec.md`, SHA-256 `328a8c7e121c9e4411bf0c105c3845c636e37bf208770fbc675f2cff4a360769` |
 | Worktree | `C:\Users\kluse\Projects\ai-fantasy-worktrees\ctr-03`, branch `docs/ctr-03` |
 | Contrato consumido | `CTR-01` rev 5 — [identidade, unidades e eventos](<identity-events.md>), commit `11ee9be6c44a0651b291141130baf709ab46a004` |
@@ -93,6 +94,10 @@ Nenhuma decisão é reaberta; a tabela declara compatibilidade.
 - O CTR-01 delegou explicitamente a este contrato a **semântica** de portão e aresta, a
   validade topológica, a criação concreta, a passagem e a rota. A semântica fica nas secções 4.4
   a 4.6; o packing e as rejeições de forma continuam no CTR-01.
+- O CTR-01 fixa `RegionId` a partir de seed + versão do gerador (§2.7); este contrato aplica
+  exatamente essa fórmula e mantém `spec_digest` como diagnóstico fora da identidade (§2.2).
+- O CTR-01 §5.2 declara `REGION` (tag 1) e `LOCALITIES` (tag 2) propriedade de CTR-03; a
+  codificação de portões/arestas em §4.8 é vinculante e não cria tags novas.
 - O DOC-02 (`docs/planning/gameplay-spec.md`, commit `31416a137be781b7534dcd6abc46d1d8fc895f65`)
   fixa a fixture de quatro localidades, as arestas de 24, 13, 18 e 15 ticks, terreno de
   1 a 4 ticks por célula, +1 por nível de `z`, viagem atómica, foco que não congela áreas e as
@@ -140,27 +145,30 @@ Nenhuma decisão é reaberta; a tabela declara compatibilidade.
 ### 2.2 `RegionId`, seed e fronteira de região
 
 - `RegionId(u64)` é não nulo, **não** é `EntityId` e não partilha o espaço de IDs de entidades.
-- A derivação proposta é determinística:
-  `RegionId = first_u64_be(BLAKE3("AFRI" || generator_version u16 || seed u64 || spec_digest))`;
-  `spec_digest` é `BLAKE3-256("AFRS" || campos canónicos de RegionSpec)`, com os campos na ordem
-  da tabela §4.1 e inteiros big-endian, excluindo apenas `name_profile` (apresentação), e se o
-  valor final for `0`, usa-se `1`. Incluir o spec evita que
-  duas `RegionSpec` diferentes com a mesma seed/versão partilhem `RegionId`; o CTR-01 fala em
-  seed e versão do gerador, pelo que esta extensão é confirmada na revisão de freeze (§13, linha
-  21). Duas regiões com o mesmo `RegionId` e a mesma seed/versão/spec são a mesma região; o mesmo
-  `RegionId` com seed, versão ou spec diferente é `RegionIdCollision` na importação.
+- A derivação é exatamente a do CTR-01 §2.7, a partir de **seed + versão do gerador**:
+  `RegionId = first_u64_be(BLAKE3("AFRI" || generator_version u16 || seed u64))`; se o valor for
+  `0`, usa-se `1`. `spec_digest` **não** participa nesta fórmula.
+- `spec_digest` é metadado de diagnóstico, não identidade:
+  `BLAKE3-256("AFRS" || campos canónicos de RegionSpec)`, na ordem da tabela §4.1, inteiros
+  big-endian, excluindo `name_profile` (apresentação). Ele não entra no `RegionId`, no payload
+  `REGION`, no `canonical_state`, no save/replay nem no hash; serve apenas para detetar que a
+  spec usada na importação diverge da spec de origem. Divergência com o mesmo `RegionId` é
+  `SpecDigestMismatch`, um erro próprio; `RegionIdCollision` é reservado a mesmo `RegionId` com
+  **seed ou versão do gerador** diferentes. O `spec_digest` MUST NOT afetar a identidade.
 - IDs de entidades são únicos **dentro da região**; não carregam `RegionId`. Importar ou
   mergear regiões exige remapeamento explícito e rejeita mistura com `ForeignReference`.
 - O allocator é regional por kind (CTR-01 §2.4); gerar a mesma seed e a mesma `RegionSpec` produz
   os mesmos `(kind, index, generation)` e a mesma ordem de criação.
 
 **Fronteira com CTR-02/INT-01:** `Seed` é `u64` opaco (newtype proposto), não `[u8;32]`; é o
-segundo argumento de `generate_region` e o `seed u64` do payload `REGION`. `RegionId` e `spec_digest` são propriedade
-deste contrato: o CTR-02/INT-01 **referenciam** estes tipos e a derivação, não os redefinem nem
-criam um `Seed` alternativo. O `RegionId` e o `seed` entram no envelope/hash canónico do CTR-01;
-a derivação `region_draw` é uma PRF de geração e **não** é um RNG de simulação paralelo, não
-avança streams de `INT-02` e não altera `Tick`, agenda ou replay. Uma mudança de nome, tipo ou
-fórmula desta fronteira exige revisão conjunta CTR-02/CTR-03 e deve ser reportada ao juiz.
+segundo argumento de `generate_region` e o `seed u64` do payload `REGION`. `RegionId` e
+`spec_digest` são propriedade de CTR-03. O CTR-02 trata `RegionId` como **valor opaco**: não o
+deriva, não usa `spec_digest` e **não consome INT-03**. Se uma revisão futura do CTR-02 precisar
+de tipos de região, a dependência tem de constar do manifesto como `INT-03`; não se cria uma
+dependência implícita. O `RegionId` e o `seed` entram no envelope/hash canónico do CTR-01; a
+derivação `region_draw` é uma PRF de geração e **não** é um RNG de simulação paralelo, não avança
+streams de `INT-02` e não altera `Tick`, agenda ou replay. Uma mudança de nome, tipo ou fórmula
+desta fronteira exige revisão conjunta CTR-02/CTR-03 e deve ser reportada ao juiz.
 
 ### 2.3 Tipos lógicos propostos
 
@@ -176,7 +184,7 @@ fórmula desta fronteira exige revisão conjunta CTR-02/CTR-03 e deve ser report
 | `CameraState` | âncora, `camera_z`, zoom, viewport, camadas | Somente apresentação; nunca no estado. |
 | `ViewSchema` | versão, detalhe de memória/atores, limite de células, consumidor | Não altera a geometria do FOV. |
 | `PerceivedState` | observador, tick/hash, facing, alcance, células, atores, estruturas | Leitura derivada; não persistida como autoridade. |
-| `EnvironmentMemory` | observador, revisão, último tick, células e atores com `last_seen` | Autoridade congelada por observador; codificação pendente em CTR-02. |
+| `EnvironmentMemory` | observador, revisão, último tick, células e atores com `last_seen` | Contrato lógico; codificação canónica/hash/save é a pendência P-04 do CTR-02, **não** parte do `ACTORS` v1. |
 | `ObservationEnvelope` | versão, observador, tick/hash, `PerceivedState`, memória, desconhecido, permissões | DTO por observador; sem nomes, prosa ou overlay. |
 | `SilhouetteContract` | versão e parâmetros aprovados de alcance/Z/nunca-visto/limite | Valores de `A1 + D1 + Z2 + N1 + O1`; `PA-06`/`PA-07` pendentes. |
 | `SilhouetteQuery` | observador, âncora, `camera_z` | Consulta de apresentação; não é percepção. |
@@ -760,10 +768,10 @@ Regras de payload:
   errada é `CanonicalOrderViolation`; chave repetida é `DuplicateCanonicalKey`.
 - O `RegionId` e o `tick` vêm do envelope do CTR-01, não do payload `REGION`. `seed` e
   `generator_version` são os únicos metadados de geração no payload.
-- A codificação das arestas em `REGION` e dos portões em `LOCALITIES` é a recomendação deste
-  contrato para não criar tags novas; a confirmação com o dono do CTR-01 é uma decisão de freeze
-  (§13, linha 1). Se não for aceite, o CTR-01 precisa de secções novas antes de qualquer
-  implementação; este contrato não altera o CTR-01 por conta própria.
+- A codificação das arestas em `REGION` e dos portões em `LOCALITIES` é **vinculante**: o CTR-01
+  §5.2 ([identity-events.md:1000-1001](<identity-events.md#L1000-L1001>)) declara as tags 1 e 2
+  propriedade de CTR-03. Não há confirmação adicional do dono do CTR-01 a aguardar e não se criam
+  tags novas além das 11; o envelope v2 e a ordem do CTR-01 ficam intactos.
 
 ### 4.9 Fixture curada do DOC-02
 
@@ -780,7 +788,7 @@ localidade.
 | --- | --- |
 | `manifest_version` | `1` |
 | `name` | `DOC02_FIXTURE_V1` |
-| `region_id` | `0x0000_0000_0000_0001` (vetor de teste; não afirma o resultado de `generate_region` para a seed) |
+| `region_id` | Derivado por §2.2 de `seed = 0`, `generator_version = 1` (o teste calcula o u64; não é um valor fixo à mão) |
 | `seed` | `0` (somente fixture; `PD-09` canónico continua pendente) |
 | `generator_version` | `1` |
 | `bounds` | `(0, 0, 0)..(129, 71, 0)` |
@@ -849,17 +857,19 @@ transforma o personagem em observador dela.
 
 ### 5.2 Observador e `ViewSchema`
 
-- O observador é um `ActorId` vivo, presente no mundo, com célula, `facing` e atributos
-  normalizados; um ator em trânsito não tem célula e não pode ser observador
-  (`ObserverInTransit`); ator inexistente é `ObserverNotFound`; morto é `ObserverDead`; sem
-  `facing`/célula válida é `InvalidObserverState`.
+- O observador é um `ActorId` vivo, presente no mundo, com célula, `facing` e
+  `perception_bp` lidos do payload `ACTORS` do CTR-02 rev 4; um ator em trânsito não tem célula
+  e não pode ser observador (`ObserverInTransit`); ator inexistente é `ObserverNotFound`; morto é
+  `ObserverDead`; sem `facing`/`perception_bp`/célula válida é `InvalidObserverState`. Este
+  contrato não redefine esses campos e não inventa defaults.
 - O `facing` autoritativo é cardinal (`1 = N`, `2 = L`, `3 = S`, `4 = O`). Um `mover` bem-sucedido
   atualiza o `facing` para a direção do último passo cardinal; ações sociais e câmera não o
   alteram. Um ator sem `facing` não é um observador válido; não se inventa uma direção por
   omissão.
-- A geometria do FOV é fixa no schema v1: raio efetivo derivado de `percepcao_bp` (atributo
-  normalizado `0..=10_000` do CTR-01), arco frontal de 120 graus e `z_span = 1`. O raio é:
-  `reach = radius_min + floor((radius_max - radius_min) * percepcao_bp / 10_000)`, com
+- A geometria do FOV é fixa no schema v1: raio efetivo derivado de `perception_bp` (atributo
+  `u16` normalizado `0..=10_000`, fornecido pelo `ACTORS` do CTR-02 rev 4), arco frontal de 120
+  graus e `z_span = 1`. O raio é:
+  `reach = radius_min + floor((radius_max - radius_min) * perception_bp / 10_000)`, com
   `radius_min = 4`, `radius_max = 12`, truncagem em direção a zero e sem `f32`. A fórmula e os
   valores são propostas de contrato; não são balanceamento de produto nem valores medidos.
 - `ViewSchema` é o schema de **detalhe e consumidor**, não um botão de FOV: `schema_version = 1`,
@@ -972,6 +982,12 @@ update_memory(previous: EnvironmentMemory, perceived: &PerceivedState)
   interação e rumor exigem o ator atual no estado; a memória não pode ser usada para justificar
   presença atual, ataque ou conhecimento de NPC. Um NPC pode usar a memória para navegar pelo
   ambiente lembrado, mas não para tratar um ator lembrado como presente.
+- **Bloqueio de freeze P-04:** esta é a especificação lógica da memória, não a sua secção
+  canónica. `EnvironmentMemory` **não** está no `ACTORS` v1 do CTR-02; a codificação canónica,
+  hash, save e migração são a pendência **P-04** do CTR-02. Enquanto P-04 não for fechada,
+  `FOV-01` e `BEH-01` (e qualquer consumidor de memória) ficam bloqueados; `update_memory` e
+  `observer_view` são contrato, não implementação. Não se assume que `ACTORS` v1 contém memória
+  e não se cria uma secção nova fora do CTR-01.
 
 ### 5.6 `observer_view` e DTO por observador
 
@@ -999,6 +1015,9 @@ observer_view(world: &WorldState, observer: ActorId, schema: ViewSchema)
   um consumidor que o guarde e compare com outro tick deve tratá-lo como histórico, não live.
 - `observer_view` não atualiza memória, não avança tick, não consome RNG e não altera hash. É a
   única entrada de conhecimento de NPC/MLP; o overlay não é incluído nem autorizado por este DTO.
+- Enquanto P-04 não fechar a secção de memória no CTR-02, um `observer_view` com
+  `include_memory = true` é apenas especificação e fica bloqueado para implementação; o DTO sem
+  memória pode ser revisto, mas não se declara que a memória está persistida.
 
 ### 5.7 Câmera, render e NLG não são sensores
 
@@ -1458,7 +1477,8 @@ publicar metade.
 | `z` fora de `0..=15` | construção/consulta | `InvalidZLevel`. |
 | Colisão de `EntityId` na região | allocator | `DuplicateEntityId`; sem reciclagem silenciosa. |
 | `LocationId` duplicado ou desconhecido | validação/rota | `DuplicateLocationId`/`UnknownLocation`. |
-| `RegionId` igual com seed/spec/versão diferente | importação | `RegionIdCollision`; sem merge silencioso. |
+| `RegionId` igual com seed/versão diferente | importação | `RegionIdCollision`; sem merge silencioso. |
+| `RegionId` igual com `spec_digest` diferente | importação | `SpecDigestMismatch`; identidade não muda, spec não é aceite silenciosamente. |
 | `GateId` com forma inválida | consulta | `InvalidEntityId` (CTR-01). |
 | `GateId` de outro newtype (kind diferente de 6) | consulta | `WrongEntityKind`. |
 | `GateId` bem formado mas stale | consulta | `StaleEntityId`. |
@@ -1599,7 +1619,8 @@ testes, não alegação de cobertura.
 - `given_gate_alive_outside_graph_when_validate_then_invalid_gate`
 - `given_edge_with_same_locality_when_validate_then_invalid_edge`
 - `given_duplicate_entity_id_when_generate_then_rejected_atomically`
-- `given_same_seed_different_spec_when_generate_then_distinct_region_id`
+- `given_same_seed_different_spec_when_import_then_same_region_id_and_spec_digest_mismatch`
+- `given_same_region_id_different_seed_when_import_then_region_id_collision`
 - `given_wall_between_when_social_reach_then_line_blocked`
 - `given_window_between_when_social_reach_then_line_allowed_but_move_blocked`
 - `given_diagonal_move_when_resolve_then_cardinal_only`
@@ -1634,11 +1655,16 @@ testes, não alegação de cobertura.
 - `given_camera_pan_when_observer_view_then_dto_identical`
 - `given_nlg_regenerated_when_observer_view_then_dto_identical`
 - `given_dead_observer_when_compute_perception_then_observer_dead`
+- `given_actor_without_facing_or_perception_bp_when_compute_perception_then_invalid_observer_state`
 - `given_unknown_schema_when_observer_view_then_unknown_view_schema`
 - `given_unknown_dto_version_when_decode_then_unsupported_view_version`
 - `given_never_seen_cell_when_observer_view_then_unknown_not_live_terrain`
 - `given_remembered_actor_when_social_reach_then_not_a_live_target`
 - `given_same_authoritative_trajectory_when_replay_perception_then_same_fov_and_memory`
+
+A memória persistida depende da secção P-04 do CTR-02; enquanto P-04 estiver aberta, a prova de
+implementação de `FOV-01`/`BEH-01` com memória fica bloqueada, mesmo que a especificação lógica
+esteja fechada.
 
 ### 12.3 VIEW-01 — silhuetas privilegiadas
 
@@ -1685,7 +1711,7 @@ independente e aceite do maintainer. Este documento não se autoaprova.
 
 | # | Decisão | Recomendação | Justificativa | Impacto se rejeitada |
 | --- | --- | --- | --- | --- |
-| 1 | Onde vivem portões e arestas no estado canónico | Portões em `LOCALITIES`, arestas em `REGION`, sem tags novas | Mantém as 11 secções do CTR-01 e o envelope v2; evita redefinir packing. | Rejeitar exige emenda ao CTR-01 (novas secções 12/13) antes de qualquer estado regional com hash. |
+| 1 | Onde vivem portões e arestas no estado canónico | Portões em `LOCALITIES`, arestas em `REGION`, sem tags novas — **delegado pelo CTR-01 §5.2 (tags 1/2)** | Mantém as 11 secções do CTR-01 e o envelope v2; evita redefinir packing. | Rejeitar exigiria emenda ao CTR-01 antes de qualquer estado regional com hash. |
 | 2 | Modelo de célula | `surface` + `fill` em vez de um único material | Representa piso, parede, telhado, porta e vão sem duplicar a célula. | Um único material não distingue piso de parede/telhado e força campos laterais. |
 | 3 | Tipo de célula | Derivado de `(surface, fill)`, não codificado | Evita redundância e divergência no hash. | Codificar `CellType` cria campo duplicado que pode contradizer os materiais. |
 | 4 | Limites de coordenadas | `2^20` valores por eixo e `z` 0..15; chunk 16×16×1 | Validação contratual, portável e suficiente; não é teto de hardware. | Limites menores reduzem a região; maiores exigem nova versão e revisão de overflow. |
@@ -1696,7 +1722,7 @@ independente e aceite do maintainer. Este documento não se autoaprova.
 | 9 | FOV v1 | Cilindro `reach` + arco 120° + supercover conservadora + `z_span = 1` | Determinístico, testável com parede/telhado/andar e sem floats. | Arco/raio diferentes mudam memória e testes; supercover não conservadora cria leaks. |
 | 10 | Memória inclui atores | Sim, `last_seen` congelado, mas não como alvo vivo | Cumpre a memória do ambiente e criaturas do roadmap sem dar presença atual. | Sem atores lembrados, o snapshot fica incompleto; tratá-los como vivos contamina decisões. |
 | 11 | Expiração de memória | Sem expiração em v1 | Simplicidade determinística; esquecimento exige contrato e testes próprios. | Expiração altera replay e NPC; precisa de versão nova. |
-| 12 | Codificação da memória | Dentro da secção `ACTORS` (tag 5), dono CTR-02 | CTR-01 não aloca secção de memória; `ACTORS` é o agregado do observador. | Sem acordo com CTR-02, memória não persiste/replay; exige secção nova no CTR-01. |
+| 12 | Codificação da memória | Lógica definida aqui; secção canónica/hash/save é a pendência **P-04** do CTR-02; `ACTORS` v1 **não** contém memória | CTR-01 não aloca secção de memória; não se assume `ACTORS` v1. | `FOV-01`/`BEH-01` ficam bloqueados até P-04; uma secção nova exige versão/migração/golden. |
 | 13 | Revisão de leitura | `(tick, state_hash)` + `memory_revision`; sem campo novo de autoridade | Usa autoridades existentes e evita inventar revisão de mundo. | Um contador novo duplicaria autoridade e poderia divergir do hash. |
 | 14 | Overlay: quem é elegível | Somente atrás de construção opaca; não é radar de campo aberto | Mantém D-04 literal e evita revelar atores não percebidos sem oclusão. | Filtrar por percebidos viola D-04; incluir campo aberto revela demais. |
 | 15 | Overlay: dados expostos | ID, célula, facing, oclusor e classe de memória; nada mais | Presença genérica sem atributos, inventário ou relações. | Campos extra ampliam o vazamento e exigem revisão de segurança. |
@@ -1705,9 +1731,9 @@ independente e aceite do maintainer. Este documento não se autoaprova.
 | 18 | Stack do cliente | Aberta; gate `RENDER_STACK_AND_CODE_ALLOWLIST` | D-06; nenhuma escolha silenciosa. | Escolher agora contradiz o maintainer e bloqueia revisão de assets/licença. |
 | 19 | Cliente e escrita | `present` só lê; ação por `APP-01` | Separação core/UI e autoridade. | Um cliente que escreve corrompe save e replay. |
 | 20 | W8 abstrato | Sem overlay, câmera, ecrã ou ator lembrado como vivo | NPC/MLP só usam percepção autoritativa. | Contaminação torna decisões dependentes da apresentação. |
-| 21 | Derivação de `RegionId` | Incluir `spec_digest` além de seed/versão | Evita duas `RegionSpec` distintas com o mesmo `RegionId`. | Sem isso, specs diferentes podem colidir na importação; com isso, o CTR-01 confirma a extensão. |
-| 22 | `facing` e `percepcao_bp` | Componentes autoritativos do ator em `CTR-02` | `compute_perception` não inventa direção nem atributo. | Sem componente fixado, o FOV não é reproduzível e o DTO é ambíguo. |
-| 23 | `Seed`/`RegionId` entre contratos | `Seed(u64)`, `RegionId` e `spec_digest` são definidos aqui e referenciados por CTR-02/INT-01; não há RNG paralelo | Alinha CTR-02 e o roadmap (`Seed(u64)`), evita `[u8;32]` e preserva a identidade regional. | Outro tipo/derivação quebra REGION, hash e importação; exige revisão conjunta. |
+| 21 | Derivação de `RegionId` | `RegionId = seed + generator_version`, exatamente CTR-01 §2.7; `spec_digest` é diagnóstico fora da identidade | Conformidade com CTR-01; P-09 de identidade fica fechado para CTR-03. | Manter `spec_digest` na fórmula reabre G-02; divergência de spec é `SpecDigestMismatch`, não colisão de ID. |
+| 22 | `facing`/`perception_bp` | Lidos de `ACTORS` rev 4 do CTR-02; `EnvironmentMemory` é P-04 separado | `compute_perception` não inventa direção/atributo; memória não é presumida. | Sem os campos, `InvalidObserverState`; sem P-04, FOV/BEH bloqueados. |
+| 23 | `Seed`/`RegionId` entre contratos | `Seed(u64)`, `RegionId` e `spec_digest` definidos aqui; CTR-02 trata `RegionId` como opaco e não consome INT-03; sem RNG paralelo | Alinha CTR-02 e o roadmap (`Seed(u64)`), evita `[u8;32]`, preserva identidade e remove dependência implícita. | Outro tipo/derivação/dependência exige revisão conjunta e manifesto explícito. |
 
 ## 14. Pendências de aprovação humana
 
@@ -1755,14 +1781,20 @@ aprovado qualquer valor de `PA-06` a `PA-09`.
   não altera o status do ADR e não edita o ficheiro do ADR nem o índice.
 - O diretório `docs/planning/contracts/` contém este contrato e o CTR-01, mas não tem índice
   compartilhado; a descoberta é pelo caminho e pela CoALA local.
-- A codificação de portões/arestas em `REGION`/`LOCALITIES`, a memória dentro de `ACTORS` e a
-  derivação de `RegionId` com `spec_digest` são recomendações de fronteira que precisam de
-  confirmação dos donos de CTR-01/CTR-02. Sem essa confirmação, a persistência/hash de memória,
-  o grafo e a identidade regional ficam bloqueados; este contrato não altera os outros contratos
-  por conta própria.
-- `facing` e `percepcao_bp` são componentes autoritativos do ator que devem ser fixados em
-  `CTR-02`; sem eles, `compute_perception` não tem direção nem raio reproduzíveis e deve devolver
-  `InvalidObserverState` em vez de inventar um default.
+- A codificação de portões/arestas em `REGION`/`LOCALITIES` é delegada pelo CTR-01 §5.2
+  (tags 1/2) e não fica bloqueada por confirmação do dono do CTR-01; não há tags novas.
+- `RegionId` segue exatamente seed + versão do gerador (CTR-01 §2.7). `spec_digest` é
+  diagnóstico fora da identidade e não bloqueia o `RegionId`; uma divergência de spec na
+  importação é `SpecDigestMismatch`, não `RegionIdCollision`. O CTR-02 trata `RegionId` como
+  opaco e não consome INT-03.
+- `EnvironmentMemory` tem contrato lógico proposto neste documento, mas **não** está no `ACTORS`
+  v1: a sua secção canónica/hash/save é a pendência P-04 do CTR-02. Enquanto P-04 não existir,
+  `FOV-01` e `BEH-01` ficam bloqueados; `update_memory`/`observer_view` não podem ser
+  implementados assumindo que `ACTORS` já contém memória. Uma secção nova exigiria versão,
+  migração e golden do CTR-01.
+- `facing u8` e `perception_bp u16` são lidos do payload `ACTORS` do CTR-02 rev 4; este contrato
+  não os redefine. Sem esses campos, `compute_perception` devolve `InvalidObserverState`; não se
+  inventa direção, raio ou valor por omissão.
 - O overlay tem `A1 + D1 + Z2 + N1 + O1` **aprovado em 2026-11-08**; `PA-06` (dados expostos),
   `PA-07` (debug), `PA-08` (stack) e `PA-09` (seed) continuam pendentes. Nenhuma dessas quatro
   pendências pode ser decidida pela implementação.
