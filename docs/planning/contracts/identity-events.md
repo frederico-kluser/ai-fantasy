@@ -182,7 +182,7 @@ A consulta de um `EntityId` segue esta ordem, sem reparar o valor armazenado:
 
 1. Rejeitar `NONE`, `INVALID`, `kind = 0`, `index = 0` ou `generation = 0` com `InvalidEntityId`.
 2. Se o `kind` não corresponder ao newtype esperado (`ActorId`, `ItemId`, `LocationId`,
-   `StructureId` ou `RumorId`), devolver `WrongEntityKind`.
+   `StructureId`, `RumorId`, `GateId` ou `EdgeId`), devolver `WrongEntityKind`.
 3. Consultar o slot `(kind, index)`. Se estiver livre ou a geração atual for diferente da geração
    do ID, devolver `StaleEntityId` com o ID armazenado e a geração atual.
 4. Só então devolver a entidade viva.
@@ -209,6 +209,8 @@ reciclado.
 | Localidade | `LOCATION` = 3 | Identidade própria, estável entre sessões; pode ocupar várias células. | Destruir/regenerar cria novo ID; nunca se reutiliza o ID de uma localidade com outra geografia. |
 | Estrutura | `STRUCTURE` = 4 | Agregado com identidade própria (casa, árvore, caverna), distinto de um cubo de célula. | Destruição/reciclagem incrementa a geração; fatos históricos não passam a apontar para a estrutura nova. |
 | Rumor | `RUMOR` = 5 | Conserva o ID enquanto a origem e o conteúdo lógico existirem no estado. | Extinção remove o rumor do estado; referências históricas continuam a resolver o ID antigo ou ficam stale. |
+| Portão | `GATE` = 6 | Conserva o ID enquanto o portão existir no grafo regional. | Destruição/regeneração do portão incrementa a geração; nunca se reutiliza o ID com outro par/conexão; a semântica de passagem é de CTR-03/GRID-01. |
+| Aresta | `EDGE` = 7 | Conserva o ID enquanto a aresta conectar o mesmo par lógico de localidades/portões. | Mudança de topologia ou regeneração reatribui geração; nunca se reutiliza o ID para outro par; a semântica de rota/custo é de CTR-03/GRID-01. |
 
 O item não muda de ID quando muda de mão: "quem o possui" é um fato de estado, não parte da
 identidade. A localidade não muda de ID quando o jogador muda a câmera: foco é apresentação. A
@@ -251,8 +253,10 @@ estrutura não é reduzida a um único cubo: a grade de blocos é outra camada d
 
 `FactId` não tem geração nem allocator; é o próprio `fact_seq`. `TopicId` é uma referência
 tipada, não um “id sequencial” ambíguo. `GateId`/`EdgeId` usam o allocator regional dos seus
-kinds e são apenas **layout** neste contrato; a criação, validade e semântica pertencem a
-`CTR-03`/`GRID-01`.
+kinds e obedecem aqui a §2.3–§2.6: packing 16/32/16, sentinelas `0`/all-ones, `index != 0`,
+`generation != 0`, deteção `StaleEntityId`, `WrongEntityKind` e rejeição sem reparação. A criação
+concreta, a validade topológica e a semântica de portão/aresta pertencem a `CTR-03`/`GRID-01`; o
+layout e as rejeições genéricas ficam neste contrato.
 
 ## 3. Unidades e ponto fixo
 
@@ -363,6 +367,10 @@ Regras adicionais:
   inferida pelo código, não é o comportamento por omissão e não pode ser aplicada retroativamente.
 - O log guarda o **delta efetivo**, não o delta proposto. O delta proposto, quando relevante, fica
   no log de propostas de `CTR-04`; o fato de conversa não é o lugar para reconstruir a proposta.
+- Para DOC-02 §8.2/§8.3, o log de propostas de `CTR-04` MUST guardar o delta solicitado, o valor
+  final, a regra/política e a referência ao `fact_seq`; o fato v2 guarda o efetivo+flag. Se `CTR-04`
+  não fornecer esse log, a lacuna é bloqueante para o freeze e exige novo campo/versão, não uma
+  reconstrução a partir do estado atual.
 - O flag `AUTHORIZED_SATURATION` no efeito é a única prova de que houve saturação; sem ele, o
   delta do log é exato e não admite segundo clamp no replay.
 
@@ -560,6 +568,8 @@ Limites e rejeições dos efeitos:
 - `TRANSFER_CURRENCY` com valor zero/fora de `1..=10_000` é `InvalidCurrencyAmount`; `source ==
   target` é `SourceEqualsTarget`; o pagador precisa de saldo suficiente na aplicação, senão
   `InsufficientCurrency` e nenhum efeito parcial.
+- `TRANSFER_CURRENCY` só é permitido em fatos `intent = NEGOTIATE` (2) ou `INFORM_PATH` (9); em
+  qualquer outra intenção, ou sem `offer_moeda` coerente, é `InvalidCurrencyTransfer`.
 - `ATTACH_LABEL` exige `source`/`target` `ActorId` não nulos, distintos, `source` em
   `{speaker, listener}` e `target` existente/vivo; caso contrário é `InvalidLabelActor`. `LIAR`
   segue a mesma regra e é persistente até contrato futuro.
@@ -672,9 +682,14 @@ Validação por intenção:
   `away_*`; os campos dos outros pedidos e `offer_moeda` MUST ser zero.
 - Qualquer campo não usado e não nulo é `NonZeroUnusedField`; `payload_kind != 1`, `payload_len != 96`
   ou `body_len` incompatível é `InvalidIntentPayload`.
-- `meeting_locality` e `destination` MUST ser `LocationId` (kind 3); `gate_id` MUST ser `GateId`
-  (kind 6); `rumor_id` MUST ser `RumorId` (kind 5); `topic_id` MUST ser `FactId` quando
-  `topic_kind=1` e `RumorId` quando `topic_kind=2`. Kind errado é `InvalidTopic`/`InvalidGate`.
+- `meeting_locality` e `destination` MUST ser `LocationId` (kind 3) não nulo e com `index != 0`;
+  `gate_id` MUST ser `GateId` (kind 6) válido; `rumor_id` MUST ser `RumorId` (kind 5); `topic_id`
+  MUST ser `FactId` quando `topic_kind=1` e `RumorId` quando `topic_kind=2`. Kind errado é
+  `InvalidTopic`/`InvalidGate`.
+- `away_destination` é um `Cell`/`GridPoint` (alias, §3.2), codificado **apenas** como
+  `away_x`/`away_y`/`away_z` com `away_present=1`; não existe um campo `u64` separado. Com
+  `away_present=0`, os três são zero; com `1`, os três são o ponto exato e `scheduled_tick != 0`.
+  Qualquer outra combinação é `InvalidIntentPayload`.
 - `claim_value` é o código `1..N` do enum fechado de `DOC-02`/`SOC-01`; este contrato não inventa
   os valores semânticos nem os enumera sem a fonte. `0` significa “não usado”.
 
@@ -683,7 +698,7 @@ Validação por intenção:
 | Fato/ação DOC-02 | Representação no CTR-01 v2 | Observação |
 | --- | --- | --- |
 | `FalaFact` (`falar`) | `CONVERSATION_FACT` v2, `intent = SOCIAL_TALK` (10), payload `registro`/`topic`, `result_class` 1 ou 4 | Cobre `SAUDACAO`, `AGRADECIMENTO`, `DESPEDIDA`, `COMENTARIO_NEUTRO`; não usa `GREETING`/`APPEASE` para evitar semântica falsa. |
-| `AcordoFact` / `AcordoRecusadoFact` (`negociar`) | `CONVERSATION_FACT` v2, `intent = NEGOTIATE` (2) ou `INFORM_PATH` (9), payload `pedido`/`offer_moeda`/campos do pedido, `result_class` 1/2/3/4 | O acordo é o fato social; a transferência de moeda é o efeito `TRANSFER_CURRENCY`. |
+| `AcordoFact` / `AcordoRecusadoFact` (`negociar`) | `CONVERSATION_FACT` v2, `intent = NEGOTIATE` (2) ou `INFORM_PATH` (9), payload `pedido`/`offer_moeda`/campos do pedido, `result_class` 1/2/3 | O acordo é o fato social; a transferência de moeda é o efeito `TRANSFER_CURRENCY`. `ACORDO_VIGENTE` é limite: `result_class=3`, `reason=6`; `result_class=4` não é produzido por `NEGOTIATE`/`INFORM_PATH`. |
 | `MentiraDetectadaFact` / `MentiraRejeitadaFact` (`mentir`) | `CONVERSATION_FACT` v2, `intent = LIE` (4), payload `topic`/`claim_value`, `result_class` 2, `reason` 10/11 | `MENTIRA_ACEITA` usa `result_class` 1, `reason` 9; `LIAR` é o efeito `ATTACH_LABEL` no par `listener→speaker`. |
 | `RumorPerguntadoFact` (`perguntar_rumor`) | `CONVERSATION_FACT` v2, `intent = ASK_RUMOR` (8), payload `topic`/fidelidades, `result_class` 1/2/3 | O conteúdo do rumor e as cópias ficam na secção canónica `RUMORS`; o fato social regista o ato e as fidelidades. |
 | `RumorContadoFact` (`contar_rumor`) | `CONVERSATION_FACT` v2, `intent = SHARE_RUMOR` (6), payload `rumor_id`/`topic`/`seed_rumor`/fidelidades, `result_class` 1/2/3 | A propagação de estado pertence a SOC-03; o fato regista o ato. |
@@ -1063,6 +1078,9 @@ Validação de `RUMORS`:
   `ActorId`/`LocationId` não nulos; `topic_kind` 1/2 e `topic_id` não nulo; `half_life_ticks > 0`;
   `scope` 1/2; `min_cognition_bp` `0..=10_000`; `fidelity_bp` `0..=10_000`; `state` 1/2;
   `acquired_tick` não nulo. Qualquer violação é `InvalidCanonicalRumor`.
+- `origin_tick` MUST ser `<= tick` do estado; cada `copies.actor_id` MUST ser `ActorId` não nulo e
+  presente na lista de `ACTORS`; `acquired_tick` MUST estar em `origin_tick..=tick`. Cópia de ator
+  ausente ou tick invertido é `InvalidCanonicalRumor`.
 - A lista é ordenada por `rumor_id` ascendente; as cópias são ordenadas por `actor_id` ascendente e
   não repetem ator. Duplicata é `DuplicateCanonicalKey`; ordem errada é `CanonicalOrderViolation`.
 - `copies` é o mapa ordenado de cópias; `carriers` e o estado derivado `ATIVO`/`EXTINTO` do rumor
@@ -1200,7 +1218,8 @@ registar o erro, mas não publicar metade.
 | Moeda do payload divergente do efeito | encoder | `InvalidCurrencyTransfer`; rejeita o fato. |
 | `ATTACH_LABEL` com ator inválido | efeito | `InvalidLabelActor`; sem label. |
 | Intenção desconhecida ou payload incoerente | encoder/decoder | `UnknownIntent`/`InvalidIntentPayload`. |
-| `TopicId`/`FactId`/`GateId` inválido | encoder/decoder | `InvalidTopic`/`InvalidGate`; sem referência. |
+| `TopicId`/`FactId`/`GateId`/`EdgeId` inválido | encoder/decoder | `InvalidTopic`/`InvalidGate`/`InvalidEdge`; sem referência. |
+| `GateId`/`EdgeId` com `index=0`, geração 0, all-ones ou stale | consulta/validação | `InvalidGate`/`InvalidEdge`/`StaleEntityId`; sem reparação. |
 | `RUMORS` com campo/ordem/kind inválido | canonicalizador | `InvalidCanonicalRumor`; `decode_canonical` rejeita. |
 | `LABELS` com ator/label/tick/ordem inválido | canonicalizador | `InvalidCanonicalLabel`; `decode_canonical` rejeita. |
 | Coordenada fora dos limites | construção | `CoordinateOutOfBounds`; sem clamp. |
@@ -1257,13 +1276,19 @@ ser válido quando o slot 5 passa para a geração 8; a consulta devolve `StaleE
 novo ocupante seja outro ator. `00 00 00 00 00 00 00 00` é `NONE` e não pode preencher `speaker` ou
 `listener`; `FF FF FF FF FF FF FF FF` é `INVALID`.
 
+`GateId`/`EdgeId` inválidos, além de `NONE`/`INVALID`: `00 06 00 00 00 00 00 01` (índice 0),
+`00 07 00 00 00 00 00 01` (índice 0), `00 06 00 00 00 09 00 00` (geração 0) e
+`00 07 00 00 00 10 00 00` (geração 0) devolvem `InvalidGate`/`InvalidEdge`; um ID válido com
+geração antiga devolve `StaleEntityId`; um `GateId` passado onde se espera `EdgeId` devolve
+`WrongEntityKind`.
+
 ### 7.2 Cabeçalho e oito efeitos
 
 Fato **v2** de exemplo com oito efeitos: `fact_seq = 1`, `tick = 1000` (`0x03E8`), speaker
 `0x0001_0000_0001_0001`, listener `0x0001_0000_0001_0002`, localidade
 `0x0003_0000_1234_0002`, célula `(104, 88, 0)`, intenção `NEGOTIATE = 2`, `pedido =
 ENCONTRO_FUTURO = 2`, `offer_moeda = 3`, `meeting_tick = 180`, `meeting_locality =
-0x0003_0000_0000_0002` (`L2`), `outcome_bp = 7500` (`0x1D4C`), `valence_bp = 2500` (`0x09C4`),
+0x0003_0000_1235_0002` (`L2`, índice `0x1235`, geração 2), `outcome_bp = 7500` (`0x1D4C`), `valence_bp = 2500` (`0x09C4`),
 `fact_flags = DIRECT`, `effects_count = 8`, `labels_count = 1`, `source_fact_seq = 0`,
 `origin_tick = 1000`, `payload_kind = 1`, `payload_len = 96`.
 
@@ -1313,7 +1338,7 @@ Hexdump do registo completo v2, 449 bytes:
 0150  00 01 00 01 00 00 00 01 00 02 00 00 00 03 01 00
 0160  60 00 01 00 00 00 00 00 02 00 00 00 00 00 00 00
 0170  00 00 00 00 00 00 00 00 03 00 00 00 00 00 00 00
-0180  B4 00 03 00 00 00 00 00 02 00 00 00 00 00 00 00
+0180  B4 00 03 00 00 12 35 00 02 00 00 00 00 00 00 00
 0190  00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
 01A0  00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
 01B0  00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
@@ -1373,7 +1398,9 @@ Conferência aritmética:
 Os bytes acima foram compostos campo a campo e conferidos pela soma de offsets e por script scratch
 local; não houve execução de `cargo`, teste de integração, medição de desempenho ou captura de hash.
 Qualquer divergência entre este documento e uma implementação futura é erro de um dos dois e deve
-ser resolvida por revisão e golden de `CORE-01`, não por "ajustar o teste ao código".
+ser resolvida por revisão e golden de `CORE-01`, não por "ajustar o teste ao código". A
+especificação normativa é v2; não há vetor golden v1 nesta revisão. O layout v1 `94 + 32n`
+(`350`/`334` em `n=8`) é aritmética legada, não um golden de compatibilidade.
 
 ## 8. Rastreabilidade dos critérios de aceite
 

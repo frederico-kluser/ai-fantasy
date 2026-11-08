@@ -33,10 +33,11 @@ geração de 16 bits se esgota, em vez de fazer wrap. Cada slot admite 65.535 ge
 (65.534 reciclagens após a primeira colocação). Um ID antigo é detetado pela geração divergente e
 nunca é reescrito para o novo ocupante. A largura é justificada pela escala regional de D-07 e pela
 rejeição de colisões entre localidades; a localidade não entra nos bits do ID, para que uma entidade
-conserve a identidade ao mover-se. Os kinds 6/7 são `GATE`/`EDGE`, com layout geracional aqui e
-semântica em CTR-03/GRID-01; `LocalityId` é alias de `LocationId`; `Cell` é alias de `GridPoint`.
-`FactId` é o `fact_seq` monotônico (não um `EntityId`); `TopicId` é uma referência tipada
-`FACT`/`RUMOR`.
+conserve a identidade ao mover-se. Os kinds 6/7 são `GATE`/`EDGE`, com layout geracional aqui,
+sentinelas `0`/all-ones, `index != 0`/`generation != 0`, deteção de stale e rejeições próprias; a
+semântica de portão/aresta pertence a CTR-03/GRID-01. `LocalityId` é alias de `LocationId`; `Cell` é
+alias de `GridPoint`. `FactId` é o `fact_seq` monotônico (não um `EntityId`); `TopicId` é uma
+referência tipada `FACT`/`RUMOR`.
 
 Vamos adotar basis points inteiros **com sinal** (`RelationBp(i16)`, `-10.000..10.000`) para o valor
 absoluto das relações e `BasisPoints(i16)` para os deltas; Q16.16 apenas para valores fracionários de
