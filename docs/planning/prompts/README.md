@@ -1,7 +1,8 @@
 # Prompts dos subagents — plano aprovado, execução futura
 
-> **SOMENTE MARKDOWN.** 46 prompts de trabalhadores e 46 etapas individuais de revisão.
-> Não executar os prompts, construir a aplicação ou criar/remover worktrees neste pedido.
+> **EXECUÇÃO PAUSADA.** 46 prompts de trabalhadores e 46 etapas individuais de revisão.
+> Os contratos DOC/CTR estão concluídos; o scaffold SCI-01 foi interrompido sem commit.
+> Retomar exige autorização explícita e os gates do projeto.
 
 O [ROADMAP](<../../../ROADMAP.md>) define as atividades; o [manifesto e interfaces](<../wave-spec.md>)
 continuam fonte dos contratos. A orientação aprovada no Plannotator foi incorporada: skill CoALA,
@@ -13,6 +14,22 @@ update/sync, teste de recuperação antes de entregar, revisor por trabalhador e
 - Cada prompt incorpora seu cartão, interfaces aplicáveis e protocolo completo; não depende da conversa.
 - Caminhos de worktree são relativos à raiz ORIGINAL e serão resolvidos/verificados antes da ativação futura.
 - O worker entrega ao revisor; revisor fecha após integração/CoALA/cleanup. Aprovação do plano não autoriza implementação.
+
+## Estado de execução em 2026-11-08
+
+A `main` em `fad0a57` contém os contratos concluídos. O scaffold SCI-01 foi interrompido
+sem commit; não há `Cargo.toml` nem código executável.
+
+| Tarefa | Estado | Evidência |
+| --- | --- | --- |
+| DOC-01 | ✅ Concluída | aceite de planejamento e prompts |
+| DOC-02 | ✅ Concluída | `docs/planning/gameplay-spec.md` |
+| CTR-01…CTR-05 | ✅ Concluídas | contratos + ADRs 0010–0012 integrados |
+| SCI-01 | ⏸️ Interrompida | worktree/branch removidas; sem commit |
+| SCI-02…REL-02 | ⏳ Pendentes | dependem de SCI-01 e do CI/qualidade |
+
+A coluna **Estado** da tabela seguinte resume o mesmo; para retomar, comece por SCI-01 com
+autorização explícita de scaffold.
 
 ## 46 trabalhadores e 46 revisores
 

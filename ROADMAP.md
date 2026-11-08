@@ -37,9 +37,20 @@ memória de ambientes na simulação; individualidade por MLP e evolução na tr
 | Aguardando decisão humana | Produto, contrato estrutural, golden ou operação de publicação exige decisão específica. |
 | Adiado | Fora do marco atual por decisão explícita; permanece no backlog, sem falsa conclusão. |
 
-DOC-01 recebeu **aceite do planejamento no Plannotator**, com a orientação de acrescentar os
-prompts e gates CoALA/revisores, entregues como documentação. Os demais cartões são planejados;
-nenhum aceite representa implementação, medição live, worktrees executadas ou ADR técnico aprovado.
+### Estado da execução em 2026-11-08
+
+| Tarefa | Estado | Evidência |
+| --- | --- | --- |
+| DOC-01 | ✅ aceite de planejamento | prompts e gates CoALA/revisores incorporados |
+| DOC-02 | ✅ concluído e integrado | `docs/planning/gameplay-spec.md` |
+| CTR-01…CTR-05 | ✅ concluídos e integrados | contratos + ADRs 0010–0012; `main` `fad0a57` |
+| SCI-01 | ⏸️ interrompido sem commit | scaffold aprovado localmente; worktree/branch removidas; sem `Cargo.toml` |
+| SCI-02…REL-02 | ⏳ pendentes | dependem de SCI-01 e do CI/qualidade |
+
+A `main` em `fad0a57` contém os contratos; o detalhe por prompt está no
+[índice de prompts](<docs/planning/prompts/README.md>). Nenhum aceite representa
+implementação, medição live, worktree ativa ou ADR técnico aprovado. O manifesto
+(`docs/planning/wave-spec.md`) não foi alterado para preservar o hash de handoff.
 
 ## 2. Decisões humanas incorporadas
 

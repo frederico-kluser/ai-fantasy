@@ -1,5 +1,6 @@
 # Prompt do subagent trabalhador — CTR-05
 
+> **Estado em 2026-11-08:** concluído e integrado na `main` (`fad0a57`); ver o índice de prompts.
 > **ARQUIVO DE PLANEJAMENTO: NÃO EXECUTAR AGORA.** Este é o prompt a entregar a um
 > subagent futuro após autorização específica, base preparada e gates satisfeitos.
 > O pedido atual cria somente Markdown; não constrói a aplicação nem cria worktrees.

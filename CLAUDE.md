@@ -9,8 +9,13 @@
 
 - **Projeto:** AI Fantasy (`frederico-kluser/ai-fantasy`).
 - **Motor:** Hermeneutic Core.
-- **Estado:** **F0 — Fundação**. Não há código executável; não crie `Cargo.toml`, crates
-  ou binários sem um pedido explícito e sem o PR de scaffold aprovado.
+- **Estado:** **F0 — Fundação documental**. Os contratos DOC-01, DOC-02 e CTR-01…CTR-05
+  estão concluídos e integrados na `main` (`fad0a57`). Não há código executável; o scaffold
+  SCI-01 foi interrompido sem commit. Não crie `Cargo.toml`, crates ou binários sem um novo
+  pedido explícito e sem o PR de scaffold aprovado.
+- **Retoma:** leia o estado em [`ROADMAP.md`](ROADMAP.md) e
+  [`docs/planning/prompts/README.md`](docs/planning/prompts/README.md); a próxima tarefa é
+  SCI-01 (scaffold), com autorização específica.
 - **Licença:** código MIT; pesos de modelos **não** são distribuídos (LFM Open License).
 - **Definições canônicas:** [roadmap de arquitetura](<docs/architecture/roadmap.md>).
 - **Plano de execução:** [ROADMAP](<ROADMAP.md>) — atividades, dependências, ondas e integração por juiz; subagents de desenvolvimento não são componentes do runtime.

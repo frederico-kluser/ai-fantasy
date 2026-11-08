@@ -9,11 +9,12 @@
   <img src="https://img.shields.io/badge/status-foundation-orange.svg" alt="Status: foundation">
 </p>
 
-> **Status: F0 — fundação documental. Revisão: 2026-11-08.** Ainda não há aplicação
-> executável. Este repositório planeja arquitetura, engenharia, testes e governança;
-> aprovar Markdown não autoriza construir código, scaffold, CI, worktrees ou releases.
-> Primeiro validar o motor; depois entregar o primeiro jogável 2D. Não houve bump de
-> versão de software ou edição manual de changelog nesta revisão.
+> **Status: F0 — fundação documental. Revisão: 2026-11-08.** Os contratos DOC-01, DOC-02 e
+> CTR-01…CTR-05 estão concluídos e integrados na `main` (`fad0a57`). Ainda não há aplicação
+> executável: o scaffold SCI-01 foi interrompido sem commit. A retoma começa por autorização
+> explícita do scaffold e pelo estado em [ROADMAP](<ROADMAP.md>) e
+> [prompts](<docs/planning/prompts/README.md>). Primeiro validar o motor; depois entregar o
+> primeiro jogável 2D. Não houve bump de versão ou edição manual de changelog.
 
 ## O que é
 
@@ -136,8 +137,33 @@ integração do [ROADMAP](<ROADMAP.md>) não são processos ou componentes do jo
 | Roadmap técnico corrigido (JEV, d1-2B, LFM3) | ✅ |
 | Governança open-source (licença, contribuição, segurança, rulesets, CI) | ✅ |
 | Memória e catálogo CoALA locais | ✅ `.agents/ai-fantasy-coala-agent-skill/` |
+| Contratos DOC-01/DOC-02 e CTR-01…CTR-05 | ✅ concluídos e integrados na `main` (`fad0a57`) |
+| Scaffold Rust SCI-01 | ⏸️ interrompido sem commit; sem `Cargo.toml` |
 | Workspace Rust, crates e binários | ⏳ primeira fase de código |
 | Modelos e *sidecars* locais | ⏳ fase de integração |
+
+## Estado de execução
+
+| Tarefa | Estado | Nota |
+| --- | --- | --- |
+| DOC-01 | ✅ aceite de planejamento | prompts e gates incorporados |
+| DOC-02 | ✅ concluído | gameplay spec integrado |
+| CTR-01…CTR-05 | ✅ concluídos | contratos e ADRs 0010–0012 integrados |
+| SCI-01 | ⏸️ interrompido | scaffold aprovado localmente, mas parado antes de qualquer commit; sem `Cargo.toml` |
+| SCI-02…REL-02 | ⏳ pendentes | dependem de SCI-01 e do CI/qualidade |
+
+O detalhe por tarefa está no [ROADMAP](<ROADMAP.md>) e no
+[índice de prompts](<docs/planning/prompts/README.md>). O manifesto de handoff
+(`docs/planning/wave-spec.md`) não foi alterado para preservar o hash de referência.
+
+### Como retomar
+
+1. Ler o estado acima, o [ROADMAP](<ROADMAP.md>) e o
+   [protocolo de subagentes](<docs/planning/subagent-protocol.md>).
+2. A única tarefa pronta é **SCI-01 (scaffold)**; exige autorização explícita de scaffold
+   e não existe worktree/branch ativa neste momento.
+3. Criar a worktree `sci-01` a partir da `main`, provisionar o CoALA local a partir do
+   snapshot canônico e só então despachar o worker; os contratos DOC/CTR já estão na `main`.
 
 ## O que ainda não existe
 
