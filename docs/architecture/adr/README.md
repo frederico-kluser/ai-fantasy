@@ -18,6 +18,7 @@ apenas **o quê**; o código explica o como.
 | [0009](<0009-privileged-silhouette-overlay.md>) | Overlay de silhuetas separado da percepção | Proposto — decisão de produto registrada; contrato técnico em revisão |
 | [0010](<0010-identity-event-layout.md>) | Identidade geracional e layout de evento versionado | Proposto — [contrato CTR-01](<../../planning/contracts/identity-events.md>) em revisão |
 | [0011](<0011-time-replay-durability.md>) | Autoridade durável de save e atividade regional explícita | Proposto — [contrato CTR-02](<../../planning/contracts/time-replay-save.md>) em revisão |
+| [0012](<0012-model-schema-grammar.md>) | Gramática de tool call e schema versionado de propostas | Proposto — [contrato CTR-04](<../../planning/contracts/model-schema.md>) em revisão |
 
 **Revisão documental: 2026-11-08.** Os novos registros preservam a devolutiva do
 [maintainer](<../../planning/decisions.md>), mas não aprovam fórmulas, APIs ou implementação.
