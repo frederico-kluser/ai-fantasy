@@ -340,7 +340,7 @@ Log de replay comum a todas as ações:
 
 **Intenção.** `kind = NEGOCIAR`; `target` obrigatório; `pedido` em enum fechado: `REVELAR_RUMOR`, `ENCONTRO_FUTURO`, `PASSAGEM`, `INFORMAR_CAMINHO`; `offer_moeda` inteiro entre 0 e 10000; `topic` opcional para `REVELAR_RUMOR`; `destination = LocalityId` obrigatório para `INFORMAR_CAMINHO`; `meeting_tick` e `meeting_locality` obrigatórios para `ENCONTRO_FUTURO`; `gate_id` e `validity_ticks` obrigatórios para `PASSAGEM`. Campos de outro pedido ficam `None`.
 
-**Pré-condições e alvos.** Ator e alvo vivos, mesma localidade, mesmo `z`, alcance social, linha estrutural livre; ator com `moeda` maior ou igual à oferta; alvo capaz de conceder o pedido em princípio (vivo, presente, não em trânsito). Além disso: `meeting_tick` precisa ser maior que `t0` e menor ou igual a `t0 + MAX_MEETING_HORIZON_TICKS`; `meeting_locality` precisa existir e ter rota passável a partir da localidade do alvo; `gate_id` precisa pertencer à localidade do alvo ou a uma adjacente; `validity_ticks` precisa estar em `1..=PASS_VALIDITY_TICKS`; `destination` de `INFORMAR_CAMINHO` precisa existir e ter rota passável. Para `REVELAR_RUMOR`, `topic`, se presente, precisa identificar um rumor com cópia ativa no alvo; se o alvo não tiver essa cópia, o resultado é o limite `SEM_CONDICAO`. Ausência do conteúdo específico, como nenhum rumor elegível, é limite resolvido, não rejeição.
+**Pré-condições e alvos.** Ator e alvo vivos, mesma localidade, mesmo `z`, alcance social, linha estrutural livre; ator com `moeda` maior ou igual à oferta; alvo capaz de conceder o pedido em princípio (vivo, presente, não em trânsito). Além disso: `meeting_tick` precisa ser maior que `t0` e menor ou igual a `t0 + MAX_MEETING_HORIZON_TICKS`; `meeting_locality` precisa existir e ter rota passável a partir da localidade do alvo; `gate_id` precisa pertencer à localidade do alvo ou a uma adjacente; `validity_ticks` precisa estar em `1..=PASS_VALIDITY_TICKS`; `destination` de `INFORMAR_CAMINHO` precisa existir e ter rota passável. Para `REVELAR_RUMOR`: `TopicId` inexistente no estado é rejeição `INTENCAO_INVALIDA`; `TopicId` existente sem cópia ativa no alvo é o limite `SEM_CONDICAO`. Ausência do conteúdo específico, como nenhum rumor elegível, é limite resolvido, não rejeição.
 
 **Resolução.** Um sorteio no stream `social`, uniforme em `0..=9999`. Chance de sucesso, em bp:
 
@@ -352,9 +352,9 @@ Onde `trust` e `empatia` são os eixos do alvo em relação ao ator. Sucesso se 
 
 **Falha resolvida.** Sorteio desfavorável com pré-condições válidas: custo integral de 6 ticks, 1 sorteio consumido, sem transferência de moedas e sem concessão; confiança -100 bp, empatia -50 bp; fato `AcordoRecusadoFact`. Nada é aplicado parcialmente.
 
-**Erro.** Moedas insuficientes, alvo morto/inexistente/em trânsito, fora de alcance, pedido inválido, campo obrigatório ausente, tick/localidade/portão/validade inválidos ou fora do recorte: rejeição `RECURSO_INSUFICIENTE`, `ALVO_MORTO`, `ALVO_INEXISTENTE`, `FORA_DE_ALCANCE`, `PEDIDO_INVALIDO` ou `INTENCAO_INVALIDA`, com 0 tick e 0 RNG.
+**Erro.** Moedas insuficientes, alvo morto/inexistente/em trânsito, fora de alcance, pedido inválido, campo obrigatório ausente, tópico inexistente, tick/localidade/portão/validade inválidos ou fora do recorte: rejeição `RECURSO_INSUFICIENTE`, `ALVO_MORTO`, `ALVO_INEXISTENTE`, `FORA_DE_ALCANCE`, `PEDIDO_INVALIDO` ou `INTENCAO_INVALIDA`, com 0 tick e 0 RNG.
 
-**Limite.** Alvo não tem o conteúdo do pedido, inclusive quando o `topic` indicado não tem cópia ativa no alvo: `SEM_CONDICAO`, custo 6 ticks, 1 sorteio, sem transferência de moedas, confiança -50 bp, fato `AcordoRecusadoFact`. Oferta 0 é permitida, apenas reduz a chance. Pedido já acordado e ainda vigente com os mesmos campos: `ACORDO_VIGENTE`, custo 6 ticks, deltas 0, sem novo sorteio; campos diferentes formam novo acordo.
+**Limite.** `TopicId` existente sem cópia ativa no alvo, ou ausência de outro conteúdo do pedido: `SEM_CONDICAO`, custo 6 ticks, 1 sorteio, sem transferência de moedas, confiança -50 bp, fato `AcordoRecusadoFact`. Oferta 0 é permitida, apenas reduz a chance. Pedido já acordado e ainda vigente com os mesmos campos: `ACORDO_VIGENTE`, custo 6 ticks, deltas 0, sem novo sorteio; campos diferentes formam novo acordo.
 
 **Efeitos, fatos e replay.** Deltas de 8.2; transferência de moedas e criação do fato do pedido são atômicas com o acordo. O replay registra pedido, `topic` quando aplicável, oferta, sorteio, `meeting_tick`, `meeting_locality`, `gate_id`, `validity_ticks`, `destination` quando aplicável, e concessão; não registra a prosa da proposta nem a negociação em linguagem natural.
 
@@ -391,7 +391,7 @@ Onde `trust` e `empatia` são os eixos do alvo em relação ao ator. Sucesso se 
 
 **Intenção.** `kind = PERGUNTAR_RUMOR`; `target` obrigatório; `topic` opcional. Sem `offer_moeda`.
 
-**Pré-condições e alvos.** Ator e alvo vivos, mesma localidade, mesmo `z`, alcance social, linha estrutural livre; alvo não em trânsito.
+**Pré-condições e alvos.** Ator e alvo vivos, mesma localidade, mesmo `z`, alcance social, linha estrutural livre; alvo não em trânsito. `topic`, se presente, precisa existir no estado; `TopicId` inexistente é rejeição `INTENCAO_INVALIDA`; `TopicId` existente sem cópia ativa no alvo é o limite `SEM_INFORMACAO`.
 
 **Resolução.** Um sorteio no stream `social`, uniforme em `0..=9999`. Chance, em bp:
 
@@ -403,9 +403,9 @@ Sucesso se o valor for menor que a chance.
 
 **Falha resolvida.** Sorteio desfavorável com pré-condições válidas: custo integral de 3 ticks, 1 sorteio consumido, nenhuma cópia transferida, confiança -50 bp; fato `RumorPerguntadoFact` com resultado de recusa.
 
-**Erro.** Alvo morto, inexistente, em trânsito, fora de alcance: rejeição, 0 tick, 0 RNG.
+**Erro.** Alvo morto, inexistente, em trânsito, fora de alcance, ou `TopicId` inexistente: rejeição `ALVO_MORTO`, `ALVO_INEXISTENTE`, `FORA_DE_ALCANCE` ou `INTENCAO_INVALIDA`, com 0 tick e 0 RNG.
 
-**Limite.** Alvo sem cópia ativa/elegível: `SEM_INFORMACAO`, custo 3 ticks, 1 sorteio, deltas 0, fato registrado. Cópia oferecida abaixo do limiar: `OFERTA_ABAIXO_DO_LIMIAR`, sem transferência e sem deltas. Cópia oferecida menor ou igual à do jogador: `RUMOR_JA_CONHECIDO`, custo 3 ticks, 1 sorteio, deltas 0, sem substituição; não há informação nova, portanto não há ganho de relação. O jogador não pode "forçar" informação por repetição no mesmo tick; repetir é uma nova ação paga.
+**Limite.** `TopicId` existente sem cópia ativa no alvo, ou alvo sem cópia ativa/elegível: `SEM_INFORMACAO`, custo 3 ticks, 1 sorteio, deltas 0, fato registrado. Cópia oferecida abaixo do limiar: `OFERTA_ABAIXO_DO_LIMIAR`, sem transferência e sem deltas. Cópia oferecida menor ou igual à do jogador: `RUMOR_JA_CONHECIDO`, custo 3 ticks, 1 sorteio, deltas 0, sem substituição; não há informação nova, portanto não há ganho de relação. O jogador não pode "forçar" informação por repetição no mesmo tick; repetir é uma nova ação paga.
 
 **Efeitos, fatos e replay.** O conhecimento do jogador é estado autoritativo do personagem, não cache de UI. O replay registra alvo, tópico, sorteio, rumor e fidelidades; não registra a prosa da resposta.
 
@@ -443,7 +443,7 @@ Sucesso se o valor for menor que a chance e a fidelidade for maior ou igual a `M
 
 **Intenção.** `kind = AMEACAR`; `target` obrigatório; `exigencia` em enum fechado: `REVELAR_RUMOR`, `PASSAGEM`, `AFASTAR_SE`; `topic` opcional para `REVELAR_RUMOR`; `gate_id` e `validity_ticks` obrigatórios para `PASSAGEM`; `away_destination` obrigatório para `AFASTAR_SE`; sem `offer_moeda`.
 
-**Pré-condições e alvos.** Ator e alvo vivos, mesma localidade, mesmo `z`, alcance social, linha estrutural livre; alvo não em trânsito. Para `REVELAR_RUMOR`, `topic`, se presente, precisa identificar um rumor com cópia ativa no alvo; se o alvo não tiver essa cópia, o resultado é o limite `SEM_CONCESSAO`. Para `PASSAGEM`, `gate_id` precisa pertencer à localidade do alvo ou a uma adjacente e `validity_ticks` precisa estar em `1..=PASS_VALIDITY_TICKS`. Para `AFASTAR_SE`, `away_destination` precisa ser célula passável e livre na mesma localidade e no mesmo `z`, a pelo menos `AWAY_MIN_DISTANCE_CELLS` do ator, com caminho de custo menor ou igual a `AGENDA_LOCAL_ACTION_MAX_TICKS`; caso contrário é rejeição, não limite.
+**Pré-condições e alvos.** Ator e alvo vivos, mesma localidade, mesmo `z`, alcance social, linha estrutural livre; alvo não em trânsito. Para `REVELAR_RUMOR`: `TopicId` inexistente no estado é rejeição `INTENCAO_INVALIDA`; `TopicId` existente sem cópia ativa no alvo é o limite `SEM_CONCESSAO`. Para `PASSAGEM`, `gate_id` precisa pertencer à localidade do alvo ou a uma adjacente e `validity_ticks` precisa estar em `1..=PASS_VALIDITY_TICKS`. Para `AFASTAR_SE`, `away_destination` precisa ser célula passável e livre na mesma localidade e no mesmo `z`, a pelo menos `AWAY_MIN_DISTANCE_CELLS` do ator, com caminho de custo menor ou igual a `AGENDA_LOCAL_ACTION_MAX_TICKS`; caso contrário é rejeição, não limite.
 
 **Resolução.** Um sorteio no stream `social`. Chance, em bp:
 
@@ -455,9 +455,9 @@ Sucesso se o valor for menor que a chance. Não há dano, HP, iniciativa ou mort
 
 **Falha resolvida.** Sorteio desfavorável com pré-condições válidas: custo integral de 4 ticks, 1 sorteio consumido, sem concessão; empatia -500 bp, medo +500 bp, confiança -800 bp; fato `AmeacaResistidaFact`.
 
-**Erro.** Alvo morto, inexistente, em trânsito, fora de alcance, portão/validade/destino inválidos: rejeição, 0 tick, 0 RNG.
+**Erro.** Alvo morto, inexistente, em trânsito, fora de alcance, `TopicId` inexistente, portão/validade/destino inválidos: rejeição `ALVO_MORTO`, `ALVO_INEXISTENTE`, `FORA_DE_ALCANCE`, `INTENCAO_INVALIDA` ou `DESTINO_INVALIDO`, com 0 tick e 0 RNG.
 
-**Limite.** Alvo sem concessão possível, inclusive quando `topic` foi indicado e o alvo não tem essa cópia: `SEM_CONCESSAO`, custo 4 ticks, 1 sorteio; empatia -500 bp, medo +1000 bp, confiança -800 bp; fato registrado. Alvo com medo máximo e confiança mínima continua sujeito ao limite inferior de chance de 1000 bp; o clamp é autorizado e não é rejeição.
+**Limite.** `TopicId` existente sem cópia ativa no alvo, ou alvo sem concessão possível: `SEM_CONCESSAO`, custo 4 ticks, 1 sorteio; empatia -500 bp, medo +1000 bp, confiança -800 bp; fato registrado. Alvo com medo máximo e confiança mínima continua sujeito ao limite inferior de chance de 1000 bp; o clamp é autorizado e não é rejeição.
 
 **Efeitos, fatos e replay.** Deltas de 8.2, na direção alvo para ator. Até `MAX_WITNESSES` testemunhas na mesma localidade, dentro de `WITNESS_REACH_CELLS` e com linha estrutural, recebem `TestemunhoFact`; se houver ao menos uma testemunha, o rumor `AMEACA` é semeado com escopo `LOCAL`, origem no alvo, fidelidade 10000 e portadores iniciais iguais a alvo e testemunhas. O replay registra exigência, `topic`, `gate_id`, `validity_ticks`, `away_destination`, `scheduled_tick`, sorteio e testemunhas; não registra ameaça narrada, overlay ou áudio.
 
@@ -925,8 +925,12 @@ Arquivo futuro: `crates/af-core/tests/native_actions.rs`.
 - `given_meeting_missing_tick_when_negotiate_then_rejected_zero_cost` — campo explícito de `ENCONTRO_FUTURO`.
 - `given_pass_missing_gate_when_threaten_then_rejected_zero_cost` — campo explícito de `PASSAGEM`.
 - `given_away_missing_destination_when_threaten_then_rejected_zero_cost` — campo explícito de `AFASTAR_SE`.
-- `given_reveal_topic_missing_on_target_when_negotiate_then_sem_condicao` — `topic` sem cópia ativa no alvo.
-- `given_reveal_topic_missing_on_target_when_threaten_then_sem_concessao` — `topic` sem cópia ativa no alvo.
+- `given_topic_missing_when_negotiate_then_rejected_zero_cost` — `TopicId` inexistente é rejeição 0/0.
+- `given_topic_without_active_copy_when_negotiate_then_sem_condicao` — tópico existente, alvo sem cópia.
+- `given_topic_missing_when_ask_rumor_then_rejected_zero_cost` — `TopicId` inexistente é rejeição 0/0.
+- `given_topic_without_active_copy_when_ask_rumor_then_sem_informacao` — tópico existente, alvo sem cópia.
+- `given_topic_missing_when_threaten_then_rejected_zero_cost` — `TopicId` inexistente é rejeição 0/0.
+- `given_topic_without_active_copy_when_threaten_then_sem_concessao` — tópico existente, alvo sem cópia.
 - `given_edge_blocked_when_travel_then_route_impossible_without_tick_or_rng` — rejeição 0/0.
 - `given_diagonal_move_when_resolve_then_invalid_intent` — cardinal apenas.
 - `given_dead_target_when_speak_then_rejected_without_partial_effect` — atomicidade.
