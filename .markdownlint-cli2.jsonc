@@ -25,6 +25,7 @@
     "coverage/**",
     "mutants.out/**",
     "docs/architecture/assets/**",
-    "Roadmap Jogo Procedural Com LFM3.md"
+    "Roadmap Jogo Procedural Com LFM3.md",
+    "CHANGELOG.md"
   ]
 }
