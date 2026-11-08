@@ -1,5 +1,6 @@
 # Prompt do subagent trabalhador — SCI-01
 
+> **Estado em 2026-11-08:** **interrompido sem commit**; o scaffold não foi iniciado. Retomar exige autorização explícita.
 > **ARQUIVO DE PLANEJAMENTO: NÃO EXECUTAR AGORA.** Este é o prompt a entregar a um
 > subagent futuro após autorização específica, base preparada e gates satisfeitos.
 > O pedido atual cria somente Markdown; não constrói a aplicação nem cria worktrees.
