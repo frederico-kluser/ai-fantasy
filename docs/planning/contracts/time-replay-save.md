@@ -15,7 +15,7 @@
 | Contratos consumidos | CTR-01 rev 5 (`11ee9be`) e DOC-02 rev 6 (`31416a1`), ambos congelados tecnicamente na base |
 | Interfaces consumidas | `INT-01` (identidade, unidades e canonicalização) |
 | Interfaces produzidas | `INT-02`, `INT-04`, `INT-05`, `INT-06`, `INT-10`, `INT-17` |
-| Versão do contrato | v1 |
+| Versão do contrato | v1 (revisão 4; payload `ACTORS` v2) |
 | ADR | [ADR 0011](<../../architecture/adr/0011-time-replay-durability.md>), status **Proposto** |
 | Revisão | `REVIEW-CTR-02` é obrigatória; este documento não se autoaprova |
 | Implementação | Nenhuma; sem crate, `Cargo.toml`, teste de aplicação, benchmark ou golden inventado |
@@ -97,17 +97,14 @@ custos de sistema e guardrails (§4.2/§11.3), o que não custa tempo (§4.3), o
 matriz de sorteios (§5.10), os resultados e o consumo de RNG por resultado (§6), a agenda regional
 (§7), a linha temporal de rumor (§9.4) e o roteiro curado (§10).
 
-O payload canónico de `REGION` (tag 1) é propriedade do `CTR-03`
+O `RegionId(u64)` é **opaco** para este contrato: não nulo, sem semântica interna, atribuído pelo
+subsistema regional (`CTR-03`/`INT-03`) e transportado no envelope `AFCS` do CTR-01 (`region_id`).
+Este contrato **não** consome conteúdo de `INT-03` nem define/redefine derivação ou qualquer campo
+de identidade regional. O payload `REGION` (tag 1) é do `CTR-03`
 (`docs/planning/contracts/region-perception-overlay.md`, worktree `ctr-03`) e contém
-`generator_version u16`, `flags u16`, `seed u64`, bounds e arestas; `RegionId` e `tick` vêm do
-envelope `AFCS` do CTR-01, não do payload `REGION`. `spec_digest` é insumo da derivação de
-`RegionId` e não é campo do estado. Este contrato referencia a seed `u64`, o `RegionId` do envelope
-e a derivação, não redefine `RegionId`/`spec_digest` nem cria campos novos, e regista a dependência
-em `P-09` (§9.2). O `RegionId` é um `u64` não nulo, não é `EntityId` e é derivado pelo `CTR-03`
-§2.2 como
-`first_u64_be(BLAKE3("AFRI" || generator_version u16 || seed u64 || spec_digest))`;
-`spec_digest` é `BLAKE3-256("AFRS" || RegionSpec canónica)`. O CTR-02 consome o valor do envelope e
-o hash, sem recalcular nem substituir a fórmula.
+`generator_version u16`, `flags u16`, `seed u64`, bounds e arestas; `tick` também vem do envelope
+`AFCS`. Este contrato referencia a seed `u64` e o `RegionId` opaco, não cria campos novos e regista
+a dependência de freeze do payload/atribuição em `P-09` (§9.2).
 
 `PD-01` (escala de tempo), `PD-03` (viagem, sobrecarga de embarque e limite de 240 ticks), `PD-07`
 (parâmetros de rumor) e `PD-08` (cadência e limites de agenda) parametrizam diretamente este
@@ -495,9 +492,9 @@ Regras normativas:
   consumidos durante um tick desta sessão. A geração de região usa a PRF própria do `CTR-03` e
   **não** consome estas streams; `spawn` não é um RNG de geração paralelo.
 - `Seed(u64)` é o tipo canónico da seed, alinhado ao roadmap (“`Tick(u64)`, `Seed(u64)`”) e ao
-  `CTR-03` (dono do payload `REGION`). `RegionId` (envelope), `spec_digest` (insumo da derivação) e
-  `generator_version` (payload) são propriedade do `CTR-03`; este contrato referencia a derivação e
-  não a redefine (§9.2, `P-09`).
+  `CTR-03` (dono do payload `REGION`). `RegionId` (opaco, no envelope) e `generator_version`
+  (payload) são propriedade do `CTR-03`; este contrato referencia a seed e a atribuição, sem
+  derivação própria (§9.2, `P-09`).
 - O `RngState` é o valor de runtime `{ seed: Seed, positions: [u64; 4] }`: a seed **e** as posições
   por stream. `positions[code - 1]` é a posição da stream `code` (`1..=4` → índices `0..=3`); o
   vetor nunca é indexado pelo código diretamente. A seed não é duplicada na secção `RNG` (tag 10):
@@ -1004,11 +1001,11 @@ O estado canónico segue o envelope `AFCS` v2 do CTR-01: `magic`, `version`, `bo
 
 | Tag | Secção | Conteúdo |
 | --- | --- | --- |
-| 1 | `REGION` | Limites, `generator_version`, `flags`, `Seed(u64)` e arestas — payload do `CTR-03`; `RegionId`/`tick` no envelope `AFCS`, `spec_digest` só na derivação (`P-09`). |
+| 1 | `REGION` | Limites, `generator_version`, `flags`, `Seed(u64)` e arestas — payload do `CTR-03`; `region_id`/`tick` no envelope `AFCS`, com `RegionId` opaco (`P-09`). |
 | 2 | `LOCALITIES` | Identidades e estado das localidades (dona `CTR-03`). |
 | 3 | `STRUCTURES` | Estruturas e ocupação estrutural (dona `CTR-03`). |
 | 4 | `BLOCKS` | Blocos por `(LocationId, z, y, x)` (dona `CTR-03`). |
-| 5 | `ACTORS` | Presença, posição, vivo, moeda e plano de viagem (§6.2). |
+| 5 | `ACTORS` | Presença, posição, vivo, `facing`, `perception_bp`, moeda e plano de viagem (§6.2); memória de ambiente fica em `P-04`. |
 | 6 | `ITEMS` | Itens e posse (dona `CTR-01`). |
 | 7 | `RELATIONSHIPS` | Relações por `(source, target, axis)` (dona `CTR-01`). |
 | 8 | `RUMORS` | Rumores e cópias (layout `CTR-01`; semântica `SOC-02`/`SOC-03`). |
@@ -1026,13 +1023,16 @@ omissão silenciosa.
 
 O CTR-01 fixa o prefixo `count u32` + `ActorId` ordenados. Este contrato acrescenta, após o
 prefixo e na mesma ordem, um registo por ator (o `actor_id` não é repetido no registo; a posição
-na lista é a identidade):
+na lista é a identidade). O payload desta revisão é o **`ACTORS` v2** (rev 4 do contrato):
+acrescenta `facing` e `perception_bp`, exigidos pelo `CTR-03` para o observador do FOV.
 
 ```text
 count u32
 actor_id u64[count]              (prefixo CTR-01; kind ACTOR; ascendente; único)
 record[count]:
   flags u8                       (bit0 vivo, bit1 em trânsito, bit2 jogador; bits 3..7 MUST 0)
+  facing u8                      (0 = não definido; 1 = N, 2 = L, 3 = S, 4 = O)
+  perception_bp u16              (0..=10_000)
   locality u64                   (0 se e só se em trânsito)
   x i32
   y i32
@@ -1048,6 +1048,10 @@ record[count]:
     route_edges u64[route_len]
 ```
 
+Tamanho do payload: `4 + 38 × count + Σ(34 + 8 × route_len_i)`, onde `38 = 8` (`actor_id`) `+ 30`
+(registo fixo: 1 `flags` + 1 `facing` + 2 `perception_bp` + 8 `locality` + 4 `x` + 4 `y` + 2 `z` +
+4 `wallet` + 4 `travel_len`) e `34 + 8 × route_len` é o plano de viagem opcional. Não há padding.
+
 Validação de `ACTORS`:
 
 - Cada `actor_id` MUST ser `EntityId` de kind `ACTOR` não nulo; a lista é estritamente ascendente
@@ -1061,6 +1065,14 @@ Validação de `ACTORS`:
   existente, `route_len` em `1..=MAX_TRAVEL_EDGES` e `route_edges` existentes ordenados.
 - `bit1` desligado exige `locality` existente e não nula, posição dentro dos limites da região
   (validada por `CTR-03`) e `travel_len = 0`.
+- `facing` MUST estar em `0..=4`: `0` é “não definido” (antes do primeiro passo cardinal
+  bem-sucedido) e `1..=4` são `N`, `L`, `S`, `O`, na mesma codificação do `CTR-03`. Só o **último
+  passo cardinal de um `mover` bem-sucedido** atualiza `facing`; `viajar`, ações sociais, câmera,
+  foco, viewport, overlay, NLG, rejeição, cancelamento, obsolescência, timeout e dry-run **não**
+  alteram o valor. NPCs seguem a mesma regra. Em trânsito, `facing`/`perception_bp` são preservados
+  no estado, mas o FOV do `CTR-03` ignora o ator até `arrival_tick`.
+- `perception_bp` MUST estar em `0..=10_000`; é o atributo de percepção do observador consumido
+  pelo FOV do `CTR-03`, entra no hash e nunca é derivado de câmera, foco, viewport ou modelo.
 - `wallet` MUST estar em `0..=10_000` (`CurrencyAmount`). `TRANSFER_CURRENCY` bem-sucedido conserva
   a soma das carteiras, exige `amount` em `1..=10_000`, `source`/`target` distintos, existentes,
   vivos e com saldo suficiente na origem; se o destino exceder `10_000`, a ação é rejeitada em vez
@@ -1068,9 +1080,13 @@ Validação de `ACTORS`:
   Transferência de `0` não emite efeito.
 - O ator morto permanece no estado com `bit0` desligado (o save não o apaga) e não pode agir nem
   ser alvo social; a morte não é um sistema desta sessão (§9.1).
-- HP, atributos, memória, ordem de inventário, estado de FSM e moedas em itens **não** entram neste
-  payload v1; são pendências `P-04`/`P-07`/`P-08` (§9.2). A ausência de HP é deliberada: não há
-  combate no recorte e o único predicado social necessário é “vivo”.
+- HP, `linguagem_bp`/`inteligencia_bp`, `EnvironmentMemory`, ordem de inventário, estado de FSM e
+  moedas em itens **não** entram neste payload v2; `facing` e `perception_bp` entram. HP/inventário/
+  FSM ficam em `P-08`, os atributos restantes em `P-07`, e a **memória de ambiente
+  (`EnvironmentMemory`) fica explicitamente pendente de `P-04`**: `FOV-01` e `BEH-01` não podem
+  implementá-la nem persisti-la antes de uma secção/versão nova do envelope; nenhum campo de memória
+  é inventado aqui. A ausência de HP é deliberada: não há combate no recorte e o único predicado
+  social necessário é “vivo”.
 - A secção inteira é ordenada por `ActorId`; não há ordem de inserção, de `HashMap` ou de
   compilação. Um ator em trânsito continua na lista e no hash.
 
@@ -1124,12 +1140,14 @@ volátil que apareça no golden é bug de golden, não feature de observabilidad
 
 ### 6.6 Memória, atributos e genomas futuros
 
-- O envelope v2 do CTR-01 não tem secção de memória, de atributos de ator nem de genoma. Este
-  contrato não inventa tags nem campos: a ausência é declarada e registada em §9.2 (`P-04`,
-  `P-07`, `P-08`).
-- Enquanto não existir secção canónica, memória, atributos e genomas MUST NOT ser gravados como se
-  fossem estado: um save que os inclua fora do envelope é inválido, e um replay que os leia de
-  fonte externa viola §5.7.
+- O envelope v2 do CTR-01 não tem secção de memória, de atributos de ator nem de genoma. `facing` e
+  `perception_bp` são campos de `ACTORS` v2 (§6.2); `EnvironmentMemory`, os demais atributos e o
+  genoma não têm secção. Este contrato não inventa tags nem campos: a ausência é declarada e
+  registada em §9.2 (`P-04`, `P-07`, `P-08`).
+- Enquanto não existir secção canónica, `EnvironmentMemory`, atributos restantes e genomas MUST NOT
+  ser gravados como se fossem estado: um save que os inclua fora do envelope é inválido, e um replay
+  que os leia de fonte externa viola §5.7. `facing`/`perception_bp` são a exceção já codificada em
+  `ACTORS` v2.
 - O bridge temporário admitido é a configuração imutável do `SimulationContract`: atributos usados
   por fórmulas sociais podem ser constantes de fixture pinadas por versão de contrato, registadas
   no cabeçalho `AFRL`; elas não evoluem em jogo e não substituem estado por ator.
@@ -1513,8 +1531,9 @@ ele compõe resolução, passo e durabilidade.
 - A **geometria, rotas, portões, ocupação e reserva**: pertencem a `CTR-03`. Este contrato exige
   que o custo e a agenda sejam derivados e validados, não que a região seja definida aqui.
 - **Regras, DC, allowlist de efeitos, materializador e percepção**: pertencem a `CTR-04`/`FOV-01`.
-- **Atributos, memória, inventário e genoma** como estado canónico: não há secção no envelope v2
-  (§6.6); são pendências `P-04`/`P-07`/`P-08`.
+- **Atributos restantes, memória, inventário e genoma** como estado canónico: `facing` e
+  `perception_bp` entram em `ACTORS` v2 (§6.2); os demais atributos, `EnvironmentMemory`,
+  inventário e genoma continuam sem secção e são pendências `P-04`/`P-07`/`P-08`.
 - **Desfecho de encontro agendado, validade de passagem e reserva de portão**: o disparo é
   determinístico, a semântica é pendência `P-06`.
 - **Migração completa de saves entre versões de produto**, código, testes, benchmarks, `cargo` e
@@ -1529,12 +1548,12 @@ ele compõe resolução, passo e durabilidade.
 | `P-01` | Semântica de `origin_actor`/`origin_locality`/`origin_tick` de rumor (quem é a origem ao semear a partir de fato testemunhado, ao transferir e ao chegar a outra localidade). | Layout CTR-01 §5.2; semântica `SOC-02`; consumidor `SOC-03`. | Sem ela, `SOC-03` não pode definir origem em propagação nem comparar cópias; `SOC-02` não pode gravar o rumor com origem canónica. | Aberta. |
 | `P-02` | Estado de moeda: `wallet` em `ACTORS` (§6.2) e conservação em `TRANSFER_CURRENCY`. | Proposta deste contrato; produto `PD-04`/`PD-09`; consumidores `GAME-01`, `APP-01`, `SOC-01`. | Se rejeitada, `negociar` com `offer_moeda` fica sem saldo verificável e `GAME-01`/`APP-01` não podem aplicar a transferência de forma determinística. | Proposta, pendente de ratificação. |
 | `P-03` | Armazenamento de `GREETING_COOLDOWN_TICKS = 120` por par direcionado. | CTR-01 rev 5 não tem campo de cooldown em `RELATIONSHIPS`; requer revisão de contrato ou uma entrada de agenda `GREETING_COOLDOWN_EXPIRY`; dono `S-CONTRACT`/`SOC-01`. | Sem armazenamento canónico, o cooldown não é reproduzível; `SOC-01` e `GAME-01` não podem aplicá-lo no tick nem no replay. | Aberta (bloqueante para cooldown). |
-| `P-04` | Secções canónicas de memória de ambiente e de genoma/MLP; secção de atributos de ator. | Envelope CTR-01 v2 não as tem; `BEH-01`, MLP/genética e `CORE-01` (nova versão). | `BEH-01` não pode persistir memória; qualquer cartão de MLP/genética não pode depender de save/hash; sem atributos canónicos, fórmulas sociais ficam presas a constantes de fixture (`P-07`). | Aberta. |
+| `P-04` | Secção canónica de memória de ambiente (`EnvironmentMemory`) e de genoma/MLP; atributos de ator restantes. | Envelope CTR-01 v2 não as tem; `FOV-01`/`BEH-01`, MLP/genética e `CORE-01` (nova versão). | `FOV-01`/`BEH-01` não podem implementar nem persistir `EnvironmentMemory` antes de secção/versão nova; qualquer cartão de MLP/genética não pode depender de save/hash; sem atributos canónicos restantes, fórmulas sociais ficam presas a constantes de fixture (`P-07`). | Aberta (bloqueia FOV-01/BEH-01). |
 | `P-05` | Layout binário dos eventos de domínio de `INT-05`. | `GAME-01`/`CORE-02`; spec wave INT-05. | `REPLAY-01`, `E2E-01` e `STORE-02` não podem materializar eventos; este contrato só regista `events_digest` e bytes opacos. | Aberta. |
 | `P-06` | Desfecho de `SCHEDULED_MEETING`, validade/expiração de passagem (`PASS_VALIDITY_TICKS`) e reserva de portão. | `SOC-02`/`GAME-01`/`INT-05`; `CTR-03` para reserva. | Enquanto aberta, o disparo de encontro é no-op registado e passagens não têm efeito materializado; `GAME-01` não pode prometer concessão. | Aberta. |
-| `P-07` | Atributos de ator usados nas fórmulas sociais (`linguagem_bp`, `inteligencia_bp`, `percepcao_bp`). | DOC-02 §5.1 diz que chegam normalizados “por CTR-01”, mas o CTR-01 rev 5 não fixa a secção; dono `S-CORE`/`RULE-01`. | Sem secção, as fórmulas só podem usar constantes de fixture pinadas no `SimulationContract`; `SOC-01` não pode evoluir atributos por ator. | Aberta (bridge por contrato). |
+| `P-07` | Atributos de ator restantes usados nas fórmulas sociais (`linguagem_bp`, `inteligencia_bp`); `perception_bp` já está em `ACTORS` v2. | DOC-02 §5.1 diz que chegam normalizados “por CTR-01”, mas o CTR-01 rev 5 não fixa a secção; dono `S-CORE`/`RULE-01`. | Sem secção, as fórmulas só podem usar constantes de fixture pinadas no `SimulationContract`; `SOC-01` não pode evoluir esses atributos por ator. | Aberta (bridge por contrato). |
 | `P-08` | Componentes de ator restantes: HP, ordem de inventário, estado de FSM, moedas em itens. | `CTR-01`/`CTR-04`/`BEH-01`. | Fora do recorte atual; `GAME-01` não pode implementar combate/inventário/MLP antes de contrato próprio. | Aberta (não bloqueia a sessão social). |
-| `P-09` | Payload `REGION` do `CTR-03` (`generator_version`, `flags`, `seed u64`, bounds e arestas) e derivação de `RegionId`/`spec_digest`; `RegionId`/`tick` no envelope, `spec_digest` só como insumo da derivação. | Dono `CTR-03` (`docs/planning/contracts/region-perception-overlay.md`, worktree `ctr-03`); `CTR-02` referencia e não redefine. | Até o `CTR-03` congelar payload/derivação, `CORE-01`/`STORE-01` não podem pinar os bytes canónicos de `REGION` nem o hash regional completo; o `RngState` já usa `Seed(u64)`. | Aberta (dependência de contrato irmão). |
+| `P-09` | Atribuição do `RegionId` (opaco) e payload `REGION` do `CTR-03` (`generator_version`, `flags`, `seed u64`, bounds e arestas); `RegionId`/`tick` no envelope. | Dono `CTR-03` (`docs/planning/contracts/region-perception-overlay.md`, worktree `ctr-03`); `CTR-02` trata `RegionId` como opaco e não consome `INT-03`. | Até o `CTR-03` congelar payload/atribuição, `CORE-01`/`STORE-01` não podem pinar os bytes canónicos de `REGION` nem o hash regional completo; o `RngState` já usa `Seed(u64)`. | Aberta (dependência de contrato irmão). |
 
 ### 9.3 Consumidores que não podem avançar
 
@@ -1552,6 +1571,8 @@ ele compõe resolução, passo e durabilidade.
 - `APP-01`: pode avançar no recibo e na idempotência; bloqueado em `P-02` para negociação com
   moeda e em `P-05` se o recibo precisar do evento materializado.
 - `BEH-01`: bloqueado em `P-04` e `P-08`; nenhuma memória ou genoma é persistido antes disso.
+- `FOV-01`: consome `facing`/`perception_bp` de `ACTORS` v2, mas fica bloqueado em `P-04` para
+  `EnvironmentMemory`; não pode inventar memória nem derivá-la de câmera/foco.
 - `E2E-01`: pode correr o roteiro sem modelo; bloqueado em `P-05`/`P-06` para asserções sobre
   eventos e desfecho de encontro.
 - `TUI-01`/`CLI-01`: podem avançar apenas por recibos e projeções; não têm permissão para derivar
@@ -1566,7 +1587,7 @@ verifica.
 | Critério | Exigência do cartão | Onde este contrato fecha | Prova documental | Implementação futura |
 | --- | --- | --- | --- | --- |
 | `AC-CTR-02-01` | Custos lógicos por comando; render/NLG/relógio/viewport não avançam nem selecionam; rejeição/obsolescência com resultado e custo definidos; dry-run não gasta RNG. | §2.1–§2.7, §4.4, §6.3 | Tabela de custos referenciada; intervalo e ordem; tabela resultado × tick × RNG; lista de 0 ticks; dry-run sem promoção. | `CORE-02`/`GAME-01` com testes de custo, recusa e dry-run; `TUI-01` com hash antes/depois de foco. |
-| `AC-CTR-02-02` | Agenda regional determinística, limites por pulso, viagem NPC multi-pulso, atividade de todas as áreas sem viewport, agenda no estado/hash. | §3.1–§3.6, §6.1, §6.4 | Ordem de pulso; payload `AGENDA` com `seq`; regra `arrival_tick`; nível único `REGIONAL_ATIVA`; secção no hash regional. | `CORE-02`/`BEH-02` com 10k ticks, limites `LIMITE_ATINGIDO` e comparação de hash de áreas fora do foco. |
+| `AC-CTR-02-02` | Agenda regional determinística, limites por pulso, viagem NPC multi-pulso, atividade de todas as áreas sem viewport, agenda no estado/hash. | §3.1–§3.6, §6.1, §6.4 | Ordem de pulso; payload `AGENDA` com `seq`; regra `arrival_tick`; nível único `REGIONAL_ATIVA`; `facing`/`perception_bp` em `ACTORS` v2; secção no hash regional. | `CORE-02`/`BEH-02` com 10k ticks, limites `LIMITE_ATINGIDO` e comparação de hash de áreas fora do foco. |
 | `AC-CTR-02-03` | Streams isoladas; snapshot/replay preservam cursores; empates, overflow e distribuição inválida com resultado definido; nenhum sorteio invisível. | §4.1–§4.8, §5.5 | `Seed(u64)` no `RngState`, chave BLAKE3 por stream e ChaCha20 RFC fixado; `DrawSpec`/`DrawOutcome`; limite de 8 palavras; payload `RNG` de 44 bytes; auditoria de consumo. | `CORE-01`/`SOC-03` com isolamento social × combat, restauração de cursor, word golden e casos de erro. |
 | `AC-CTR-02-04` | Log versionado e replay completo/parcial entre localidades preservam hash; truncamento/fora de ordem/versão falham; durabilidade preserva último estado em crash; métricas voláteis fora do golden; recibo não afirma efeito perdido. | §5.1–§5.8, §6.3–§6.5, §7.1–§7.9, §8.2–§8.4 | `AFRL` v1 relativo (`base_entry_seq`), entrada 148, payload de comando 162, rodapé e cadeia; tabela de rejeições; autoridade dupla; recibo na transação; tabela de crash; `Acked` e invalidação pós-restart. | `REPLAY-01`/`STORE-01`/`APP-01` com replay de checkpoint não zero, crash em cada etapa, restauro e golden sem campos voláteis. |
 
@@ -1575,6 +1596,10 @@ está em `AC-CTR-02-01` e §3.6; “ações e trajetos entre áreas reproduzem a
 `AC-CTR-02-02` e `AC-CTR-02-04`; “dry-run não gasta RNG definitivo” e “ação obsoleta/recusada tem
 resultado e custo definidos” estão em `AC-CTR-02-01`/§2.5; “crash preserva último estado durável”
 está em `AC-CTR-02-04`/§7.5; “métricas voláteis fora do golden/hash” está em `AC-CTR-02-04`/§6.3.
+
+Fecho de G-01: `ACTORS` v2 inclui `facing` e `perception_bp` (§6.2) para o observador do FOV;
+`EnvironmentMemory` não é campo desta versão e fica explicitamente em `P-04`, com `FOV-01`/`BEH-01`
+bloqueados. Nenhuma memória, atributo restante ou genoma é inventado neste contrato.
 
 ## 11. Test list futura
 
@@ -1608,7 +1633,7 @@ verifica um comportamento. Nenhum depende de rede, GPU, pesos ou relógio real.
 6. `given_two_edges_when_travel_cost_then_matches_doc02_examples`.
 7. `given_agenda_travel_locality_mismatch_when_load_then_invalid`.
 8. `given_scheduled_meeting_bad_counterparty_locality_when_load_then_invalid`.
-9. `given_region_seed_when_derive_region_id_then_ctr03_formula`.
+9. `given_region_id_when_canonicalize_then_opaque_and_nonzero`.
 
 ### 11.4 RNG
 
@@ -1658,8 +1683,13 @@ verifica um comportamento. Nenhum depende de rede, GPU, pesos ou relógio real.
 3. `given_actors_with_transit_when_hash_then_transit_included`.
 4. `given_wallet_transfer_when_apply_then_total_conserved`.
 5. `given_same_state_when_canonicalize_twice_then_same_hash`.
-6. `given_region_id_and_seed_when_canonicalize_then_both_in_hash`.
+6. `given_region_id_and_seed_when_canonicalize_then_envelope_and_region_in_hash`.
 7. `given_region_payload_when_canonicalize_then_region_id_and_tick_are_envelope_only`.
+8. `given_cardinal_step_when_facing_then_last_direction`.
+9. `given_social_action_when_facing_then_unchanged`.
+10. `given_actor_when_perception_out_of_range_then_invalid`.
+11. `given_actors_payload_when_encode_then_size_formula`.
+12. `given_environment_memory_when_canonicalize_then_absent_pending_p04`.
 
 ### 11.8 Apresentação e NLG
 
@@ -1695,12 +1725,12 @@ revisão independente e ratificação do maintainer. Este documento não se auto
 | 16 | Recuperação com fallback para revisão anterior íntegra e recusa de inconsistência. | Aceitar. | Preserva o último estado durável e informa a perda. | “Reparar” por inferência pode promover estado errado. |
 | 17 | Backup com três cópias verificadas, rehash antes de apagar e proibição de renomear WAL. | Aceitar. | Rotação segura e restaurável. | Copiar/renomear WAL aberto corrompe o catálogo. |
 | 18 | `wallet` em `ACTORS` e conservação em `TRANSFER_CURRENCY`. | Aceitar, sujeito a `P-02`. | Dá consequência mecânica à negociação sem economia de itens. | Sem saldo, a oferta de moeda não é aplicável nem verificável. |
-| 19 | `ACTORS` mínimo (presença, posição, vivo, moeda, viagem); HP/atributos/memória fora de v1. | Aceitar. | Evita inventar componentes não contratados. | Incluir campos sem contrato cria hash instável e migração prematura. |
-| 20 | Memória, atributos e genoma fora do hash até nova secção/versão. | Aceitar. | O envelope v2 não os tem; não se fabrica tag. | Gravar fora do envelope quebra round-trip e replay. |
+| 19 | `ACTORS` v2 com presença, posição, vivo, `facing`, `perception_bp`, moeda e viagem; HP/atributos restantes/memória/FSM fora. | Aceitar. | Fecha G-01 para FOV sem inventar `EnvironmentMemory`; `P-04` mantém a memória pendente. | Sem `facing`/`perception_bp` o FOV não tem observador; incluir memória agora exigiria versão nova. |
+| 20 | `EnvironmentMemory`, atributos restantes e genoma fora do hash até nova secção/versão; `facing`/`perception_bp` já em `ACTORS` v2. | Aceitar. | O envelope v2 não tem secção de memória/atributos restantes; não se fabrica tag. | Gravar fora do envelope quebra round-trip e replay. |
 | 21 | Eventos de domínio opacos com `events_digest` até `P-05`. | Aceitar. | Permite log/recibo sem fixar layout alheio. | Inventar layout aqui colide com `INT-05`. |
 | 22 | `step` puro com `SimContext` versionado; `execute` compõe commit/ACK. | Aceitar. | Mantém o núcleo sem I/O e a durabilidade numa fronteira só. | `step` com I/O impede replay e teste determinístico. |
 | 23 | `custo_viajar = Σ_arestas (2 + Σ células do corredor)`, sem sobrecarga adicional; `Q-01` fechada. | Aceitar. | É a fórmula do DOC-02 §4.2/§3.2 e reproduz os exemplos 24/31/33. | Outra leitura divergiria dos goldens já fixados pela spec. |
-| 24 | `REGION` = payload do CTR-03 (`generator_version`, `flags`, `Seed(u64)`, bounds, arestas); `RegionId`/`tick` no envelope `AFCS`; `spec_digest` só insumo da derivação (`P-09`). | Aceitar. | Alinha CTR-01/CTR-03 sem duplicar `region_id` nem inventar campo de estado. | `RegionId`/`spec_digest` no payload mudaria o hash regional e divergiria do CTR-03. |
+| 24 | `RegionId(u64)` opaco, atribuído pelo subsistema regional e transportado no envelope `AFCS`; `REGION` = payload do CTR-03 (`generator_version`, `flags`, `Seed(u64)`, bounds, arestas); CTR-02 não define derivação (`P-09`). | Aceitar. | Alinha CTR-01/CTR-03, elimina a dependência `INT-03` e não duplica `region_id`. | Derivar `RegionId` no CTR-02 criaria dependência não declarada e hash divergente. |
 | 25 | Payload de comando fixo de 162 bytes com presença explícita; `draws[]` na ordem de execução e `touched[]` por stream. | Aceitar. | Torna `entry_len` e o digest reproduzíveis byte a byte. | Payload sem larguras/ordem impede round-trip e replay. |
 | 26 | Recibo no índice durável dentro da transação de revisão/log/head. | Aceitar. | Crash entre commit e ACK não perde o recibo idempotente. | Recibo fora da transação permite efeito durável sem retry idempotente. |
 
@@ -1719,6 +1749,7 @@ revisão independente e ratificação do maintainer. Este documento não se auto
 | `E2E-01` | `INT-05`/`INT-06` | cenário, hash, replay, recusas | Asserção sobre evento não materializado (`P-05`), tolerância a flake. |
 | `TUI-01`/`CLI-01` | `INT-17` (consumidores) | recibo, `BaseReadView` | Derivar estado/conhecimento da apresentação, cobrar tick por UI. |
 | `BEH-01` | `INT-05`/`INT-10` | passado reproduzível, agenda | Persistir memória/genoma antes de `P-04`. |
+| `FOV-01` | `INT-03`/`INT-14` | `facing`/`perception_bp` de `ACTORS` v2, estado regional | Inventar `EnvironmentMemory` ou derivar percepção de câmera/foco antes de `P-04`. |
 
 ## 14. Limitações e estado da entrega
 
@@ -1746,8 +1777,7 @@ revisão independente e ratificação do maintainer. Este documento não se auto
 - [Contrato CTR-01 — identidade, unidades e eventos](<identity-events.md>), rev 5.
 - `CTR-03` — região, percepção e overlay: `docs/planning/contracts/region-perception-overlay.md`
   (worktree `ctr-03`), payload de `REGION` (seed `u64`, `generator_version`, flags, bounds, arestas),
-  `RegionId`/`tick` no envelope e `spec_digest` como insumo da derivação; referenciado em §4.1/§6.1 e
-  `P-09`.
+  `RegionId` opaco no envelope e `tick` no envelope; referenciado em §4.1/§6.1 e `P-09`.
 - [Especificação de gameplay DOC-02](<../gameplay-spec.md>), rev 6.
 - [Especificação da onda — manifesto](<../wave-spec.md>), SHA-256 `328a8c7e…a360769`.
 - [Revisão de projeto — L-01](<../project-review.md>).

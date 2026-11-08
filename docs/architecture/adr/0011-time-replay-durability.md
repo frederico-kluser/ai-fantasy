@@ -29,10 +29,12 @@ O [CTR-02](<../../planning/contracts/time-replay-save.md>) usa `SaveStore`, `Eve
 `AGENDA`; `STORE-01`, `STORE-02` e `APP-01` dependem desta decisão para começar.
 
 A fronteira da região é do `CTR-03` (`docs/planning/contracts/region-perception-overlay.md`, worktree
-`ctr-03`), não deste ADR nem do CTR-02: o payload `REGION` contém `generator_version`, `flags`,
-`seed u64`, bounds e arestas; `RegionId` e `tick` vêm do envelope `AFCS` do CTR-01; `spec_digest` é
-insumo da derivação de `RegionId`, não campo de estado. O CTR-02 referencia a seed `u64`, o
-`RegionId` do envelope e a derivação de chave; a dependência fica registada como `P-09`.
+`ctr-03`), não deste ADR nem do CTR-02: o `RegionId(u64)` é **opaco**, atribuído pelo subsistema
+regional e transportado no envelope `AFCS` do CTR-01; o payload `REGION` contém `generator_version`,
+`flags`, `seed u64`, bounds e arestas; `tick` vem do envelope. O CTR-02 não consome conteúdo de
+`INT-03` nem redefine derivação; referencia a seed `u64` e a atribuição, e a dependência fica
+registada como `P-09`. O `ACTORS` v2 do CTR-02 inclui `facing` e `perception_bp` para o observador
+do FOV; `EnvironmentMemory` fica em `P-04`.
 
 ## Decisão
 
@@ -83,6 +85,11 @@ ao durável e uma política de atividade regional única e explícita.
    exceder é `RngCursorOverflow`. O `RngState` inclui a seed e `positions[code-1]`; `draw` deriva a
    stream explicitamente, sem seed global. Qualquer crate usada deve provar igualdade com esse fluxo
    por golden.
+9. **Observador do FOV no `ACTORS`.** O `ACTORS` v2 passa a incluir `facing` (`0..=4`; `0` não
+   definido, atualizado apenas pelo último passo cardinal de um `mover` bem-sucedido; ações sociais,
+   câmera, UI e NLG não alteram) e `perception_bp` (`0..=10_000`), ambos no hash e no save.
+   `EnvironmentMemory` não entra nesta versão: fica explicitamente em `P-04`, com `FOV-01`/`BEH-01`
+   bloqueados até uma secção/versão nova.
 
 ## Consequências
 
@@ -143,6 +150,10 @@ ao durável e uma política de atividade regional única e explícita.
 - `given_seed_and_position_when_draw_then_word_is_pinned`.
 - `given_position_2_35_when_draw_then_overflow_error`.
 - `given_region_payload_when_canonicalize_then_region_id_and_tick_are_envelope_only`.
+- `given_cardinal_step_when_facing_then_last_direction`.
+- `given_social_action_when_facing_then_unchanged`.
+- `given_actor_when_perception_out_of_range_then_invalid`.
+- `given_environment_memory_when_canonicalize_then_absent_pending_p04`.
 - `given_base_entry_seq_nonzero_when_replay_then_first_seq_is_base_plus_one`.
 - `given_command_payload_when_roundtrip_then_162_bytes`.
 - `given_aifs_header_revision_mismatch_when_load_then_durability_inconsistency`.
