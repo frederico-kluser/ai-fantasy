@@ -1,6 +1,6 @@
 # AI Fantasy
 
-**Simulação procedural offline com diálogos simbólicos, regras determinísticas e modelos locais de 2B.**
+**Simulação procedural offline em blocos, com diálogos simbólicos, regras determinísticas, modelos locais de 2B e visualização 2D isométrica (sem 3D).**
 
 <p align="center">
   <a href="https://github.com/frederico-kluser/ai-fantasy/actions/workflows/ci.yml"><img src="https://github.com/frederico-kluser/ai-fantasy/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
@@ -16,15 +16,29 @@
 
 ## O que é
 
-**AI Fantasy** é um RPG de mundo aberto em modo texto/ASCII inspirado no *Adventure Mode*
-de *Dwarf Fortress*, com o motor **Hermeneutic Core**:
+**AI Fantasy** é um RPG de mundo aberto inspirado no *Adventure Mode* de *Dwarf
+Fortress*, com o mundo numa **grelha de blocos** e visualização final **2D isométrica**,
+com o motor **Hermeneutic Core**:
 
+- O mundo é uma **grelha de blocos** estilo *Dwarf Fortress*/*Minecraft*: cada bloco pode
+  ser casa, caverna, buraco, árvore, parede, água ou chão — escavar e construir é a
+  linguagem do mundo.
+- **Cada personagem é uma individualidade**: um **mini perceptron (MLP)** próprio,
+  treinado pela experiência de vida e herdado/evoluído darwinianamente por raça/espécie.
 - A simulação é **matemática e determinística**: nenhum texto é gerado no *game loop*.
 - As interações sociais são gravadas como **tuplos simbólicos** (zero-string log).
 - O diálogo é traduzido **sob procura** (*lazy NLG*), quando o jogador o abre.
 - Toda a inferência corre **localmente** (offline), em modelos pequenos de ~2B.
 - Regras emergentes são **propostas** por um modelo local e **materializadas por código
   determinístico** — nunca executadas diretamente pelo modelo.
+
+## Visualização: 2D isométrico, sem 3D real
+
+**A visualização final do jogo é 2D com visão isométrica** — os blocos são projetados em
+diamante, como nos clássicos isométricos. **Não haverá nada de 3D real, nem agora nem ao
+final**: sem câmara 3D, sem malhas, sem *engine* 3D. A profundidade é pura projeção
+isométrica 2D; a TUI/ASCII fica apenas como interface de depuração e *fallback*. A
+decisão está registada no [roadmap](docs/architecture/roadmap.md) (secções 2.9 e 2.10).
 
 ## Regra zero: tudo offline
 
@@ -170,8 +184,11 @@ antes de empacotar o jogo para terceiros.
 
 ## English overview
 
-**AI Fantasy** is an offline-first, text-mode procedural RPG engine inspired by *Dwarf
-Fortress* adventure mode. The simulation is deterministic and emits symbolic tuples, not
+**AI Fantasy** is an offline-first procedural RPG engine inspired by *Dwarf
+Fortress* adventure mode. The world is a block grid (houses, caves, holes, trees) and the
+final visualization is **2D isometric — no real 3D at all**; each character is an
+individual with its own mini perceptron (MLP) shaped by life experience and darwinian
+evolution. The simulation is deterministic and emits symbolic tuples, not
 prose; dialogue is rendered lazily by a local LFM3-1.7B model, and fast typed decisions
 are made by a local d1-2B System One model. No cloud calls, no telemetry, no “JEV
 runtime”: JEV was only the historical label for the System One role. The repository is in
