@@ -61,8 +61,10 @@ existente; os comandos com marca de descoberta pendente são **propostas**, não
   prompts, ledger ou contratos de outros donos.
 - Escolher engine/render stack (D-06), custos de ação (DOC-02/CTR-02), semântica de rumor
   (`SOC-*`), geometria regional (CTR-03) ou gramática de propostas (CTR-04).
-- Publicar, fazer push/PR/merge/tag, instalar dependências, executar `cargo`, inferência, rede,
-  download de pesos ou abrir a base CoALA canônica.
+- Publicar, fazer push/PR/merge/tag, instalar dependências, executar build/test/lint/packaging
+  (`cargo build`, `test`, `fmt`, `clippy`, `nextest`, `llvm-cov`, `mutants`, `deny`, `audit`),
+  inferência, rede, download de pesos ou abrir a base CoALA canônica. `--version`/`--help` de
+  descoberta são permitidos e não contam como gate.
 - Declarar `DONE`, `INTEGRATED` ou freeze; o trabalhador entrega `DELIVERED_TO_REVIEW`.
 - Substituir os gates de qualidade por metas de performance: latência, RAM/VRAM, 2,8 GB e
   regressão de 20% continuam diagnóstico, não gate numérico nesta fase.
@@ -166,8 +168,11 @@ Host: Windows, `attempt-001`, 2026-11-08. Descoberta em dois passos: `Get-Comman
 (resolução por nome no `PATH`) e o caminho absoluto
 `C:\Users\kluse\.cargo\bin\<tool>.exe`. O shell padrão desta sessão não inclui
 `%USERPROFILE%\.cargo\bin` no `PATH`, embora o `PATH` de utilizador o contenha; por isso os
-binários Rust respondem por caminho absoluto e não por nome. `NO_PATH` é estado de ativação,
-não ausência. `--version` não é gate: nenhum gate Rust foi executado.
+binários Rust estão presentes em `.cargo\bin` e não são resolvidos por nome. `rustc`, `rustup`,
+`cargo-nextest`, `cargo-deny`, `cargo-audit`, `cargo-insta`, `rustfmt` e `clippy` foram
+verificados por caminho absoluto; `cargo-llvm-cov`/`cargo-mutants` são subcomandos e foram
+verificados por `cargo <sub> --version` com o `PATH` ativo. `NO_PATH` é estado de ativação, não
+ausência. `--version` não é gate: nenhum gate Rust foi executado.
 
 | Ferramenta | Caminho absoluto / descoberta | Versão observada | Classe |
 | --- | --- | --- | --- |
@@ -192,8 +197,9 @@ não ausência. `--version` não é gate: nenhum gate Rust foi executado.
 
 Nota: `rustc.exe`, `cargo.exe`, `rustfmt.exe` e `clippy-driver.exe` em `.cargo\bin` são shims do
 rustup com 0 bytes quando lidos diretamente; a versão real é resolvida pelo rustup
-(`stable-x86_64-pc-windows-msvc`). O achado não muda a classe: binário presente e versão
-verificada por caminho absoluto.
+(`stable-x86_64-pc-windows-msvc`). O achado não muda a classe: binário presente; ferramentas
+com binário próprio foram verificadas por caminho absoluto e subcomandos por `cargo <sub>
+--version`.
 
 Consequência: nenhum gate Rust foi executado nesta tentativa. As ferramentas estão
 `INSTALADO`/`NO_PATH`; os gates correspondentes ficam `BLOQUEADO_POR_PATH`/`NAO_MEDIDO`, nunca
@@ -215,9 +221,9 @@ components = ["rustfmt", "clippy", "llvm-tools-preview"]
 | --- | --- | --- |
 | Canal | `stable` é **flutuante**, não um pin exato; o toolchain instalado é `stable-x86_64-pc-windows-msvc`, ativo e default, sobreposto pelo `rust-toolchain.toml` da worktree. | `NÃO PINADO`; registar `rustc 1.99.1` como observação, não como pin. |
 | `rust-version`/MSRV | `Cargo.toml` não existe; MSRV não declarado nem derivado. `rustc 1.99.1` foi observado por `--version`. | `NÃO PINADO`; não inventar MSRV. |
-| Componentes | `rustfmt`, `clippy`, `llvm-tools-preview` declarados; `rustfmt 1.10.0-stable` e `clippy 0.1.99` responderam por caminho absoluto; `llvm-tools-preview` não foi exercitado. | Compatíveis com os gates; `llvm-cov` existe, mas não foi executado. |
+| Componentes | `rustfmt`, `clippy`, `llvm-tools-preview` declarados; `rustfmt 1.10.0-stable` e `clippy 0.1.99` responderam por caminho absoluto; `llvm-cov 0.9.1`/`mutants 27.1.0` por `cargo <sub> --version`; `llvm-tools-preview` não foi exercitado. | Compatíveis com os gates; `llvm-cov` existe, mas não foi executado. |
 | `edition` | `2024` em [`rustfmt.toml`](<../../../rustfmt.toml#L1-L4>). | Restrição de toolchain; o MSRV correspondente **NÃO** é afirmado aqui. |
-| Resolução local | `INSTALADO`/`NO_PATH`: binários em `C:\Users\kluse\.cargo\bin`, invocáveis por caminho absoluto; o shell padrão não os resolve por nome. | `BLOQUEADO_POR_PATH`; **não** `AUSENTE`. |
+| Resolução local | `INSTALADO`/`NO_PATH`: binários em `C:\Users\kluse\.cargo\bin`; ferramentas com binário próprio são invocáveis por caminho absoluto e subcomandos via `cargo <sub>` com o `PATH` ativo; o shell padrão não os resolve por nome. | `BLOQUEADO_POR_PATH`; **não** `AUSENTE`. |
 
 Procedimento de pin (dono `SCI-01`, gate `CP1`):
 
@@ -251,8 +257,8 @@ modelo ao runtime, template e projector aplicáveis. Fonte de facto: [offline-ai
 | Pesos LFM3 | `llm` | `models/lfm3-1.7b/LFM3-1.7B-Q4_0.gguf` | `sha256`, `bytes`, licença, origem | `ALEGAÇÃO`; não provisionado |
 | Template de chat | prompt | `models/lfm3-1.7b/chat_template.jinja` | `sha256`, `template_version` | `ALEGAÇÃO`; não provisionado |
 | Runtime llama.cpp | executor | binário/`llama-server` | nome, versão exata, `sha256` do binário | `NÃO PROVISIONADO`; versão não fixada |
-| Model card d1-2B | proveniência | URL/revisão | URL, revisão, data | `ALEGAÇÃO`; não revalidado |
-| Model card LFM3 | proveniência | URL/revisão | URL, revisão, data | `ALEGAÇÃO`; não revalidado |
+| Model card d1-2B | proveniência | URL/revisão | URL, revisão, `retrieved_at` | `ALEGAÇÃO`; não revalidado |
+| Model card LFM3 | proveniência | URL/revisão | URL, revisão, `retrieved_at` | `ALEGAÇÃO`; não revalidado |
 
 Factos declarados (não medidos): d1-2B com 1,92B parâmetros, base LFM3-VL-2B, contexto 128K
 (calibração ~64K), primitivas `noul`/`choice`/`score` em llama.cpp; LFM3-1.7B com 1,73B,
@@ -285,7 +291,8 @@ entrada de mídia. Nenhum caminho pode escapar de `AF_MODELS_DIR` (`..`, symlink
       },
       "source": {
         "url": "https://huggingface.co/LiquidAI/d1-2B-GGUF",
-        "revision": "<revisao>"
+        "revision": "<revisao>",
+        "retrieved_at": "<YYYY-MM-DD>"
       },
       "runtime": {
         "name": "llama.cpp",
@@ -304,7 +311,8 @@ entrada de mídia. Nenhum caminho pode escapar de `AF_MODELS_DIR` (`..`, symlink
       },
       "model_card": {
         "url": "https://huggingface.co/LiquidAI/d1-2B-GGUF",
-        "revision": "<revisao>"
+        "revision": "<revisao>",
+        "retrieved_at": "<YYYY-MM-DD>"
       }
     }
   ]
@@ -314,8 +322,9 @@ entrada de mídia. Nenhum caminho pode escapar de `AF_MODELS_DIR` (`..`, symlink
 Invariantes: `id` único e não vazio; `role` em `{system_one, llm}`; `sha256` em 64 hex
 minúsculos; `bytes > 0` (o `0` acima é placeholder, não medição); caminho relativo sem `..`;
 licença obrigatória; runtime com versão exata (nunca `latest`/`stable`); template obrigatório
-para `llm`; projector obrigatório se e só se houver mídia declarada; nenhuma URL de download é
-usada pelo runtime. Placeholders (`<...>`, `0`) são **estrutura**, não evidência.
+para `llm`; projector obrigatório se e só se houver mídia declarada; `source` e `model_card`
+exigem `url`, `revision` e `retrieved_at` (ISO-8601); nenhuma URL de download é usada pelo
+runtime. Placeholders (`<...>`, `0`) são **estrutura**, não evidência.
 
 ### 3.5 Licenças e obrigações
 
@@ -324,7 +333,8 @@ usada pelo runtime. Placeholders (`<...>`, `0`) são **estrutura**, não evidên
 | Código do repositório | MIT | [ADR 0007](<../../architecture/adr/0007-license-and-model-distribution.md#L14-L24>) | `LICENSE`, README, `cargo deny` | `ALEGAÇÃO` (não revalidada) |
 | Pesos LFM3/d1-2B | LFM Open License v1.0; uso comercial gratuito < US$ 10 mi | [model license](<https://docs.liquid.ai/lfm/help/model-license>) | Leitura do texto + registo no manifesto | `ALEGAÇÃO` (não revalidada) |
 | Dependências Rust | Allowlist: MIT, Apache-2.0, Apache-2.0 WITH LLVM-exception, BSD-2/3, ISC, Zlib, Unicode-3.0, MPL-2.0 | [`deny.toml`](<../../../deny.toml#L8-L19>) | `cargo deny check licenses` | `OBSERVADO` (config); gate `NAO_MEDIDO` (deny 0.20.2 instalado) |
-| Dependências proibidas | GPL/AGPL/SSPL/BUSL, `openssl`/`openssl-sys` | [`deny.toml`](<../../../deny.toml#L22-L28>) | `cargo deny check bans` | `OBSERVADO` (config) |
+| Licenças fora da allowlist (GPL/AGPL/SSPL/BUSL…) | Excluídas por omissão de `[licenses] allow` | [`deny.toml`](<../../../deny.toml#L8-L19>) | `cargo deny check licenses` | `OBSERVADO` (config); gate `NAO_MEDIDO` |
+| Bans explícitos (`openssl`/`openssl-sys`, wildcards) | `[bans]` | [`deny.toml`](<../../../deny.toml#L22-L28>) | `cargo deny check bans` | `OBSERVADO` (config); gate `NAO_MEDIDO` |
 | Assets | Nenhum asset de terceiros | [ADR 0007](<../../architecture/adr/0007-license-and-model-distribution.md#L36-L40>) | `docs/legal/assets.md` quando existir | `NÃO EXECUTADO` (sem assets) |
 | Ferramentas de desenvolvimento | Não distribuídas com o produto | — | Registar proveniência quando empacotadas | `ALEGAÇÃO` |
 
@@ -427,19 +437,46 @@ diagnóstico e fica fora dos gates de correção.
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | Q-01 | Toolchain resolvido e pinado | `rustc -vV` vs `rust-toolchain.toml` | `rust` | `rustc -vV`, `cargo -V`, `rustup show` | S | `INSTALADO`/`NO_PATH` (rustc 1.99.1); `BLOQUEADO_POR_PATH` | Canal flutuante ou `rustc` divergente → `ToolchainMismatch` | `SCI-01` |
 | Q-02 | Formatação | `rustfmt` | `rust` | `cargo fmt --all -- --check` | S | `INSTALADO`/`NO_PATH` (rustfmt 1.10.0); `NAO_MEDIDO` | Ficheiro não formatado → exit ≠ 0 | `SCI-02` |
-| Q-03 | Lint sem warnings | `clippy` | `rust` | `cargo clippy --workspace --all-targets --all-features -- -D warnings` | S | `INSTALADO`/`NO_PATH` (clippy 0.1.99); `NAO_MEDIDO` | `unwrap`/warning → `-D warnings` falha | `SCI-02`/`SCI-03` |
+| Q-03 | Lint sem warnings | `clippy` + `[workspace.lints]` | `rust` | `cargo clippy --workspace --all-targets --all-features -- -D warnings`; exige `[workspace.lints.clippy]` de [`code-quality.md`](<../../engineering/code-quality.md#L54-L76>), que `SCI-01` deve adicionar | S | `INSTALADO`/`NO_PATH` (clippy 0.1.99); `NAO_MEDIDO` (sem `Cargo.toml`) | `unwrap` sob `unwrap_used=deny` ou `unsafe` sob `unsafe_code=forbid` → falha | `SCI-01`/`SCI-02` |
 | Q-04 | Suíte executada | `nextest` (testes) | `rust` | `cargo nextest run --workspace --profile ci --no-fail-fast` | S | `INSTALADO`/`NO_PATH` (nextest 0.9.151); `NAO_MEDIDO` | Zero testes selecionados/perfil ausente → falha | `SCI-02` |
-| Q-05 | Cobertura de linha | `cargo-llvm-cov` (bp) | `rust` | `cargo llvm-cov nextest --workspace --fail-under-lines 90` | C | `INSTALADO`/`NO_PATH` (llvm-cov 0.9.1); `NAO_MEDIDO` | Linha global `8999` bp → `NO_GO` | `SCI-03` |
-| Q-06 | Cobertura de ramo | `cargo-llvm-cov` (bp) | `rust`/`coverage` | `cargo llvm-cov report --branch --fail-under-branches 85` (descoberta pendente) | C | `INSTALADO`/`NO_PATH` (llvm-cov 0.9.1); `NAO_MEDIDO` | Ramo global `8400` bp → `NO_GO` | `SCI-03` |
-| Q-07 | Cobertura de diff | `cargo-llvm-cov`/lcov (bp) | `coverage` | Interseção lcov do diff contra `DIFF_BASE_SHA`; `--fail-under-lines 95` (descoberta pendente) | C | `INSTALADO`/`NO_PATH` (llvm-cov 0.9.1); `NAO_MEDIDO` | Diff `9400` bp → `NO_GO` | `SCI-03` |
+| Q-05 | Cobertura de linha | `cargo-llvm-cov` (bp; flag %) | `rust` | `cargo llvm-cov nextest --workspace --fail-under-lines 90` | C | `INSTALADO`/`NO_PATH` (llvm-cov 0.9.1); `NAO_MEDIDO` | Linha global `8999` bp → `NO_GO` | `SCI-03` |
+| Q-06 | Cobertura de ramo | `cargo llvm-cov --branch` + `xtask coverage-branch` (BRF/BRH; bp) | `rust` | `cargo llvm-cov nextest --branch --lcov --output-path coverage/branch.lcov`; `cargo xtask coverage-branch --lcov coverage/branch.lcov --min-bp 8500` (proposto; `--branch` é **unstable** em 0.9.1 e **não existe** `--fail-under-branches`) | C | `INSTALADO`/`NO_PATH` (llvm-cov 0.9.1); `NAO_MEDIDO` (xtask não implementado) | lcov BRF/BRH = `8400` bp → `NO_GO`; BRF `0` → `NotMeasurable` | `SCI-03` |
+| Q-07 | Cobertura de diff | `xtask coverage-diff` (linhas alteradas ∩ lcov; bp) | `coverage` (proposto) | `cargo xtask coverage-diff --lcov coverage/lcov.info --base "$DIFF_BASE_SHA" --min-bp 9500` (proposto) | C | `AUSENTE` (xtask não implementado) | `9400` bp → `NO_GO`; denominador `0` → `NotMeasurable` | `SCI-03` |
 | Q-08 | Mutação | `cargo-mutants` + `xtask` (bp) | `mutants` | `cargo mutants --workspace --in-place --timeout 300`; score de `outcomes.json` no `xtask` | C | `INSTALADO`/`NO_PATH` (mutants 27.1.0); `NAO_MEDIDO` | Global `7900` bp, core/rules `8900` bp → `NO_GO` | `SCI-03` |
-| Q-09 | Complexidade configurada | `clippy` (limites) | `rust` | `clippy` com [`clippy.toml`](<../../../clippy.toml#L1-L7>) | S | `INSTALADO`/`NO_PATH` (clippy 0.1.99) + config; `NAO_MEDIDO` | Cognitiva `11`, 6 parâmetros ou 41 linhas lógicas → falha | `SCI-03` |
+| Q-09 | Complexidade configurada | `clippy` thresholds + lints | `rust` | `clippy` com [`clippy.toml`](<../../../clippy.toml#L1-L7>) **e** `cognitive_complexity`/`too_many_lines`/`too_many_arguments` em `[workspace.lints.clippy]`; sem os lints, os thresholds são inertes | S | `INSTALADO`/`NO_PATH` (clippy 0.1.99) + config; `NAO_MEDIDO` (sem `Cargo.toml`) | Cognitiva `11`, `41` linhas lógicas ou `6` parâmetros com os lints ativos → falha | `SCI-01`/`SCI-03` |
 | Q-10 | Complexidade ciclomática/aninhamento | Medidor AST dedicado | `complexity` (proposto) | `cargo xtask complexity` (descoberta pendente; `rust-code-analysis` ou AST próprio) | C | `AUSENTE` (medidor dedicado não implementado) | Ciclomática `11` ou aninhamento `4` → `NO_GO` | `SCI-03` |
 | Q-11 | Licenças/bans/fontes | `cargo-deny` | `rust` | `cargo deny check` | S | `INSTALADO`/`NO_PATH` (deny 0.20.2) + config; `NAO_MEDIDO` | GPL, `openssl`, yanked ou registry desconhecido → falha | `SCI-02` |
 | Q-12 | Advisories | `cargo-audit` | `audit` (proposto) | `cargo audit` | S | `INSTALADO`/`NO_PATH` (audit 0.22.2); `NAO_MEDIDO` (job ausente) | Advisory semeado → falha | `SCI-02`/`SCI-03` |
-| Q-13 | Rustdoc sem warnings | `rustdoc` | `rust` | `RUSTDOCFLAGS=-D warnings cargo doc --workspace --no-deps` | S | `INSTALADO`/`NO_PATH` (rustdoc do toolchain); `NAO_MEDIDO` | `missing_docs`/link quebrado → falha | `SCI-02` |
+| Q-13 | Rustdoc e `missing_docs` | `rustdoc` + `[workspace.lints.rust]` | `rust` | `RUSTDOCFLAGS=-D warnings cargo doc --workspace --no-deps`; `missing_docs="deny"` em `[workspace.lints.rust]` ([code-quality.md](<../../engineering/code-quality.md#L57-L60>)), adicionado por `SCI-01` | S | `INSTALADO`/`NO_PATH` (rustdoc do toolchain); `NAO_MEDIDO` (sem `Cargo.toml`) | Item público sem `///` → falha; link intra-doc quebrado → falha | `SCI-01`/`SCI-02` |
 | Q-14 | Doc-tests | `cargo test --doc` | `rust` | `cargo test --workspace --doc` | S | `INSTALADO`/`NO_PATH` (cargo 1.99.1); `NAO_MEDIDO` (job ausente) | Exemplo que não compila → falha | `SCI-03` |
 | Q-15 | Markdown e links | `markdownlint-cli2` + `lychee` | `docs` | `npx --offline --no-install markdownlint-cli2 "**/*.md"`; `lychee --offline` | B/S/C | `MEDIDO` (0 issues, 139 files); `lychee` `AUSENTE` local | Link/heading quebrado ou MD0xx → falha | `CTR-05`/`SCI-02` |
+
+**Ativação das lints.** `clippy.toml` define apenas thresholds; eles são inertes até existir
+`[workspace.lints.rust]`/`[workspace.lints.clippy]` no `Cargo.toml`
+([code-quality.md §3](<../../engineering/code-quality.md#L54-L76>)). `SCI-01` DEVE adicionar, no
+mínimo: `unsafe_code="forbid"`, `missing_docs="deny"`, `unused_must_use="deny"`;
+`all="deny"`, `pedantic="warn"`, `nursery="warn"`, `cognitive_complexity="deny"`,
+`unwrap_used="deny"`, `expect_used="deny"`, `panic="deny"`, `indexing_slicing="deny"`,
+`todo="deny"`, `unimplemented="deny"`, `dbg_macro="deny"`, `print_stdout="deny"`,
+`print_stderr="deny"`. Sem essa configuração, Q-03/Q-09/Q-13 ficam `NÃO EXECUTÁVEL` e as
+provas NP-07…NP-09/NP-11 só valem com as lints ativas.
+
+**Fórmula da cobertura de ramo (Q-06).** `cargo llvm-cov --branch` é instável e não tem limiar
+nativo em 0.9.1 (`--fail-under-branches` é opção inválida). O `xtask coverage-branch` lê o lcov
+(`BRF`/`BRH`), calcula `cobertura_bp = floor(10000 * BRH / BRF)` e compara com `8500`; `BRF=0`
+é `NotMeasurable` (não 100%). O comando `--branch` DEVE ser reexecutado na versão de llvm-cov
+pinada e registado como instável.
+
+**Fórmula da cobertura de diff (Q-07).** `xtask coverage-diff` cruza as linhas adicionadas por
+`git diff --unified=0 "$DIFF_BASE_SHA"...HEAD -- '*.rs'` com os registos `DA:<linha>,<hits>` do
+lcov do mesmo ficheiro. Denominador = linhas alteradas presentes no lcov (instrumentáveis;
+geradas/testes/`main.rs` excluídos com justificação); numerador = essas linhas com `hits>0`;
+`cobertura_bp = floor(10000 * numerador / denominador)`; denominador `0` é `NotMeasurable`.
+Nenhum `--fail-under-lines` global é usado para diff.
+
+**bp versus flags.** `QualityPolicy` guarda limiares em `bp` (`9000` = 90%); flags de ferramenta
+(`--fail-under-lines`, `--min-bp` do xtask) usam percentagem inteira ou bp explicitamente. A
+conversão é exata: `bp = 100 * percent` para percentagens inteiras; o relatório canónico usa bp.
 
 ### 5.3 Gates de fronteira, artefactos e release
 
@@ -450,7 +487,8 @@ diagnóstico e fica fora dos gates de correção.
 | Q-18 | Evidência presente e fail-closed | `verify_quality` (`GateReport`) | `build` | `cargo xtask verify-quality` (descoberta pendente) | S/C | `AUSENTE` | Relatório ausente/truncado, suíte pulada, `N/A` automático → `NO_GO` | `SCI-03`/`SCI-02` |
 | Q-19 | Artefactos de modelo | `af models verify` | `models` (manual/CI opcional) | `af models verify --dir ./models` | S | `AUSENTE` (binário) | Hash/bytes/licença/runtime/template errados → falha | `AI-01` |
 | Q-20 | Release sem pesos/segredos | `assemble_release` + scan | `release` (proposto) | `cargo xtask package` (descoberta pendente) | C | `AUSENTE` | `*.gguf`, segredo, SBOM/licença ausente, build não `--locked` → `ReleaseError` | `REL-01` |
-| Q-21 | Evidência e recuperação CoALA | CLI CoALA local | manual/`build` | `coala.py where/search/get` | B/S/C | `OBSERVADO` (DB local, exit 0) | Busca vazia, resultado expirado ou fonte divergente → bloqueia entrega | `CTR-05`/revisor |
+| Q-21 | Evidência e recuperação CoALA | CLI CoALA local | manual/`build` | `coala.py where/recall/sync/doctor/search/get` | B/S/C | `OBSERVADO` (DB local, exit 0) | Busca vazia, resultado expirado ou fonte divergente → bloqueia entrega | `CTR-05`/revisor |
+| Q-22 | Planejamento documental (orchestrator-local, **não versionado**) | `planning-check.py` (links/definições/DAG) | `docs`/manual | `python .work/planning-check.py` (cópia local da raiz original; não é artefacto do produto) | B | `MEDIDO` (0 failures, 1084 links) | Link/heading/definição quebrada → falha | `CTR-05`/orquestrador |
 
 ### 5.4 Escopo por fase: bootstrap, scaffold e código
 
@@ -461,7 +499,8 @@ DEVE ser inferior à fase derivada do repositório: se `Cargo.toml` existe, a fa
 
 | Gate | Fase `B` (F0, docs) | Fase `S` (pós-scaffold) | Fase `C` (pós-código) |
 | --- | --- | --- | --- |
-| Markdown/link/`planning-check` | OBRIGATÓRIO | OBRIGATÓRIO | OBRIGATÓRIO |
+| Markdown/link (Q-15) | OBRIGATÓRIO | OBRIGATÓRIO | OBRIGATÓRIO |
+| `planning-check` (Q-22) | OBRIGATÓRIO com `W-PLAN-01` (script local não versionado) | Fora da fase | Fora da fase |
 | CoALA local (where/recall/sync/doctor/search/get) | OBRIGATÓRIO | OBRIGATÓRIO | OBRIGATÓRIO |
 | Toolchain resolvido/pin | `BLOQUEADO_POR_PATH` (instalado, fora do `PATH` padrão) | OBRIGATÓRIO | OBRIGATÓRIO |
 | `fmt`/`clippy`/`nextest` | `NÃO EXECUTÁVEL` (sem workspace) | OBRIGATÓRIO | OBRIGATÓRIO |
@@ -491,6 +530,12 @@ Regras do bootstrap:
 5. **O bootstrap só fecha `CP1`.** `BOOTSTRAP_GO` é aceitável para scaffold/gates de fundação;
    não substitui `GO` de código nem autoriza release.
 
+Waivers nomeados:
+
+| Waiver | Gate | Escopo | Motivo | Dono | Expira | Aprovado por |
+| --- | --- | --- | --- | --- | --- | --- |
+| `W-PLAN-01` | Q-22 | Apenas F0/planejamento; nunca produto/release | `planning-check.py` é orquestrador-local e não versionado | Orquestrador/`CTR-05` | `Cargo.toml` existir ou fase `B` terminar | `REVIEW-CTR-05` no freeze |
+
 ### 5.5 Catálogo de provas negativas
 
 Cada prova é um fixture ou caso mínimo que DEVE produzir falha observável. A coluna “resultado
@@ -498,17 +543,17 @@ esperado” é o contrato do medidor, não uma execução.
 
 | ID | Caso | Resultado esperado |
 | --- | --- | --- |
-| `NP-01` | Cobertura de ramo `8400` bp | `NO_GO` |
+| `NP-01` | lcov BRF/BRH = `8400` bp calculado por `xtask coverage-branch` | `NO_GO` |
 | `NP-02` | `af-core` linha/ramo `9400`/`8900` bp | `NO_GO` |
 | `NP-03` | `af-rules` linha/ramo `9900` bp | `NO_GO` |
-| `NP-04` | Cobertura de diff `9400` bp | `NO_GO` |
+| `NP-04` | `xtask coverage-diff` = `9400` bp (linhas alteradas ∩ lcov) | `NO_GO` |
 | `NP-05` | Mutação global `7900` bp e core/rules `8900` bp | `NO_GO` |
 | `NP-06` | Função com ciclomática `11` | `NO_GO` |
-| `NP-07` | Função com cognitiva `11` | `NO_GO` |
-| `NP-08` | Função com `41` linhas lógicas | `NO_GO` |
-| `NP-09` | Função com `6` parâmetros | `NO_GO` |
-| `NP-10` | Aninhamento `4` | `NO_GO` |
-| `NP-11` | `clippy` com warning sob `-D warnings` | `NO_GO` |
+| `NP-07` | Função com cognitiva `11` com `cognitive_complexity=deny` ativo | `NO_GO` |
+| `NP-08` | Função com `41` linhas com `too_many_lines` ativo | `NO_GO` |
+| `NP-09` | Função com `6` parâmetros com `too_many_arguments` ativo | `NO_GO` |
+| `NP-10` | Aninhamento `4` (medidor AST) | `NO_GO` |
+| `NP-11` | `unwrap` com `unwrap_used=deny` ativo | `NO_GO` |
 | `NP-12` | `cargo fmt --check` com diff | `NO_GO` |
 | `NP-13` | `if` sem teste de ambos os ramos | `NO_GO` (ramo) |
 | `NP-14` | Zero testes selecionados | `NO_GO` |
@@ -527,11 +572,13 @@ esperado” é o contrato do medidor, não uma execução.
 | `NP-27` | Link/heading quebrado | `NO_GO` (docs/links) |
 | `NP-28` | Busca CoALA vazia/expirada | Bloqueia `DELIVERED_TO_REVIEW` |
 | `NP-29` | Ferramenta instalada fora do `PATH` classificada como `AUSENTE` | `NO_GO` (misclassificação `NO_PATH`→`AUSENTE`) |
+| `NP-30` | `BRF=0` no lcov ou denominador de diff `0` | `NotMeasurable` (`NO_GO`), nunca `100%` |
+| `NP-31` | Link/heading local quebrado no snapshot de planejamento | `NO_GO` (Q-22, `W-PLAN-01`) |
 
 ### 5.6 Limiares congelados (não reduzidos)
 
 Nenhum limiar é inferior ao [ADR 0006](<../../architecture/adr/0006-tdd-coverage-mutation.md#L32-L44>),
-ao [AGENTS.md §6](<../../../AGENTS.md#L55-L60>) ou ao [ROADMAP §6](<../../../ROADMAP.md#L754-L775>).
+ao [AGENTS.md §6](<../../../AGENTS.md#L82-L95>) ou ao [ROADMAP §6](<../../../ROADMAP.md#L754-L775>).
 
 | Gate | Limiar | bp |
 | --- | --- | --- |
@@ -558,7 +605,7 @@ equivalentes são documentados e excluídos com justificação; nunca em silênc
 | Template de chat | Exemplo no repo; conteúdo real no bundle | `models/.../chat_template.jinja` | `sha256` + `template_version` | `AI-01`/`CTR-04` |
 | Projector (`mmproj-*`) | **Nunca** | `AF_MODELS_DIR` | `sha256` + `bytes` | `AI-01` |
 | Manifesto de modelos | Sim (exemplo, sem pesos) | `docs/engineering/model-manifest.example.json` | schema + campos | `AI-01` |
-| Model card (snapshot) | Referência, não cópia | URL/revisão no manifesto | URL + revisão + data | `S-MODELS` |
+| Model card (snapshot) | Referência, não cópia | URL/revisão no manifesto | URL + revisão + `retrieved_at` | `S-MODELS` |
 | Cassette de teste | Sim, sanitizada | `tests/fixtures/**` | `request_hash`, `model_id`, `prompt_version`, `seed` | `AI-02`/`E2E-01` |
 | SBOM | No artefacto de release | `release/sbom.json` | `sha256` | `REL-01` |
 | `NOTICE`/licenças | Sim, quando aplicável | release | `sha256` | `REL-01` |
@@ -580,7 +627,7 @@ ArtifactRef {
   path: RelativePath,        // relativo, sem "..", sem absoluto
   bytes: u64,                // > 0
   sha256: [u8; 32],          // conteúdo exato
-  source: SourceRef,         // URL/revisão ou "local"
+  source: SourceRef,         // {url, revision?, retrieved_at?} ou "local"
   license: LicenseRef,       // obrigatório para pesos/runtime/assets
 }
 ```
@@ -601,8 +648,8 @@ verificados antes do uso; qualquer divergência é erro tipado, nunca “aviso e
   cassette.
 - **Projector:** obrigatório apenas quando há mídia; se declarado, `sha256`/`bytes` são
   verificados; ausência com mídia declarada é `ProjectorMissing`.
-- **Model card:** referência (URL + revisão + data), não uma cópia de conteúdo; uma mudança de
-  revisão do card exige revisão da licença e do manifesto.
+- **Model card:** referência (`url` + `revision` + `retrieved_at`), não uma cópia de conteúdo;
+  uma mudança de revisão do card exige revisão da licença e do manifesto.
 - **Release:** `assemble_release` NÃO PODE incluir pesos, segredos, PII, paths absolutos ou
   build não `--locked`; SBOM, licenças e `NOTICE` são obrigatórios quando aplicáveis.
 
@@ -773,7 +820,8 @@ NÃO passam.
 Exit codes (contrato do runner): `0` passou; `1` asserção falhou; `2` uso/cenário inválido;
 `3` ambiente (modelo ausente em live, permissão); `4` timeout. Erros:
 `InvalidSpec`, `UnknownStep`, `MissingFixture`, `ModelModeUnavailable`, `AssertionFailed`,
-`SandboxViolation`, `ScenarioTimeout`, `NoTests`, `MissingArtifact`.
+`SandboxViolation`, `ScenarioTimeout`, `NoTests`, `MissingArtifact`. `NoTests` e
+`MissingArtifact` são **exit `2`** (cenário/artefacto inválido), não `1` (asserção).
 
 Aceite: catálogo regional/hermético; no-tests e ausência de artefacto falham; input/NLG/câmera
 sem efeito temporal implícito; consumidores `MOTOR-01`/`PLAY-01`.
@@ -831,8 +879,11 @@ humana. Consumidores: juiz, `MOTOR-01`, `REL-02`.
    nenhuma interface usa `HashMap`, `f32`, relógio ou RNG global
    ([CTR-01 §5](<identity-events.md#L952-L1200>)).
 3. **Offline.** Só loopback; `TransportError` recusa host externo, DNS, proxy, redirect e
-   `0.0.0.0`; `AF_OFFLINE=1` é o default e `AF_OFFLINE=0` não habilita Internet
-   ([ADR 0001](<../../architecture/adr/0001-offline-first-runtime.md>)).
+   `0.0.0.0`. `AF_OFFLINE` não é interruptor de rede: valor diferente não habilita sockets
+   externos ([overview §9](<../../architecture/overview.md#L431-L439>)); o teste de integração
+   arranca o binário com `AF_OFFLINE=1`
+   ([ADR 0001](<../../architecture/adr/0001-offline-first-runtime.md#L56-L62>)), sem afirmar que
+   `1` é o default do processo.
 4. **Modelo propõe, núcleo dispõe.** `RawModelReply` é dado não confiável; nenhum gate usa
    saída de modelo como autoridade ([ADR 0004](<../../architecture/adr/0004-model-proposes-core-disposes.md>)).
 5. **Sem duplicação de contrato.** `VerifiedBundle`/`ArtifactRef` não redefinem `RawModelReply`,
@@ -863,7 +914,7 @@ literal verificada pelo juiz; nenhum consumidor improvisa tipo compatível.
 | `TUI-01` | `INT-18` | `ui_transition`, `BaseReadView` | Tick por input/NLG/câmera; escrita no core. |
 | `MOTOR-01` | `INT-18`/`INT-20` | cenário regional, `GateReport`, evidência | Tratar bootstrap como produção; ignorar relatório ausente. |
 | `PLAY-01` | `INT-18` | runner/apresentação | Render como autoridade ou gate de motor. |
-| `SCI-01` | `INT-11`/`INT-20` | pin de toolchain, `rust-version`, cmds | Pin sem evidência; MSRV inventado. |
+| `SCI-01` | `INT-01`/`INT-05`/`INT-20` | pin de toolchain, `rust-version`, `[workspace.lints]`, cmds | Pin sem evidência; MSRV inventado; lints de workspace ausentes. |
 | `SCI-02` | `INT-20` | jobs fail-closed, agregador `build` | `continue-on-error`, skip verde, `echo` no lugar de gate. |
 | `SCI-03` | `INT-20` (produtor) | `verify_quality`, cobertura/mutação/complexidade | `N/A` automático, piso reduzido, relatório ausente como sucesso. |
 | `SCI-04` | `INT-20` (produtor) | offline/determinismo | Gate por grep; `AF_OFFLINE=0` como Internet. |
@@ -888,10 +939,12 @@ automático e sem alegar pisos de `af-core`/`af-rules` antes de código mensurá
 O contrato DEVE definir: ferramenta instalada fora do `PATH` como `NO_PATH`
 (`BLOQUEADO_POR_PATH`), ferramenta não instalada em caminho verificado como `AUSENTE` (nunca
 `N/A`); `N/A` só por `Waiver`; relatório ausente/truncado/suíte pulada/`NotMeasurable` como
-`NO_GO` ou `INCOMPLETO`, nunca `GO`; provas negativas para cada limiar; erros tipados de `INT-11`
-(host externo, redirect, proxy, timeout, oversize, hash), `INT-18` (spec inválida, no-tests,
-sandbox, timeout, artefacto) e `INT-20` (`GateNotGo`, pesos, segredo, SBOM, licença,
-autorização). Prova: §5.5, §6.7, §7.1–§7.3.
+`NO_GO` ou `INCOMPLETO`, nunca `GO`; ramo e diff com as fórmulas da §5.2 (BRF/BRH e linhas
+alteradas ∩ lcov; denominador `0` ⇒ `NotMeasurable`); Q-03/Q-09/Q-13 condicionados a
+`[workspace.lints.rust]`/`[workspace.lints.clippy]`; provas negativas para cada limiar; erros
+tipados de `INT-11` (host externo, redirect, proxy, timeout, oversize, hash), `INT-18` (spec
+inválida, no-tests, sandbox, timeout, artefacto) e `INT-20` (`GateNotGo`, pesos, segredo, SBOM,
+licença, autorização). Prova: §5.2, §5.5, §6.7, §7.1–§7.3.
 
 ### 8.3 `AC-CTR-05-03` — Allowlist e não execução
 
@@ -899,7 +952,9 @@ Nenhum ficheiro **versionado** além de `docs/planning/contracts/toolchain-quali
 criado/alterado; o único artefacto temporário é `.work/planning-check.py`, coberto por
 `/.work/` no `.gitignore` e ausente do commit. NÃO DEVE haver
 edição de `ROADMAP.md`, `wave-spec.md`, `decisions.md`, prompts, outros contratos, CI,
-`rust-toolchain.toml`, `Cargo.*`, ADR/índice, ledger ou código; nem `cargo`, rede, inferência,
+`rust-toolchain.toml`, `Cargo.*`, ADR/índice, ledger ou código; nem build/test/lint/packaging
+(`cargo build`, `test`, `fmt`, `clippy`, `nextest`, `llvm-cov`, `mutants`, `deny`, `audit`);
+apenas `--version`/`--help` de descoberta. Sem rede, inferência,
 pesos, API keys, push/PR/tag/rebase/force/`--no-verify`. Evidência fica fora da worktree; a base
 CoALA canônica não é aberta. Prova: `git status`/diff da entrega e evidências.
 
@@ -916,7 +971,7 @@ consumidores e o que não podem improvisar; integrar com CTR-01…CTR-04 por sec
 | Critério | Exigência do cartão | Onde fecha | Prova documental | Implementação futura |
 | --- | --- | --- | --- | --- |
 | `AC-CTR-05-01` | Versões/licenças, máquina Windows/Linux, matriz | §2–§5 | Tabelas de classes, inventário, host, matriz e limiares | `SCI-01`/`SCI-03`/`AI-01` |
-| `AC-CTR-05-02` | Alegação ≠ medição; falhas, ausências e `NO_PATH` reportados | §2.2, §5.4, §5.5, §6.7, §7 | Provas `NP-01`…`NP-29`; erros tipados | `SCI-02`/`SCI-03`/`SCI-04` |
+| `AC-CTR-05-02` | Alegação ≠ medição; falhas, ausências e `NO_PATH` reportados | §2.2, §5.2, §5.4, §5.5, §6.7, §7 | Provas `NP-01`…`NP-31`; erros tipados | `SCI-02`/`SCI-03`/`SCI-04` |
 | `AC-CTR-05-03` | Sem escrita fora da allowlist; sem execução indevida | §1.2, §8.3 | Diff/status e evidência externa | Revisor |
 | `AC-CTR-05-04` | INT-11/18/20 e integração CTR-01…04 | §7 | Assinaturas, tabelas de consumo e linhas citadas | `AI-01`, `E2E-01`, `SCI-03`, `REL-01` |
 
@@ -955,7 +1010,7 @@ Nomes no padrão do projeto; nenhum foi executado. São especificação de teste
 29. `given_oversize_reply_when_post_loopback_then_oversize_reply`
 30. `given_foreign_pid_when_stop_then_not_owned`
 31. `given_port_in_use_when_start_then_port_in_use`
-32. `given_scenario_without_tests_when_run_then_exit_1`
+32. `given_scenario_without_tests_when_run_then_exit_2`
 33. `given_scenario_missing_fixture_when_run_then_exit_2`
 34. `given_live_without_model_when_run_then_exit_3`
 35. `given_scenario_timeout_when_run_then_exit_4`
@@ -972,6 +1027,11 @@ Nomes no padrão do projeto; nenhum foi executado. São especificação de teste
 46. `given_tool_installed_outside_path_when_probe_then_no_path_not_absent`
 47. `given_absolute_cargo_bin_when_version_then_installed_with_version`
 48. `given_installed_tool_when_gate_not_run_then_not_measured`
+49. `given_branch_lcov_8400_bp_when_coverage_branch_then_no_go`
+50. `given_changed_lines_9400_bp_when_coverage_diff_then_no_go`
+51. `given_workspace_lints_missing_when_clippy_gate_then_not_executable`
+52. `given_planning_check_missing_after_cargo_toml_when_gate_then_out_of_phase`
+53. `given_brf_zero_when_coverage_branch_then_not_measurable`
 
 ## 10. Decisões para freeze
 
@@ -987,7 +1047,7 @@ independente e ratificação do maintainer. Este documento não se autoaprova.
 | `F-05` | Fase `B`/`S`/`C` derivada, não só declarada | Aceitar §5.4 | Impede bootstrap eterno e piso falso. | Relatório `GO` sem código mensurável. |
 | `F-06` | Pisos `af-core`/`af-rules` são `DIFERIDO`, não `N/A`/100% | Aceitar §5.4 | Honestidade sobre ausência de crate. | Alegação de piso cumprido sem prova. |
 | `F-07` | Limiares em `bp` e iguais aos do ADR 0006/ROADMAP | Aceitar §5.6 | Sem float, sem redução silenciosa. | Gate numérico instável ou rebaixado. |
-| `F-08` | Cobertura de ramo/diff por `llvm-cov` com descoberta de flags | Aceitar §5.2 | Evita inventar flags; mede o que o ADR exige. | Ramo/diff não cobrados. |
+| `F-08` | Ramo por `cargo llvm-cov --branch` (instável) + `xtask coverage-branch` sobre BRF/BRH; **sem** `--fail-under-branches` | Aceitar §5.2 | Mede ramo sem inventar flag; fórmula explícita. | Ramo não cobrado ou gate com opção inexistente. |
 | `F-09` | Mutação medida por `outcomes.json` + `xtask`, não flag fictícia | Aceitar §5.2 | Score auditável e reproduzível. | Mutação “passa” sem cálculo. |
 | `F-10` | Complexidade ciclomática/aninhamento exige medidor AST dedicado | Aceitar §5.2 (Q-10) | `clippy` cobre cognitiva/linhas/params, não ciclomática/nesting. | Limites de AGENTS §6 não cobrados. |
 | `F-11` | `INT-11` transporta `RawModelReply` de CTR-04, sem parse | Aceitar §7.1/§7.4 | Parser único e sem duplicação. | Dois parsers e divergência de schema. |
@@ -997,6 +1057,9 @@ independente e ratificação do maintainer. Este documento não se autoaprova.
 | `F-15` | Evidência append-only, primeira falha preservada | Aceitar §6.7 | Auditoria e *flaky* visível. | Retry apaga histórico e esconde bug. |
 | `F-16` | Linux é `NÃO MEDIDO` até execução real | Aceitar §4.2 | D-05 não autoriza fingir paridade. | Alegação cross-platform falsa. |
 | `F-17` | `INSTALADO`/`NO_PATH` ≠ `AUSENTE`; `--version` ≠ gate | Aceitar §2.1–§2.2/§3.1 | Evita falso bloqueio por `PATH` e falso verde por versão. | Gates Rust tratados como ausentes ou aprovados sem execução. |
+| `F-18` | Diff = linhas alteradas (`git diff --unified=0`) ∩ lcov via `xtask coverage-diff`; **sem** `--fail-under-lines` global | Aceitar §5.2 | Define o gate de 95% e o denominador. | Diff não medido ou medido como linha global. |
+| `F-19` | `planning-check` é gate de planejamento com `W-PLAN-01`, fora do produto/release | Aceitar §5.4 | Script orquestrador-local não versionado; não finge gate de produto. | Gate obrigatório sem medidor reproduzível. |
+| `F-20` | `[workspace.lints.rust]`/`[workspace.lints.clippy]` obrigatórias no scaffold | Aceitar §5.2 | Thresholds de `clippy.toml` são inertes sem os lints. | Complexidade/`unwrap`/`missing_docs` não falham. |
 
 ## 11. Como este contrato será consumido
 
@@ -1009,7 +1072,7 @@ independente e ratificação do maintainer. Este documento não se autoaprova.
 | `TUI-01` | §7.2, §7.4 | Tick por input/NLG/câmera; escrita no core. |
 | `MOTOR-01` | §5, §7.3 | Bootstrap como produção; relatório ausente como sucesso. |
 | `PLAY-01` | §7.2 | Render como autoridade ou gate de motor. |
-| `SCI-01` | §3.2, §5.4 | Pin/MSRV sem evidência; fase declarada abaixo da derivada. |
+| `SCI-01` | §3.2, §5.2, §5.4 | Pin/MSRV sem evidência; lints de workspace ausentes; fase declarada abaixo da derivada. |
 | `SCI-02` | §5.2–§5.4, §7.3 | Skip verde, `continue-on-error`, `echo` no lugar de gate. |
 | `SCI-03` | §5.2, §5.5, §5.6, §7.3 | Piso reduzido, `N/A` automático, relatório ausente como `GO`. |
 | `SCI-04` | §5.3, §7.4 | Offline por grep; determinismo sem hash/100 runs. |
@@ -1023,10 +1086,11 @@ independente e ratificação do maintainer. Este documento não se autoaprova.
 - **Toolchain instalado, mas fora do `PATH` padrão.** `rustc 1.99.1`, `cargo 1.99.1`,
   `rustup 1.29.3`, `cargo-nextest 0.9.151`, `cargo-llvm-cov 0.9.1`, `cargo-mutants 27.1.0`,
   `cargo-deny 0.20.2`, `cargo-audit 0.22.2`, `cargo-insta 1.49.0`, `rustfmt 1.10.0-stable` e
-  `clippy 0.1.99` estão em `C:\Users\kluse\.cargo\bin` e respondem por caminho absoluto; o shell
-  padrão desta sessão não os resolve por nome (`INSTALADO`/`NO_PATH`, não `AUSENTE`). Nenhum gate
-  Rust foi executado (`BLOQUEADO_POR_PATH`/`NAO_MEDIDO`); o canal em `rust-toolchain.toml`
-  continua `stable` flutuante e o MSRV não foi derivado.
+  `clippy 0.1.99` estão em `C:\Users\kluse\.cargo\bin`; versões de ferramentas com binário
+  próprio foram obtidas por caminho absoluto e as de subcomando por `cargo <sub> --version` com
+  o `PATH` ativo; o shell padrão desta sessão não os resolve por nome (`INSTALADO`/`NO_PATH`,
+  não `AUSENTE`). Nenhum gate Rust foi executado (`BLOQUEADO_POR_PATH`/`NAO_MEDIDO`); o canal em
+  `rust-toolchain.toml` continua `stable` flutuante e o MSRV não foi derivado.
 - **`rust-toolchain.toml` flutua.** `channel = "stable"` é configuração observada, não pin; o
   pin exato é pendência de `SCI-01` (§3.2).
 - **CI parcialmente fail-open.** O job `rust` é pulado sem `Cargo.toml` e o agregador `build`
@@ -1035,11 +1099,18 @@ independente e ratificação do maintainer. Este documento não se autoaprova.
   falta `xtask` ([ci.yml](<../../../.github/workflows/ci.yml#L135-L141>)). `SCI-02`/`SCI-04`
   DEVEM tornar isso fail-closed; este contrato apenas registra a lacuna.
 - **Cobertura de ramo/diff não instrumentada.** A CI atual só impõe linha 90%
-  ([ci.yml](<../../../.github/workflows/ci.yml#L114-L117>)); flags de ramo/diff exigem
-  descoberta e implementação em `SCI-03`.
-- **Complexidade ciclomática/aninhamento sem medidor.** `clippy.toml` cobre cognitiva,
-  argumentos e linhas ([clippy.toml](<../../../clippy.toml#L1-L7>)); ciclomática e nesting
-  continuam lacuna (`Q-10`).
+  ([ci.yml](<../../../.github/workflows/ci.yml#L114-L117>)). `cargo-llvm-cov 0.9.1` não tem
+  `--fail-under-branches`; `--branch` é instável e sem limiar. Ramo exige
+  `xtask coverage-branch` sobre BRF/BRH e diff exige `xtask coverage-diff` (linhas alteradas ∩
+  lcov), ambos pendentes em `SCI-03` (`Q-06`/`Q-07`, `F-08`/`F-18`).
+- **Lints de workspace ausentes.** `clippy.toml` só define thresholds
+  ([clippy.toml](<../../../clippy.toml#L1-L7>)); sem `[workspace.lints.rust]`/
+  `[workspace.lints.clippy]` no `Cargo.toml`
+  ([code-quality.md](<../../engineering/code-quality.md#L54-L76>)), `unwrap`, cognitiva, 41
+  linhas e `missing_docs` não falham. `SCI-01` deve adicioná-las; até lá Q-03/Q-09/Q-13 ficam
+  `NÃO EXECUTÁVEL` (`F-20`).
+- **Complexidade ciclomática/aninhamento sem medidor.** `clippy` cobre cognitiva, argumentos e
+  linhas apenas com os lints ativos; ciclomática e nesting continuam lacuna (`Q-10`).
 - **Sem `audit` e doc-tests na CI atual.** `cargo audit` e `cargo test --doc` não aparecem no
   workflow; são gates propostos para `SCI-02`/`SCI-03`.
 - **Linux não medido.** Nenhum valor Linux é afirmado; a execução exige o procedimento §4.2 e
@@ -1065,7 +1136,7 @@ independente e ratificação do maintainer. Este documento não se autoaprova.
 - [Especificação da onda](<../wave-spec.md>), manifesto SHA-256 `328a8c7e…a360769`.
 - [Decisões do maintainer](<../decisions.md>), D-01…D-08.
 - [ROADMAP — gates, cartões e comandos](<../../../ROADMAP.md#L754-L831>).
-- [AGENTS.md — regras e gates](<../../../AGENTS.md#L55-L60>).
+- [AGENTS.md — regras e gates](<../../../AGENTS.md#L82-L95>).
 - [Regras de desenvolvimento](<../../engineering/development-rules.md>).
 - [Estratégia de testes](<../../engineering/testing-strategy.md>).
 - [Qualidade de código](<../../engineering/code-quality.md>).
