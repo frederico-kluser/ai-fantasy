@@ -185,7 +185,18 @@ A consulta de um `EntityId` segue esta ordem, sem reparar o valor armazenado:
    `StructureId`, `RumorId`, `GateId` ou `EdgeId`), devolver `WrongEntityKind`.
 3. Consultar o slot `(kind, index)`. Se estiver livre ou a geração atual for diferente da geração
    do ID, devolver `StaleEntityId` com o ID armazenado e a geração atual.
-4. Só então devolver a entidade viva.
+4. Para `GateId`/`EdgeId`, só depois de o ID estar bem formado e a entidade viva, validar a
+   topologia mínima do grafo: portão/aresta inexistente, extremos inválidos ou par inconsistente
+   devolve `InvalidGate`/`InvalidEdge`; para os restantes tipos, devolver a entidade viva.
+
+**Precedência de validação de ID** (a mesma para todos os newtypes, incluindo Gate/Edge):
+
+| Condição | Resultado | Nota |
+| --- | --- | --- |
+| `NONE`, `INVALID`, `kind=0`, `index=0`, `generation=0` ou all-ones | `InvalidEntityId` | Forma do ID; não é erro topológico. |
+| `kind` não é o newtype esperado | `WrongEntityKind` | Não se converte por cast. |
+| Slot livre ou geração antiga | `StaleEntityId` | ID bem formado, mas obsoleto. |
+| `GateId`/`EdgeId` vivo mas fora do grafo/incompatível | `InvalidGate`/`InvalidEdge` | Invalidade **topológica/semântica**, nunca de forma. |
 
 | Situação | Resultado | O que nunca acontece |
 | --- | --- | --- |
@@ -685,7 +696,8 @@ Validação por intenção:
 - `meeting_locality` e `destination` MUST ser `LocationId` (kind 3) não nulo e com `index != 0`;
   `gate_id` MUST ser `GateId` (kind 6) válido; `rumor_id` MUST ser `RumorId` (kind 5); `topic_id`
   MUST ser `FactId` quando `topic_kind=1` e `RumorId` quando `topic_kind=2`. Kind errado é
-  `InvalidTopic`/`InvalidGate`.
+  `WrongEntityKind`; tópico incompatível é `InvalidTopic`; portão/aresta sem topologia válida é
+  `InvalidGate`/`InvalidEdge`.
 - `away_destination` é um `Cell`/`GridPoint` (alias, §3.2), codificado **apenas** como
   `away_x`/`away_y`/`away_z` com `away_present=1`; não existe um campo `u64` separado. Com
   `away_present=0`, os três são zero; com `1`, os três são o ponto exato e `scheduled_tick != 0`.
@@ -1218,8 +1230,11 @@ registar o erro, mas não publicar metade.
 | Moeda do payload divergente do efeito | encoder | `InvalidCurrencyTransfer`; rejeita o fato. |
 | `ATTACH_LABEL` com ator inválido | efeito | `InvalidLabelActor`; sem label. |
 | Intenção desconhecida ou payload incoerente | encoder/decoder | `UnknownIntent`/`InvalidIntentPayload`. |
-| `TopicId`/`FactId`/`GateId`/`EdgeId` inválido | encoder/decoder | `InvalidTopic`/`InvalidGate`/`InvalidEdge`; sem referência. |
-| `GateId`/`EdgeId` com `index=0`, geração 0, all-ones ou stale | consulta/validação | `InvalidGate`/`InvalidEdge`/`StaleEntityId`; sem reparação. |
+| `TopicId`/`FactId` inválido | encoder/decoder | `InvalidTopic`; sem referência. |
+| `GateId`/`EdgeId` com referência topológica inválida | encoder/decoder | `InvalidGate`/`InvalidEdge`; não é erro de forma. |
+| `GateId`/`EdgeId` com `index=0`, geração 0 ou all-ones | consulta | `InvalidEntityId`; o ID não tem forma válida. |
+| `GateId`/`EdgeId` bem formado com geração antiga | consulta | `StaleEntityId`; não resolve para o novo ocupante. |
+| `GateId`/`EdgeId` vivo mas fora do grafo/topologia inválida | consulta | `InvalidGate`/`InvalidEdge`; invalidade semântica, não de forma. |
 | `RUMORS` com campo/ordem/kind inválido | canonicalizador | `InvalidCanonicalRumor`; `decode_canonical` rejeita. |
 | `LABELS` com ator/label/tick/ordem inválido | canonicalizador | `InvalidCanonicalLabel`; `decode_canonical` rejeita. |
 | Coordenada fora dos limites | construção | `CoordinateOutOfBounds`; sem clamp. |
@@ -1276,11 +1291,11 @@ ser válido quando o slot 5 passa para a geração 8; a consulta devolve `StaleE
 novo ocupante seja outro ator. `00 00 00 00 00 00 00 00` é `NONE` e não pode preencher `speaker` ou
 `listener`; `FF FF FF FF FF FF FF FF` é `INVALID`.
 
-`GateId`/`EdgeId` inválidos, além de `NONE`/`INVALID`: `00 06 00 00 00 00 00 01` (índice 0),
-`00 07 00 00 00 00 00 01` (índice 0), `00 06 00 00 00 09 00 00` (geração 0) e
-`00 07 00 00 00 10 00 00` (geração 0) devolvem `InvalidGate`/`InvalidEdge`; um ID válido com
-geração antiga devolve `StaleEntityId`; um `GateId` passado onde se espera `EdgeId` devolve
-`WrongEntityKind`.
+`GateId`/`EdgeId` com `index=0`, geração 0 ou all-ones são `InvalidEntityId` (forma inválida):
+`00 06 00 00 00 00 00 01`, `00 07 00 00 00 00 00 01`, `00 06 00 00 00 09 00 00`,
+`00 07 00 00 00 10 00 00` e `FF FF FF FF FF FF FF FF`. Um ID bem formado com geração antiga devolve
+`StaleEntityId`; um `GateId` passado onde se espera `EdgeId` devolve `WrongEntityKind`; um Gate/Edge
+bem formado mas inexistente no grafo devolve `InvalidGate`/`InvalidEdge`.
 
 ### 7.2 Cabeçalho e oito efeitos
 
