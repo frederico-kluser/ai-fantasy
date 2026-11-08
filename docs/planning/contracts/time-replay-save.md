@@ -97,13 +97,17 @@ custos de sistema e guardrails (§4.2/§11.3), o que não custa tempo (§4.3), o
 matriz de sorteios (§5.10), os resultados e o consumo de RNG por resultado (§6), a agenda regional
 (§7), a linha temporal de rumor (§9.4) e o roteiro curado (§10).
 
-O payload canónico de `REGION` — `Seed(u64)`, `generator_version`, `RegionId` e `spec_digest` — é
-propriedade do `CTR-03` (`docs/planning/contracts/region-perception-overlay.md`, worktree `ctr-03`).
-Este contrato referencia a seed `u64` e a derivação, não redefine `RegionId`/`spec_digest` e regista
-a dependência em `P-09` (§9.2). O `RegionId` é um `u64` não nulo, não é `EntityId` e é derivado pelo
-`CTR-03` §2.2 como `first_u64_be(BLAKE3("AFRI" || generator_version u16 || seed u64 || spec_digest))`;
-`spec_digest` é `BLAKE3-256("AFRS" || RegionSpec canónica)`. O CTR-02 consome o valor e o hash, sem
-recalcular nem substituir a fórmula.
+O payload canónico de `REGION` (tag 1) é propriedade do `CTR-03`
+(`docs/planning/contracts/region-perception-overlay.md`, worktree `ctr-03`) e contém
+`generator_version u16`, `flags u16`, `seed u64`, bounds e arestas; `RegionId` e `tick` vêm do
+envelope `AFCS` do CTR-01, não do payload `REGION`. `spec_digest` é insumo da derivação de
+`RegionId` e não é campo do estado. Este contrato referencia a seed `u64`, o `RegionId` do envelope
+e a derivação, não redefine `RegionId`/`spec_digest` nem cria campos novos, e regista a dependência
+em `P-09` (§9.2). O `RegionId` é um `u64` não nulo, não é `EntityId` e é derivado pelo `CTR-03`
+§2.2 como
+`first_u64_be(BLAKE3("AFRI" || generator_version u16 || seed u64 || spec_digest))`;
+`spec_digest` é `BLAKE3-256("AFRS" || RegionSpec canónica)`. O CTR-02 consome o valor do envelope e
+o hash, sem recalcular nem substituir a fórmula.
 
 `PD-01` (escala de tempo), `PD-03` (viagem, sobrecarga de embarque e limite de 240 ticks), `PD-07`
 (parâmetros de rumor) e `PD-08` (cadência e limites de agenda) parametrizam diretamente este
@@ -491,12 +495,15 @@ Regras normativas:
   consumidos durante um tick desta sessão. A geração de região usa a PRF própria do `CTR-03` e
   **não** consome estas streams; `spawn` não é um RNG de geração paralelo.
 - `Seed(u64)` é o tipo canónico da seed, alinhado ao roadmap (“`Tick(u64)`, `Seed(u64)`”) e ao
-  `CTR-03` (dono do payload `REGION`). `RegionId`, `spec_digest` e `generator_version` são
-  propriedade do `CTR-03`; este contrato referencia a derivação e não a redefine (§9.2, `P-09`).
+  `CTR-03` (dono do payload `REGION`). `RegionId` (envelope), `spec_digest` (insumo da derivação) e
+  `generator_version` (payload) são propriedade do `CTR-03`; este contrato referencia a derivação e
+  não a redefine (§9.2, `P-09`).
 - O `RngState` é o valor de runtime `{ seed: Seed, positions: [u64; 4] }`: a seed **e** as posições
-  por stream. A seed não é duplicada na secção `RNG` (tag 10): ela vive na secção `REGION` (tag 1,
-  dona `CTR-03`) e é reconstruída no load; a secção `RNG` grava apenas as posições (§4.8). Sem seed
-  no `RngState`, `draw` não é realizável e uma seed global seria proibida.
+  por stream. `positions[code - 1]` é a posição da stream `code` (`1..=4` → índices `0..=3`); o
+  vetor nunca é indexado pelo código diretamente. A seed não é duplicada na secção `RNG` (tag 10):
+  ela vive na secção `REGION` (tag 1, dona `CTR-03`) e é reconstruída no load; a secção `RNG` grava
+  apenas as posições (§4.8). Sem seed no `RngState`, `draw` não é realizável e uma seed global seria
+  proibida.
 - A chave de 32 bytes de cada stream é derivada explicitamente da seed `u64`:
   `stream_key = BLAKE3-256("AI-FANTASY-RNG-KEY-V1" || u64_be(seed) || u16_be(code))`.
   Não há `seed[32]` canónica nem expansão opcional de fixture: a seed é `u64`, e a chave de 32
@@ -505,7 +512,10 @@ Regras normativas:
   parâmetros fixados:
   - chave: `stream_key` de 32 bytes;
   - nonce: 12 bytes, todos zero;
-  - contador de bloco de 32 bits: começa em `0` e incrementa uma vez por bloco de 64 bytes;
+  - contador de bloco de 32 bits: começa em `0`, incrementa uma vez por bloco de 64 bytes e é
+    válido em `0..=2^32-1`; como cada bloco tem 8 palavras de 64 bits, existem `2^35` palavras
+    (índices `0..=2^35-1`) e o cursor pode valer `0..=2^35` (`MAX_STREAM_WORDS = 2^35`);
+    ultrapassar `2^35` é `RngCursorOverflow`;
   - serialização de saída: as 16 palavras de 32 bits de cada bloco em **little-endian**, na ordem
     do RFC;
   - palavra de 64 bits `n`: `bloco = n / 8`, par `j = n % 8`, e
@@ -547,7 +557,7 @@ draw(state: &RngState, request: DrawSpec) -> Result<DrawOutcome, DomainError>
 | `index` | `u64` | índice da primeira palavra tentada. |
 | `value` | `u64` | `0..bound-1`; resultado uniforme exato. |
 | `words_consumed` | `u32` | `1..=8`; palavras efetivamente lidas, incluindo rejeições. |
-| `position_after` | `u64` | `index + words_consumed`; posição a promover. |
+| `position_after` | `u64` | `index + words_consumed`, em `0..=2^35`; a promoção nunca excede o limite. |
 
 `draw` é **puro**: lê `state` e devolve o resultado, sem mutar o estado recebido. Ele deriva
 `stream_key` de `state.seed` e de `request.stream` (§4.1) a cada chamada; não recebe seed por
@@ -580,7 +590,9 @@ Regras:
 - `MAX_DRAW_WORDS = 8` garante terminação e resultado definido; a probabilidade de rejeição é
   `bound / 2^64`, inferior a `2^-50` para os limites desta sessão (`≤ 10_001`), pelo que o limite é
   uma salvaguarda de contrato e não um caminho esperado.
-- Se `position + words` exceder `2^64-1`, o resultado é `RngCursorOverflow`; nunca há wrap.
+- Se `position + words` exceder `2^35`, o resultado é `RngCursorOverflow`; nunca há wrap. O limite
+  decorre do contador de bloco de 32 bits (`bloco = n / 8`), não de `2^64-1`: a posição `2^35`
+  significa stream esgotada e um draw nessa posição é rejeitado antes de qualquer leitura.
 - `DrawRejectionLimit` e `RngCursorOverflow` falham a ação inteira: nenhum efeito, nenhuma
   promoção e nenhuma publicação. O mesmo estado e o mesmo pedido reproduzem o mesmo erro.
 - Uma distribuição inválida é erro, nunca “correção” por clamp silencioso, por módulo simples ou
@@ -676,7 +688,12 @@ Validação de `RNG`:
 
 - `count = 4` e os códigos `1, 2, 3, 4` aparecem exatamente uma vez, em ordem ascendente;
   ausência, duplicata ou código desconhecido é `InvalidRngSection`.
-- `position` MUST caber em `u64`; não há posição negativa nem sentinela.
+- `position` MUST estar em `0..=2^35` (bloco `<= 2^32-1`); `2^35` significa stream esgotada e não
+  aceita novo draw. Acima disso é `InvalidRngSection`, porque o contador de bloco ChaCha20 tem 32
+  bits e não há palavra definida.
+- `positions[code - 1]` é a posição da stream `code` (`1..=4` → índices `0..=3`); o vetor nunca é
+  indexado pelo código diretamente. Uma stream sem consumo mantém o valor restaurado (tipicamente
+  `0`) e esse valor é preservado no hash.
 - O payload tem tamanho fixo `4 + 4 × (2 + 8) = 44` bytes; não há padding.
 - A seed (`u64`) não é repetida nesta secção: ela vive em `REGION` e é a única fonte da derivação;
   uma secção `RNG` cujo estado reconstruído não encontre seed é `MissingSeed`. O `RngState` de
@@ -725,7 +742,7 @@ Entrada, com parte fixa de **148 bytes** seguida de blocos variáveis:
 | 44 | `kind` | `u8` | `1 COMMAND`, `2 MODEL_PROPOSAL`, `3 MODEL_TIMEOUT`, `4 MODEL_ABSTENTION`, `5 CANCELLATION`. |
 | 45 | `outcome` | `u8` | `1..=7` da tabela §2.4. |
 | 46 | `result_class` | `u8` | `0..=4` (CTR-01: 1 sucesso, 2 falha resolvida, 3 limite, 4 sem efeito/cooldown). |
-| 47 | `flags` | `u8` | bit0 dry-run, bit1 modelo presente, bit2 eventos presentes, bit3 publicante, bit4 rumor semeado. |
+| 47 | `flags` | `u8` | bit0 dry-run, bit1 modelo presente (só `kind=2`), bit2 eventos presentes, bit3 publicante, bit4 rumor semeado. |
 | 48 | `cost_ticks` | `u32` | Custo aplicado; `0` nos resultados não publicantes. |
 | 52 | `reason` | `u16` | Motivo tipado de recusa/cancelamento/limite; `0` se não aplicável. |
 | 54 | `reserved` | `u16` | MUST zero. |
@@ -820,8 +837,9 @@ Regras:
   recomputa o caminho/rota pela regra do DOC-02 e compara o digest; divergência é `Divergence`.
 - O payload não contém prosa, tokens, palavras, áudio, latência, caminho de arquivo, estado de UI,
   foco, câmera, zoom, cache de NLG, métricas ou dado de overlay.
-- Um comando que exija modelo tem `flags.bit1` e bloco externo; a ação nativa correspondente não
-  depende do modelo e nunca fica bloqueada pela ausência dele.
+- `flags.bit1` só é válido em `kind = 2 MODEL_PROPOSAL`; em `kind = 1 COMMAND` MUST ser `0` e
+  `external_len = 0`. A ação nativa correspondente não depende do modelo e nunca fica bloqueada
+  pela ausência dele; o modelo propõe (kind 2), o núcleo aplica (kind 1).
 
 Ordem canónica dos blocos variáveis:
 
@@ -859,6 +877,9 @@ Regras:
   `proposal_kind = 0`, `accepted = 0`, `decision` `3`/`2`, `payload_len = 0`; sem efeito e sem tick.
 - `kind = 5 CANCELLATION`: `external_len = 0`, `payload_len = 162` com o comando cancelado,
   `outcome = 4`; nenhum efeito é desfeito.
+- `kind = 1 COMMAND` com `flags.bit1 = 1` é `InvalidEntry`; `kind = 2 MODEL_PROPOSAL` exige
+  `flags.bit1 = 1` e `candidate_len = 162`. Só `kind = 2` transporta proposta de modelo; `kind = 1`
+  é comando já resolvido.
 - Uma entrada externa nunca promove cursor de RNG, nunca avança tick e nunca cria fato de mundo.
   Ela existe para que o replay reproduza a decisão sem chamar modelo, relógio ou configuração
   implícita.
@@ -983,7 +1004,7 @@ O estado canónico segue o envelope `AFCS` v2 do CTR-01: `magic`, `version`, `bo
 
 | Tag | Secção | Conteúdo |
 | --- | --- | --- |
-| 1 | `REGION` | Limites, `Seed(u64)`, `generator_version`, `RegionId` e `spec_digest` (dona `CTR-03`; derivação referenciada, não redefinida — `P-09`). |
+| 1 | `REGION` | Limites, `generator_version`, `flags`, `Seed(u64)` e arestas — payload do `CTR-03`; `RegionId`/`tick` no envelope `AFCS`, `spec_digest` só na derivação (`P-09`). |
 | 2 | `LOCALITIES` | Identidades e estado das localidades (dona `CTR-03`). |
 | 3 | `STRUCTURES` | Estruturas e ocupação estrutural (dona `CTR-03`). |
 | 4 | `BLOCKS` | Blocos por `(LocationId, z, y, x)` (dona `CTR-03`). |
@@ -1513,7 +1534,7 @@ ele compõe resolução, passo e durabilidade.
 | `P-06` | Desfecho de `SCHEDULED_MEETING`, validade/expiração de passagem (`PASS_VALIDITY_TICKS`) e reserva de portão. | `SOC-02`/`GAME-01`/`INT-05`; `CTR-03` para reserva. | Enquanto aberta, o disparo de encontro é no-op registado e passagens não têm efeito materializado; `GAME-01` não pode prometer concessão. | Aberta. |
 | `P-07` | Atributos de ator usados nas fórmulas sociais (`linguagem_bp`, `inteligencia_bp`, `percepcao_bp`). | DOC-02 §5.1 diz que chegam normalizados “por CTR-01”, mas o CTR-01 rev 5 não fixa a secção; dono `S-CORE`/`RULE-01`. | Sem secção, as fórmulas só podem usar constantes de fixture pinadas no `SimulationContract`; `SOC-01` não pode evoluir atributos por ator. | Aberta (bridge por contrato). |
 | `P-08` | Componentes de ator restantes: HP, ordem de inventário, estado de FSM, moedas em itens. | `CTR-01`/`CTR-04`/`BEH-01`. | Fora do recorte atual; `GAME-01` não pode implementar combate/inventário/MLP antes de contrato próprio. | Aberta (não bloqueia a sessão social). |
-| `P-09` | Payload canónico de `REGION` (seed `u64`, `generator_version`, `RegionId`, `spec_digest`) e a derivação de `RegionId`/`spec_digest`. | Dono `CTR-03` (`docs/planning/contracts/region-perception-overlay.md`, worktree `ctr-03`); `CTR-02` referencia e não redefine. | Até o `CTR-03` congelar o payload, `CORE-01`/`STORE-01` não podem pinar os bytes canónicos de `REGION` nem o hash regional completo; o `RngState` já usa `Seed(u64)`. | Aberta (dependência de contrato irmão). |
+| `P-09` | Payload `REGION` do `CTR-03` (`generator_version`, `flags`, `seed u64`, bounds e arestas) e derivação de `RegionId`/`spec_digest`; `RegionId`/`tick` no envelope, `spec_digest` só como insumo da derivação. | Dono `CTR-03` (`docs/planning/contracts/region-perception-overlay.md`, worktree `ctr-03`); `CTR-02` referencia e não redefine. | Até o `CTR-03` congelar payload/derivação, `CORE-01`/`STORE-01` não podem pinar os bytes canónicos de `REGION` nem o hash regional completo; o `RngState` já usa `Seed(u64)`. | Aberta (dependência de contrato irmão). |
 
 ### 9.3 Consumidores que não podem avançar
 
@@ -1600,6 +1621,7 @@ verifica um comportamento. Nenhum depende de rede, GPU, pesos ou relógio real.
 7. `given_seed_and_position_when_draw_then_word_is_pinned`.
 8. `given_same_seed_different_stream_when_derive_key_then_domain_separated`.
 9. `given_seed_one_position_zero_when_draw_on_windows_and_linux_then_same_word`.
+10. `given_position_2_35_when_draw_then_overflow_error`.
 
 ### 11.5 Log e replay
 
@@ -1637,6 +1659,7 @@ verifica um comportamento. Nenhum depende de rede, GPU, pesos ou relógio real.
 4. `given_wallet_transfer_when_apply_then_total_conserved`.
 5. `given_same_state_when_canonicalize_twice_then_same_hash`.
 6. `given_region_id_and_seed_when_canonicalize_then_both_in_hash`.
+7. `given_region_payload_when_canonicalize_then_region_id_and_tick_are_envelope_only`.
 
 ### 11.8 Apresentação e NLG
 
@@ -1661,7 +1684,7 @@ revisão independente e ratificação do maintainer. Este documento não se auto
 | 5 | Viagem de NPC multi-pulso com `arrival_tick` em `ACTORS` e entrada em `AGENDA`, validadas entre si. | Aceitar. | Preserva o teto local de 10 ticks sem inventar ação composta. | Sem `arrival_tick`, a agenda não reproduz chegadas. |
 | 6 | Nível único `REGIONAL_ATIVA`; nenhum LOD, hibernação ou seletor por viewport. | Aceitar. | D-07 e DOC-02 §3.4 exigem região inteira ativa. | Qualquer LOD por câmera viola D-04/D-07 e o hash regional. |
 | 7 | RNG por posições por stream; `Seed(u64)` em `REGION`; chave de 32 bytes derivada por BLAKE3; ChaCha20 RFC 7539 com nonce/contador/ordem fixados. | Aceitar. | Snapshot e replay verificáveis; alinha `Seed(u64)` ao roadmap/CTR-03; sem estado de gerador opaco. | Outra largura de seed/construção quebra o golden cross-platform. |
-| 8 | Amostragem por rejeição com `MAX_DRAW_WORDS = 8` e erros tipados. | Aceitar. | Resultado uniforme exato e terminação definida. | Módulo simples enviesa; laço sem limite não termina. |
+| 8 | Amostragem por rejeição com `MAX_DRAW_WORDS = 8`, cursor em `0..=2^35` palavras (contador de bloco de 32 bits) e erros tipados. | Aceitar. | Resultado uniforme exato, terminação e overflow definidos. | Módulo simples enviesa; limite em `2^64-1` transbordaria o contador ChaCha20. |
 | 9 | Quatro streams fixas, incluindo `combat`/`spawn` preservadas sem consumo. | Aceitar. | Isolamento de domínio e compatibilidade futura. | Remover stream “não usada” é mudança de formato e de hash. |
 | 10 | `AFRL` v1 com log relativo ao checkpoint (`base_entry_seq`), entrada fixa de 148 bytes, cadeia de hash e rodapé digest. | Aceitar. | `seq` absoluto e replay sem reaplicar entradas cobertas; versionamento e deteção de truncamento. | Log sem cadeia ou `seq` relativo ambíguo não prova ordem nem buraco. |
 | 11 | Replay parcial só em fronteira publicante. | Aceitar. | Hash final corresponde a revisão durável. | Parar a meio de uma ação inventaria um estado inexistente. |
@@ -1677,7 +1700,7 @@ revisão independente e ratificação do maintainer. Este documento não se auto
 | 21 | Eventos de domínio opacos com `events_digest` até `P-05`. | Aceitar. | Permite log/recibo sem fixar layout alheio. | Inventar layout aqui colide com `INT-05`. |
 | 22 | `step` puro com `SimContext` versionado; `execute` compõe commit/ACK. | Aceitar. | Mantém o núcleo sem I/O e a durabilidade numa fronteira só. | `step` com I/O impede replay e teste determinístico. |
 | 23 | `custo_viajar = Σ_arestas (2 + Σ células do corredor)`, sem sobrecarga adicional; `Q-01` fechada. | Aceitar. | É a fórmula do DOC-02 §4.2/§3.2 e reproduz os exemplos 24/31/33. | Outra leitura divergiria dos goldens já fixados pela spec. |
-| 24 | `Seed(u64)` canónica em `REGION`; `RegionId`/`spec_digest`/`generator_version` referenciados do `CTR-03` (`P-09`). | Aceitar. | Alinha roadmap/CTR-03; evita duas larguras de seed e derivação duplicada. | Seed `[u8;32]` ou `RegionId` redefinido quebraria o hash regional e a integração. |
+| 24 | `REGION` = payload do CTR-03 (`generator_version`, `flags`, `Seed(u64)`, bounds, arestas); `RegionId`/`tick` no envelope `AFCS`; `spec_digest` só insumo da derivação (`P-09`). | Aceitar. | Alinha CTR-01/CTR-03 sem duplicar `region_id` nem inventar campo de estado. | `RegionId`/`spec_digest` no payload mudaria o hash regional e divergiria do CTR-03. |
 | 25 | Payload de comando fixo de 162 bytes com presença explícita; `draws[]` na ordem de execução e `touched[]` por stream. | Aceitar. | Torna `entry_len` e o digest reproduzíveis byte a byte. | Payload sem larguras/ordem impede round-trip e replay. |
 | 26 | Recibo no índice durável dentro da transação de revisão/log/head. | Aceitar. | Crash entre commit e ACK não perde o recibo idempotente. | Recibo fora da transação permite efeito durável sem retry idempotente. |
 
@@ -1722,8 +1745,9 @@ revisão independente e ratificação do maintainer. Este documento não se auto
 
 - [Contrato CTR-01 — identidade, unidades e eventos](<identity-events.md>), rev 5.
 - `CTR-03` — região, percepção e overlay: `docs/planning/contracts/region-perception-overlay.md`
-  (worktree `ctr-03`), seed `u64`, `RegionId`/`spec_digest` e derivação de `REGION`; referenciado em
-  §4.1/§6.1 e `P-09`.
+  (worktree `ctr-03`), payload de `REGION` (seed `u64`, `generator_version`, flags, bounds, arestas),
+  `RegionId`/`tick` no envelope e `spec_digest` como insumo da derivação; referenciado em §4.1/§6.1 e
+  `P-09`.
 - [Especificação de gameplay DOC-02](<../gameplay-spec.md>), rev 6.
 - [Especificação da onda — manifesto](<../wave-spec.md>), SHA-256 `328a8c7e…a360769`.
 - [Revisão de projeto — L-01](<../project-review.md>).

@@ -28,10 +28,11 @@ essa intenção em regra verificável que impeça uma implementação de escolhe
 O [CTR-02](<../../planning/contracts/time-replay-save.md>) usa `SaveStore`, `EventSink` e a secção
 `AGENDA`; `STORE-01`, `STORE-02` e `APP-01` dependem desta decisão para começar.
 
-A fronteira da região — `Seed(u64)`, `generator_version`, `RegionId` e `spec_digest` — é do `CTR-03`
-(`docs/planning/contracts/region-perception-overlay.md`, worktree `ctr-03`), não deste ADR nem do
-CTR-02. O CTR-02 referencia a seed `u64` e a derivação de chave; a dependência fica registada como
-`P-09` no contrato.
+A fronteira da região é do `CTR-03` (`docs/planning/contracts/region-perception-overlay.md`, worktree
+`ctr-03`), não deste ADR nem do CTR-02: o payload `REGION` contém `generator_version`, `flags`,
+`seed u64`, bounds e arestas; `RegionId` e `tick` vêm do envelope `AFCS` do CTR-01; `spec_digest` é
+insumo da derivação de `RegionId`, não campo de estado. O CTR-02 referencia a seed `u64`, o
+`RegionId` do envelope e a derivação de chave; a dependência fica registada como `P-09`.
 
 ## Decisão
 
@@ -74,12 +75,14 @@ ao durável e uma política de atividade regional única e explícita.
    hash, com transição definida por dado e reproduzível no replay; exige nova versão do contrato e
    novo ADR. É proibido derivar nível de atividade de apresentação, distância da câmera ou presença
    do jogador.
-8. **RNG reproduzível.** A seed canónica é `Seed(u64)` em `REGION` (propriedade do CTR-03); a chave
-   de 32 bytes por stream é derivada por BLAKE3-256 com domínio próprio, e o gerador é ChaCha20 RFC
-   7539 com nonce zero de 12 bytes, contador de bloco desde 0, palavras little-endian e palavra de
-   64 bits formada por duas palavras de 32 bits (par no low, ímpar no high). O `RngState` inclui a
-   seed e as posições; `draw` deriva a stream explicitamente, sem seed global. Qualquer crate usada
-   deve provar igualdade com esse fluxo por golden.
+8. **RNG reproduzível.** A seed canónica é `Seed(u64)` no payload `REGION` (propriedade do CTR-03);
+   a chave de 32 bytes por stream é derivada por BLAKE3-256 com domínio próprio, e o gerador é
+   ChaCha20 RFC 7539 com nonce zero de 12 bytes, contador de bloco de 32 bits desde 0, palavras
+   little-endian e palavra de 64 bits formada por duas palavras de 32 bits (par no low, ímpar no
+   high). O contador limita o cursor a `0..=2^35` palavras (a posição `2^35` é stream esgotada);
+   exceder é `RngCursorOverflow`. O `RngState` inclui a seed e `positions[code-1]`; `draw` deriva a
+   stream explicitamente, sem seed global. Qualquer crate usada deve provar igualdade com esse fluxo
+   por golden.
 
 ## Consequências
 
@@ -138,6 +141,8 @@ ao durável e uma política de atividade regional única e explícita.
 - `given_backup_rotation_when_verify_then_newest_verified_kept`.
 - `given_future_schema_when_load_then_preserved_and_refused`.
 - `given_seed_and_position_when_draw_then_word_is_pinned`.
+- `given_position_2_35_when_draw_then_overflow_error`.
+- `given_region_payload_when_canonicalize_then_region_id_and_tick_are_envelope_only`.
 - `given_base_entry_seq_nonzero_when_replay_then_first_seq_is_base_plus_one`.
 - `given_command_payload_when_roundtrip_then_162_bytes`.
 - `given_aifs_header_revision_mismatch_when_load_then_durability_inconsistency`.
