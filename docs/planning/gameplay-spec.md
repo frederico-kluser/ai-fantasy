@@ -9,7 +9,7 @@
 | Dono | S-CONTRACT com maintainer de produto |
 | Data | 2026-11-08 |
 | Base SHA | `c412cd4c0da291d3797e3cc4dd4429199ac979b3` |
-| Branch e worktree | `docs/doc-02` em `C:\Users\kluse\Projects\ai-fantasy-worktrees\doc-02` |
+| Branch e worktree | `docs/doc-02` em `../ai-fantasy-worktrees/doc-02`, ancorado na raiz original |
 | Revisão do manifesto | sha256 `328a8c7e121c9e4411bf0c105c3845c636e37bf208770fbc675f2cff4a360769` de [wave-spec](<wave-spec.md>) |
 | Interface produzida | `INT-04` — Ação nativa e tempo lógico |
 | Consome | nenhuma interface de aplicação |
@@ -91,7 +91,7 @@ graph LR
 | `E23` Atalaia–Feira | `G3a`–`G2b` | 4 estrada (1 cada) + 4 rocha (3 cada) | 4 + 12 = 16 | 2 | 18 |
 | `E24` Feira–Bosque | `G2a`–`G4a` | 5 terra batida (1 cada) + 4 vegetação rasteira (2 cada) | 5 + 8 = 13 | 2 | 15 |
 
-A sobrecarga fixa de 2 ticks representa embarque e desembarque no portão; ela é paga uma vez por **aresta percorrida**, não uma vez por comando. O custo de uma viagem multiaresta é a soma das arestas da rota mais nenhuma sobrecarga adicional.
+A sobrecarga fixa de 2 ticks representa o embarque (incluindo a caminhada abstrata até o portão de partida) e o desembarque no portão de chegada; ela é paga uma vez por **aresta percorrida**, não uma vez por comando. O custo de uma viagem multiaresta é a soma das arestas da rota mais nenhuma sobrecarga adicional.
 
 Rotas de referência da fixture, com desempate determinístico:
 
@@ -174,7 +174,7 @@ Todos os valores são inteiros e determinísticos. A tabela é a **fonte única*
 | `mover` em vegetação densa ou rocha | 3 | por célula de destino | progresso lento e esforço físico |
 | `mover` em água rasa | 4 | por célula de destino | travessia cuidadosa, sem natação |
 | `mover` com mudança de `z` por escada ou rampa | +1 | por nível alterado, além do custo da célula | subir/descer interrompe o passo |
-| `viajar` | 2 + soma das células da rota | por aresta percorrida e por célula | deslocamento regional com embarque e desembarque |
+| `viajar` | 2 + soma das células da rota | por aresta percorrida e por célula | deslocamento regional com embarque e desembarque; para NPC é plano multi-pulso (7.3), não gasto de um único pulso |
 | `falar` | 2 | por ato simbólico | dizer e ser ouvido, sem depender do texto gerado |
 | `perguntar_rumor` | 3 | por pergunta | recordar, avaliar e responder sobre informação |
 | `contar_rumor` (inclui semear) | 3 | por relato | reconstruir o relato e entregá-lo |
@@ -187,6 +187,7 @@ Custos de sistema, também inteiros:
 | Constante | Valor | Unidade | Papel |
 | --- | --- | --- | --- |
 | `AGENDA_INTERVAL_TICKS` | 10 | ticks | cadência de uma entrada de agenda por ator por pulso |
+| `AGENDA_LOCAL_ACTION_MAX_TICKS` | 10 | ticks | teto de uma ação **local** de NPC dentro de um pulso; viagem é plano multi-pulso e não usa este teto |
 | `RUMOR_INTERVAL_TICKS` | 60 | ticks | cadência do pulso de propagação de rumores |
 | `HALF_LIFE_TICKS` | 1200 | ticks | intervalo de redução da fidelidade de um rumor pela metade |
 | `TRANSFER_LOSS_BP` | 1000 | bp | perda de fidelidade em cada transferência de rumor |
@@ -215,7 +216,7 @@ As operações abaixo custam **0 ticks**, não entram no log de replay como aç�
 
 Os valores acima são uma **proposta de ritmo**, não uma medição. A escala foi escolhida para que:
 
-- um passo em terreno preparado custe 1 tick e uma travessia regional custe entre 13 e 24 ticks, tornando a viagem uma decisão de sessão, não um detalhe;
+- um passo em terreno preparado custe 1 tick e uma travessia por aresta custe entre 13 e 24 ticks, tornando a viagem uma decisão de sessão, não um detalhe;
 - um ato social curto custe 2 ticks e uma negociação completa custe 6, de modo que cinco falas curtas caibam em um pulso de agenda de 10 ticks;
 - a agenda de NPCs tenha uma oportunidade por ator a cada 10 ticks, sem depender de frame ou de relógio;
 - um rumor leve 60 ticks para uma rodada de propagação, ou seja, seis pulsos de agenda, e 1200 ticks para perder metade da fidelidade, o que permite observar propagação e degradação na mesma sessão longa de teste sem torná-las instantâneas;
@@ -242,9 +243,16 @@ Campos comuns propostos de `NativeIntent`:
 | `destination` | `Option<Destination>` | conforme ação | célula `(x, y, z)` ou `LocalityId` |
 | `topic` | `Option<TopicId>` | conforme ação | fato ou boato referido |
 | `offer_moeda` | `Option<u32>` | negociar | oferta inteira de moedas |
+| `meeting_tick` | `Option<Tick>` | `ENCONTRO_FUTURO` | tick absoluto do encontro; precisa ser maior que `t0` |
+| `meeting_locality` | `Option<LocalityId>` | `ENCONTRO_FUTURO` | localidade do encontro; precisa existir e ser alcançável pelo alvo |
+| `gate_id` | `Option<GateId>` | `PASSAGEM` | portão concedido; precisa pertencer à localidade do alvo ou a uma localidade adjacente |
+| `validity_ticks` | `Option<u32>` | `PASSAGEM` | validade da passagem em ticks, de 1 a `PASS_VALIDITY_TICKS` |
+| `away_destination` | `Option<Cell>` | `AFASTAR_SE` | célula de destino do alvo; passável, livre e a pelo menos `AWAY_MIN_DISTANCE_CELLS` do ator |
 | `seed_rumor` | `bool` | contar | cria rumor a partir de fato testemunhado |
 | `client_revision` | `u64` | sim | revalidação contra estado obsoleto |
 | `mode` | `DryRun` ou `Commit` | sim | execução de ensaio ou aplicação |
+
+Campos sem valor para a ação ficam `None`. Combinação inválida, campo obrigatório ausente ou valor fora da faixa é `INTENCAO_INVALIDA` e não produz efeito; a fixture fixa os valores explicitamente, e nenhum default é inventado pela implementação.
 
 Pipeline obrigatório, nesta ordem:
 
@@ -292,13 +300,13 @@ Log de replay comum a todas as ações:
 
 **Intenção.** `kind = VIAJAR`; `destination = Locality { id }`; sem alvo social.
 
-**Pré-condições e alvos.** Ator vivo, não em trânsito, posicionado em um portão de origem; localidade de destino existente e diferente da atual; arestas necessárias passáveis; rota com no máximo `MAX_TRAVEL_EDGES` arestas e custo total menor ou igual a `MAX_TRAVEL_TICKS`; portão de destino livre ou reservável.
+**Pré-condições e alvos.** Ator vivo, não em trânsito, presente na localidade de origem; localidade de destino existente e diferente da atual; arestas necessárias passáveis; rota com no máximo `MAX_TRAVEL_EDGES` arestas e custo total menor ou igual a `MAX_TRAVEL_TICKS`; portão de destino livre ou reservável. **Não é exigido que o ator esteja sobre o portão:** a sobrecarga fixa de 2 ticks cobre o deslocamento abstrato até o portão de embarque da primeira aresta da rota, e esse deslocamento não gera fato, célula intermediária ou ação separada.
 
 **Resolução.** Rota de menor custo no grafo de localidades, com desempate de 3.2; custo é a soma das arestas. Não há sorteio. A viagem é **atômica e abstrata**: o ator fica em trânsito durante o intervalo, não está presente em nenhuma localidade intermediária, não interage e não propaga rumor enquanto viaja. O portão de destino é reservado no início; a reserva é liberada na chegada ou no cancelamento.
 
-**Sucesso.** Ator no portão de destino ao fim do custo; fato `TravelFact` com rota, arestas, custo e ticks; o ator deixa de estar em trânsito; agenda regional processa todos os ticks cobertos.
+**Sucesso.** Ator no portão de destino ao fim do custo; fato `TravelFact` com rota, arestas, portão de embarque da primeira aresta, portão de chegada, custo e ticks; o ator deixa de estar em trânsito; agenda regional processa todos os ticks cobertos.
 
-**Erro.** Origem fora de portão, destino inexistente, destino igual à origem, rota impossível, portão ocupado, limite de arestas ou de ticks: rejeição `FORA_DO_PORTAO`, `ROTA_IMPOSSIVEL`, `DESTINO_OCUPADO` ou `ROTA_EXCEDE_LIMITE`, com 0 tick e 0 RNG.
+**Erro.** Ator fora da localidade de origem, destino inexistente, destino igual à origem, rota impossível, portão ocupado, limite de arestas ou de ticks: rejeição `ORIGEM_INVALIDA`, `ROTA_IMPOSSIVEL`, `DESTINO_OCUPADO` ou `ROTA_EXCEDE_LIMITE`, com 0 tick e 0 RNG.
 
 **Limite.** Destino inalcançável após bloqueio de aresta: `ROTA_IMPOSSIVEL`, 0 tick. Destino igual ao atual: `DESTINO_IGUAL_ORIGEM`, 0 tick. Rota acima do limite: `ROTA_EXCEDE_LIMITE`, 0 tick; a sessão não cria transporte alternativo nem teletransporte.
 
@@ -330,9 +338,9 @@ Log de replay comum a todas as ações:
 
 ### 5.5 `negociar` — oferta e pedido
 
-**Intenção.** `kind = NEGOCIAR`; `target` obrigatório; `pedido` em enum fechado: `REVELAR_RUMOR`, `ENCONTRO_FUTURO`, `PASSAGEM`, `INFORMAR_CAMINHO`; `offer_moeda` inteiro entre 0 e 10000; `topic` opcional para `REVELAR_RUMOR`.
+**Intenção.** `kind = NEGOCIAR`; `target` obrigatório; `pedido` em enum fechado: `REVELAR_RUMOR`, `ENCONTRO_FUTURO`, `PASSAGEM`, `INFORMAR_CAMINHO`; `offer_moeda` inteiro entre 0 e 10000; `topic` opcional para `REVELAR_RUMOR`; `destination = LocalityId` obrigatório para `INFORMAR_CAMINHO`; `meeting_tick` e `meeting_locality` obrigatórios para `ENCONTRO_FUTURO`; `gate_id` e `validity_ticks` obrigatórios para `PASSAGEM`. Campos de outro pedido ficam `None`.
 
-**Pré-condições e alvos.** Ator e alvo vivos, mesma localidade, mesmo `z`, alcance social, linha estrutural livre; ator com `moeda` maior ou igual à oferta; alvo capaz de conceder o pedido em princípio (vivo, presente, não em trânsito). Ausência do conteúdo específico, como nenhum rumor elegível, é limite resolvido, não rejeição.
+**Pré-condições e alvos.** Ator e alvo vivos, mesma localidade, mesmo `z`, alcance social, linha estrutural livre; ator com `moeda` maior ou igual à oferta; alvo capaz de conceder o pedido em princípio (vivo, presente, não em trânsito). Além disso: `meeting_tick` precisa ser maior que `t0` e menor ou igual a `t0 + MAX_MEETING_HORIZON_TICKS`; `meeting_locality` precisa existir e ter rota passável a partir da localidade do alvo; `gate_id` precisa pertencer à localidade do alvo ou a uma adjacente; `validity_ticks` precisa estar em `1..=PASS_VALIDITY_TICKS`; `destination` de `INFORMAR_CAMINHO` precisa existir e ter rota passável. Ausência do conteúdo específico, como nenhum rumor elegível, é limite resolvido, não rejeição.
 
 **Resolução.** Um sorteio no stream `social`, uniforme em `0..=9999`. Chance de sucesso, em bp:
 
@@ -340,13 +348,15 @@ Log de replay comum a todas as ações:
 
 Onde `trust` e `empatia` são os eixos do alvo em relação ao ator. Sucesso se o valor sorteado for **menor** que `chance`.
 
-**Sucesso.** Transfere `offer_moeda` do ator para o alvo; confiança +300 bp; empatia +150 bp; concede o pedido: `REVELAR_RUMOR` transfere um rumor elegível (o de maior fidelidade; empate pelo menor `RumorId`), com a perda de transferência de 9.2; `ENCONTRO_FUTURO` cria `AcordoFact` com tick futuro e localidade; `PASSAGEM` cria `PassagemFact` com portão e validade; `INFORMAR_CAMINHO` cria `CaminhoReveladoFact` com rota e custo. Fato `AcordoFact` sempre registrado.
+**Sucesso.** Transfere `offer_moeda` do ator para o alvo; confiança +300 bp; empatia +150 bp; concede o pedido com os campos explícitos: `REVELAR_RUMOR` compartilha a cópia ativa de maior fidelidade do alvo, aplicando 9.2 (se a cópia resultante não superar a do jogador, não há substituição e o fato registra `RUMOR_JA_CONHECIDO` como sub-resultado, sem anular o acordo); `ENCONTRO_FUTURO` cria `AcordoFact` com `meeting_tick` e `meeting_locality` exatamente como recebidos; `PASSAGEM` cria `PassagemFact` com `gate_id`, `valid_from_tick = t0` e `valid_until_tick = t0 + validity_ticks`; `INFORMAR_CAMINHO` cria `CaminhoReveladoFact` com `destination`, rota e custo. Fato `AcordoFact` sempre registrado.
 
-**Erro.** Moedas insuficientes, alvo morto/inexistente/em trânsito, fora de alcance, pedido inválido ou fora do recorte: rejeição `RECURSO_INSUFICIENTE`, `ALVO_MORTO`, `ALVO_INEXISTENTE`, `FORA_DE_ALCANCE` ou `PEDIDO_INVALIDO`, com 0 tick e 0 RNG.
+**Falha resolvida.** Sorteio desfavorável com pré-condições válidas: custo integral de 6 ticks, 1 sorteio consumido, sem transferência de moedas e sem concessão; confiança -100 bp, empatia -50 bp; fato `AcordoRecusadoFact`. Nada é aplicado parcialmente.
 
-**Limite.** Alvo não tem o conteúdo do pedido (`REVELAR_RUMOR` sem rumor elegível): `SEM_CONDICAO`, custo 6 ticks, 1 sorteio, sem transferência de moedas, confiança -50 bp, fato `AcordoRecusadoFact`. Oferta 0 é permitida, apenas reduz a chance. Pedido já acordado e ainda vigente: `ACORDO_VIGENTE`, custo 6 ticks, deltas 0, sem novo sorteio se a intenção for idêntica.
+**Erro.** Moedas insuficientes, alvo morto/inexistente/em trânsito, fora de alcance, pedido inválido, campo obrigatório ausente, tick/localidade/portão/validade inválidos ou fora do recorte: rejeição `RECURSO_INSUFICIENTE`, `ALVO_MORTO`, `ALVO_INEXISTENTE`, `FORA_DE_ALCANCE`, `PEDIDO_INVALIDO` ou `INTENCAO_INVALIDA`, com 0 tick e 0 RNG.
 
-**Efeitos, fatos e replay.** Deltas de 8.2; transferência de moedas atômica com o acordo. O replay registra pedido, oferta, sorteio e concessão; não registra a prosa da proposta nem a negociação em linguagem natural.
+**Limite.** Alvo não tem o conteúdo do pedido (`REVELAR_RUMOR` sem rumor elegível): `SEM_CONDICAO`, custo 6 ticks, 1 sorteio, sem transferência de moedas, confiança -50 bp, fato `AcordoRecusadoFact`. Oferta 0 é permitida, apenas reduz a chance. Pedido já acordado e ainda vigente com os mesmos campos: `ACORDO_VIGENTE`, custo 6 ticks, deltas 0, sem novo sorteio; campos diferentes formam novo acordo.
+
+**Efeitos, fatos e replay.** Deltas de 8.2; transferência de moedas e criação do fato do pedido são atômicas com o acordo. O replay registra pedido, oferta, sorteio, `meeting_tick`, `meeting_locality`, `gate_id`, `validity_ticks`, `destination` quando aplicável, e concessão; não registra a prosa da proposta nem a negociação em linguagem natural.
 
 **Custo.** 6 ticks; zero em rejeição.
 
@@ -365,9 +375,11 @@ Onde `trust` e `empatia` são os eixos do alvo em relação ao ator. Sucesso se 
 
 **Sucesso.** `MENTIRA_ACEITA` quando acreditada e não detectada: empatia +50 bp, confiança +100 bp; o alvo recebe `CrencaFalsaFact` com tópico, valor e origem; nenhum rumor é criado automaticamente.
 
+**Falha resolvida.** `MENTIRA_DETECTADA`: custo integral de 4 ticks, dois sorteios consumidos, empatia -800 bp, medo +300 bp, confiança -1500 bp, rótulo `MENTIROSO` no par alvo para ator, fato `MentiraDetectadaFact`; se houver testemunha, ela recebe `TestemunhoFact` e o rumor `MENTIRA` é semeado com escopo `LOCAL`, origem no alvo e fidelidade 10000. `MENTIRA_REJEITADA` quando não acreditada e não detectada: empatia -100 bp, confiança -200 bp, fato `MentiraRejeitadaFact`.
+
 **Erro.** Alvo morto, inexistente, em trânsito, fora de alcance, tópico inválido ou valor incompatível: rejeição, 0 tick, 0 RNG. Mentira detectada não é erro de resolução: é falha resolvida, com custo integral.
 
-**Limite.** `MENTIRA_DETECTADA`: empatia -800 bp, medo +300 bp, confiança -1500 bp, rótulo `MENTIROSO` no par alvo para ator, fato `MentiraDetectadaFact`; se houver testemunha, ela recebe `TestemunhoFact` e o rumor `MENTIRA` é semeado com escopo `LOCAL`, origem no alvo e fidelidade 10000. `MENTIRA_REJEITADA` quando não acreditada e não detectada: empatia -100 bp, confiança -200 bp, fato `MentiraRejeitadaFact`. `CRENCA_JA_PRESENTE` quando o alvo já tem a mesma crença: custo 4 ticks, dois sorteios consumidos, deltas 0.
+**Limite.** `CRENCA_JA_PRESENTE` quando o alvo já tem a mesma crença: custo 4 ticks, dois sorteios consumidos, deltas 0, fato registrado. Nenhum efeito parcial é aplicado.
 
 **Efeitos, fatos e replay.** Deltas de 8.2, na direção alvo para ator. O replay registra os dois sorteios, o resultado, o tópico e a crença; não registra o texto da mentira, o prompt de NLG ou a reação narrada.
 
@@ -387,11 +399,13 @@ Onde `trust` e `empatia` são os eixos do alvo em relação ao ator. Sucesso se 
 
 Sucesso se o valor for menor que a chance.
 
-**Sucesso.** O alvo compartilha um rumor: se `topic` foi indicado, aquele rumor; caso contrário, o de maior fidelidade entre os elegíveis, com empate pelo menor `RumorId`. A cópia recebida perde `TRANSFER_LOSS_BP`; se a fidelidade resultante for menor que `MIN_COGNITION_BP`, o rumor é considerado extinto e não é transferido. Confiança +100 bp, empatia +50 bp; fato `RumorPerguntadoFact` com origem, fidelidade anterior e fidelidade recebida.
+**Sucesso.** O alvo compartilha a cópia **ativa** de maior fidelidade: se `topic` foi indicado, a daquele rumor; caso contrário, a de maior fidelidade entre as elegíveis, com empate pelo menor `RumorId`. A cópia oferecida perde `TRANSFER_LOSS_BP`; se a fidelidade resultante for menor que `MIN_COGNITION_BP`, o rumor é considerado extinto e não é transferido. Se o jogador não tem cópia ativa ou a cópia oferecida é maior que a sua, ele adquire/substitui a cópia; caso contrário, o resultado é o limite `RUMOR_JA_CONHECIDO`. Confiança +100 bp, empatia +50 bp; fato `RumorPerguntadoFact` com `fidelidade_alvo_bp`, `fidelidade_recebida_bp` (0 se não houve substituição) e tick.
+
+**Falha resolvida.** Sorteio desfavorável com pré-condições válidas: custo integral de 3 ticks, 1 sorteio consumido, nenhuma cópia transferida, confiança -50 bp; fato `RumorPerguntadoFact` com resultado de recusa.
 
 **Erro.** Alvo morto, inexistente, em trânsito, fora de alcance: rejeição, 0 tick, 0 RNG.
 
-**Limite.** Alvo sem rumor elegível: `SEM_INFORMACAO`, custo 3 ticks, 1 sorteio, deltas 0, fato registrado. Rumor abaixo do limiar: `RUMOR_EXTINTO`, sem transferência e sem deltas. O jogador não pode "forçar" informação por repetição no mesmo tick; repetir é uma nova ação paga.
+**Limite.** Alvo sem rumor elegível: `SEM_INFORMACAO`, custo 3 ticks, 1 sorteio, deltas 0, fato registrado. Rumor abaixo do limiar: `RUMOR_EXTINTO`, sem transferência e sem deltas. Cópia oferecida menor ou igual à do jogador: `RUMOR_JA_CONHECIDO`, custo 3 ticks, 1 sorteio, deltas 0, sem substituição. O jogador não pode "forçar" informação por repetição no mesmo tick; repetir é uma nova ação paga.
 
 **Efeitos, fatos e replay.** O conhecimento do jogador é estado autoritativo do personagem, não cache de UI. O replay registra alvo, tópico, sorteio, rumor e fidelidades; não registra a prosa da resposta.
 
@@ -411,11 +425,13 @@ Sucesso se o valor for menor que a chance.
 
 Sucesso se o valor for menor que a chance e a fidelidade for maior ou igual a `MIN_COGNITION_BP`.
 
-**Sucesso.** O ouvinte adquire uma cópia com fidelidade diminuída em `TRANSFER_LOSS_BP`, mantendo a origem original; confiança +100 bp, empatia +50 bp; fato `RumorContadoFact` com rumor, origem, fidelidade e tick.
+**Sucesso.** Se o ouvinte não tem cópia ativa ou a cópia oferecida (fidelidade da fonte menos `TRANSFER_LOSS_BP`) é maior que a existente, ele adquire ou substitui a cópia, mantendo a origem original; confiança +100 bp, empatia +50 bp; fato `RumorContadoFact` com rumor, origem, `fidelidade_oferecida_bp` e tick.
+
+**Falha resolvida.** Sorteio desfavorável com pré-condições válidas: custo integral de 3 ticks, 1 sorteio consumido, sem transferência, confiança -50 bp; fato `RumorContadoFact` com resultado de recusa.
 
 **Erro.** Ator sem o rumor e sem fato para semear, alvo morto/inexistente/em trânsito, fora de alcance: rejeição `RUMOR_DESCONHECIDO`, `SEM_FATO_PARA_SEMEAR`, `ALVO_MORTO`, `ALVO_INEXISTENTE`, `FORA_DE_ALCANCE`, com 0 tick e 0 RNG.
 
-**Limite.** Ouvinte já tem cópia com fidelidade igual ou maior: `RUMOR_JA_CONHECIDO`, custo 3 ticks, 1 sorteio, sem transferência. Fidelidade abaixo do limiar: `RUMOR_EXTINTO`, sem transferência. O mesmo par pode repetir o relato em ticks diferentes, pagando o custo de novo; repetir no mesmo tick não é permitido.
+**Limite.** Ouvinte já tem cópia ativa com fidelidade igual ou maior: `RUMOR_JA_CONHECIDO`, custo 3 ticks, 1 sorteio, sem transferência. Fidelidade abaixo do limiar: `RUMOR_EXTINTO`, sem transferência. O mesmo par pode repetir o relato em ticks diferentes, pagando o custo de novo; repetir no mesmo tick não é permitido.
 
 **Efeitos, fatos e replay.** A origem nunca é reescrita; o portador que viaja leva o rumor consigo, sem reinicializar história. O replay registra rumor, origem, fidelidades, sorteio e tick; não registra a prosa do relato.
 
@@ -425,9 +441,9 @@ Sucesso se o valor for menor que a chance e a fidelidade for maior ou igual a `M
 
 ### 5.9 `ameaçar` — coerção social mínima
 
-**Intenção.** `kind = AMEACAR`; `target` obrigatório; `exigencia` em enum fechado: `REVELAR_RUMOR`, `PASSAGEM`, `AFASTAR_SE`; sem `offer_moeda`.
+**Intenção.** `kind = AMEACAR`; `target` obrigatório; `exigencia` em enum fechado: `REVELAR_RUMOR`, `PASSAGEM`, `AFASTAR_SE`; `topic` opcional para `REVELAR_RUMOR`; `gate_id` e `validity_ticks` obrigatórios para `PASSAGEM`; `away_destination` obrigatório para `AFASTAR_SE`; sem `offer_moeda`.
 
-**Pré-condições e alvos.** Ator e alvo vivos, mesma localidade, mesmo `z`, alcance social, linha estrutural livre; alvo não em trânsito.
+**Pré-condições e alvos.** Ator e alvo vivos, mesma localidade, mesmo `z`, alcance social, linha estrutural livre; alvo não em trânsito. Para `PASSAGEM`, `gate_id` precisa pertencer à localidade do alvo ou a uma adjacente e `validity_ticks` precisa estar em `1..=PASS_VALIDITY_TICKS`. Para `AFASTAR_SE`, `away_destination` precisa ser célula passável e livre na mesma localidade e no mesmo `z`, a pelo menos `AWAY_MIN_DISTANCE_CELLS` do ator, com caminho de custo menor ou igual a `AGENDA_LOCAL_ACTION_MAX_TICKS`; caso contrário é rejeição, não limite.
 
 **Resolução.** Um sorteio no stream `social`. Chance, em bp:
 
@@ -435,13 +451,15 @@ Sucesso se o valor for menor que a chance e a fidelidade for maior ou igual a `M
 
 Sucesso se o valor for menor que a chance. Não há dano, HP, iniciativa ou morte nesta ação; o confronto físico letal está fora do recorte (PD-04).
 
-**Sucesso.** O alvo cumpre a exigência quando possível: `REVELAR_RUMOR` transfere um rumor elegível (com a perda de 9.2), `PASSAGEM` cria `PassagemFact`, `AFASTAR_SE` agenda a saída do alvo na próxima entrada de agenda. Efeitos: empatia -1000 bp, medo +2500 bp, confiança -1500 bp; fato `AmeacaFact`.
+**Sucesso.** O alvo cumpre a exigência quando possível: `REVELAR_RUMOR` compartilha a cópia ativa de maior fidelidade do alvo, aplicando 9.2 (sub-resultado `RUMOR_JA_CONHECIDO` se não superar a cópia do ator, sem anular a concessão); `PASSAGEM` cria `PassagemFact` com `gate_id`, `valid_from_tick = t0` e `valid_until_tick = t0 + validity_ticks`; `AFASTAR_SE` cria `AfastamentoFact` com `away_destination` e `scheduled_tick` igual ao menor múltiplo de `AGENDA_INTERVAL_TICKS` estritamente maior que `t0`; o alvo executa um `MoverPlan` para essa célula na entrada de agenda desse tick, com o custo de caminho válido cobrado dentro do pulso. A célula é reservada para o alvo até a execução; a reserva entra no estado e no hash e impede que outro ator a ocupe antes do movimento. Efeitos: empatia -1000 bp, medo +2500 bp, confiança -1500 bp; fato `AmeacaFact`.
 
-**Erro.** Alvo morto, inexistente, em trânsito, fora de alcance: rejeição, 0 tick, 0 RNG.
+**Falha resolvida.** Sorteio desfavorável com pré-condições válidas: custo integral de 4 ticks, 1 sorteio consumido, sem concessão; empatia -500 bp, medo +500 bp, confiança -800 bp; fato `AmeacaResistidaFact`.
+
+**Erro.** Alvo morto, inexistente, em trânsito, fora de alcance, portão/validade/destino inválidos: rejeição, 0 tick, 0 RNG.
 
 **Limite.** Alvo sem concessão possível: `SEM_CONCESSAO`, custo 4 ticks, 1 sorteio; empatia -500 bp, medo +1000 bp, confiança -800 bp; fato registrado. Alvo com medo máximo e confiança mínima continua sujeito ao limite inferior de chance de 1000 bp; o clamp é autorizado e não é rejeição.
 
-**Efeitos, fatos e replay.** Deltas de 8.2, na direção alvo para ator. Até `MAX_WITNESSES` testemunhas na mesma localidade, dentro de `WITNESS_REACH_CELLS` e com linha estrutural, recebem `TestemunhoFact`; se houver ao menos uma testemunha, o rumor `AMEACA` é semeado com escopo `LOCAL`, origem no alvo, fidelidade 10000 e portadores iniciais iguais a alvo e testemunhas. O replay registra exigência, sorteio e testemunhas; não registra ameaça narrada, overlay ou áudio.
+**Efeitos, fatos e replay.** Deltas de 8.2, na direção alvo para ator. Até `MAX_WITNESSES` testemunhas na mesma localidade, dentro de `WITNESS_REACH_CELLS` e com linha estrutural, recebem `TestemunhoFact`; se houver ao menos uma testemunha, o rumor `AMEACA` é semeado com escopo `LOCAL`, origem no alvo, fidelidade 10000 e portadores iniciais iguais a alvo e testemunhas. O replay registra exigência, `topic`, `gate_id`, `validity_ticks`, `away_destination`, `scheduled_tick`, sorteio e testemunhas; não registra ameaça narrada, overlay ou áudio.
 
 **Custo.** 4 ticks; zero em rejeição.
 
@@ -456,9 +474,11 @@ Sucesso se o valor for menor que a chance. Não há dano, HP, iniciativa ou mort
 | `falar` | ator | 2 | 0 | deltas +100/+50 | não se aplica | cooldown sem efeito | morto/fora de alcance |
 | `negociar` | ator | 6 | 1 `social` | acordo + moedas | recusa -50/-100 | `SEM_CONDICAO` | sem moedas/alvo inválido |
 | `mentir` | ator | 4 | 2 `social` | crença falsa | detectada/rejeitada | crença já presente | morto/fora de alcance |
-| `perguntar_rumor` | ator | 3 | 1 `social` | rumor recebido | recusa -50 | sem informação | morto/fora de alcance |
+| `perguntar_rumor` | ator | 3 | 1 `social` | rumor recebido | recusa -50 | sem informação/já conhecido | morto/fora de alcance |
 | `contar_rumor` | ator | 3 | 1 `social` | rumor transmitido | recusa -50 | já conhecido/extinto | sem rumor/fato |
 | `ameaçar` | ator | 4 | 1 `social` | concessão + medo | resistência | sem concessão | morto/fora de alcance |
+
+`FALHA_RESOLVIDA` é sempre uma ação que aconteceu: paga o custo integral, consome os sorteios indicados e aplica apenas os efeitos de falha da tabela 8.2. Rejeição é o único resultado com 0 tick e 0 RNG; a matriz não mistura os dois.
 
 ## 6. Rejeição, cancelamento, obsolescência e dry-run
 
@@ -479,7 +499,7 @@ Regras:
 
 - **Atomicidade:** não existe efeito parcial. Se qualquer parte da resolução falhar antes do commit, o estado, os fatos, os ticks e os cursores de RNG permanecem exatamente como estavam.
 - **Rejeição não cobra tempo:** uma ação inválida não faz o mundo avançar. O jogador pode corrigir e tentar de novo; a nova tentativa é uma nova intenção.
-- **Falha resolvida cobra tempo:** uma negociação recusada, uma mentira detectada ou uma ameaça resistida são ações que aconteceram no mundo; custam os ticks integrais e consomem os sorteios.
+- **Falha resolvida cobra tempo:** uma negociação recusada, uma mentira detectada ou uma ameaça resistida são ações que aconteceram no mundo; custam os ticks integrais e consomem os sorteios. As seções 5.5 a 5.9 rotulam explicitamente **Falha resolvida** quando o sorteio desfavorável produz os efeitos da tabela 8.2; esses casos usam a linha `FALHA_RESOLVIDA` desta tabela e nunca a linha `REJEITADA`.
 - **Cancelamento:** só é possível antes do commit. Depois do commit, a ação é um fato e não pode ser desfeita por cancelamento; apenas uma nova ação pode reagir.
 - **Obsolescência:** o app revalida a revisão e pode reexecutar a intenção **uma vez** com fatos atualizados; se a revisão mudar de novo, a ação é recusada com `REVISAO_OBSOLETA`.
 - **Resposta tardia de modelo:** não há tick, nem RNG, nem efeito; a abstenção/timeout é registrada no log como entrada externa normalizada. A ação nativa correspondente continua disponível sem modelo.
@@ -510,6 +530,8 @@ O log de replay precisa provar que rejeições e dry-runs não moveram o cursor:
 | fora de alcance | alvo a mais de 2 células ou em outra localidade | 0 | 0 | inalterado |
 | recurso insuficiente | oferta de moedas maior que a carteira | 0 | 0 | inalterado |
 | rota impossível | aresta bloqueada sem alternativa | 0 | 0 | inalterado |
+| origem inválida | ator fora da localidade de origem da viagem | 0 | 0 | inalterado |
+| plano inválido | NPC tenta iniciar viagem com plano ativo ou rota inválida | 0 | 0 | inalterado |
 | destino ocupado | portão ou célula com outro ator | 0 | 0 | inalterado |
 | ação fora do recorte | construir, combater, negociar item, modding | 0 | 0 | inalterado |
 | cancelamento do jogador | cancelar antes do commit | 0 | 0 | inalterado |
@@ -548,31 +570,35 @@ A base de FSM/utilidade do [roadmap de arquitetura](<../architecture/roadmap.md>
 | Macroação | Uso nesta sessão | Observação |
 | --- | --- | --- |
 | `OCIOSO` | nenhum efeito | ocupa a entrada de agenda |
-| `MOVER` | até o custo de uma entrada de agenda | mesmo terreno e ocupação do jogador |
+| `MOVER` | deslocamento local com custo até `AGENDA_LOCAL_ACTION_MAX_TICKS` | mesmo terreno e ocupação do jogador; caminho atômico |
 | `FALAR` | ato simbólico entre NPCs | mesmos deltas e alcance |
 | `NEGOCIAR` | acordo entre NPCs | mesmos custos e sorteios |
-| `FUGIR` | reação a medo alto | move para portão ou célula livre determinística |
-| `APAZIGUAR` | reduz hostilidade percebida | efeito social declarado em `SOC-01` |
-| `INITIATE_COMBAT` | desabilitada nesta sessão | tentativa explícita retorna `ACAO_FORA_DO_RECORTE` |
+| `VIAJAR` | plano multi-pulso entre localidades | inicia o `TravelPlan`; não é ação local de um pulso |
 
-Desempate da escolha de macroação: maior pontuação de utilidade; empate pela ordem fixa `MOVER`, `FALAR`, `NEGOCIAR`, `FUGIR`, `APAZIGUAR`, `OCIOSO`; persistindo empate, pelo menor `ActorId`. Nenhuma decisão usa `HashMap` ou ordem de iteração não especificada.
+`FUGIR`, `APAZIGUAR` e `INITIATE_COMBAT` ficam **desabilitadas** nesta sessão: não entram no cálculo de utilidade, não entram no desempate e qualquer tentativa explícita retorna `ACAO_FORA_DO_RECORTE`. Elas permanecem nos cartões `BEH-01`/`SOC-01` para contrato próprio, sem efeito não definido aqui.
 
-Uma entrada de agenda custa no máximo `AGENDA_INTERVAL_TICKS` ticks de ação; se a ação escolhida for uma viagem, o NPC entra em trânsito e a chegada ocorre no `arrival_tick` calculado, sem fracionar a posição. A agenda não "empresta" ticks do pulso seguinte para uma ação curta; cada pulso é independente.
+Desempate da escolha de macroação: maior pontuação de utilidade; empate pela ordem fixa `MOVER`, `FALAR`, `NEGOCIAR`, `VIAJAR`, `OCIOSO`; persistindo empate, pelo menor `ActorId`. Nenhuma decisão usa `HashMap` ou ordem de iteração não especificada.
+
+**Teto da ação local.** `MOVER`, `FALAR` e `NEGOCIAR` de NPC precisam caber em `AGENDA_LOCAL_ACTION_MAX_TICKS = 10` ticks. Se o custo calculado exceder 10, a macroação é inelegível naquele pulso e o NPC escolhe a próxima opção elegível; não há ação parcial, empréstimo de ticks nem cobrança no pulso seguinte. Uma ação local nunca atravessa dois pulsos.
+
+**Viagem de NPC — exceção explícita e multi-pulso.** `VIAJAR` não é cobrada do orçamento de 10 ticks do pulso. A entrada de agenda apenas **inicia** o `TravelPlan`: o NPC entra em trânsito no tick do pulso, paga o custo total da rota no intervalo de trânsito `[departure_tick + 1, arrival_tick]`, com `arrival_tick = departure_tick + custo_da_viagem`, e não recebe novas entradas de agenda enquanto estiver em trânsito. A chegada é processada no início do tick `arrival_tick`, conforme 7.1; se esse tick for um pulso, o NPC é elegível na agenda do mesmo tick, porque a chegada vem antes da agenda; caso contrário, volta a ser elegível no pulso seguinte. O custo e os limites são os mesmos do jogador (`MAX_TRAVEL_EDGES`, `MAX_TRAVEL_TICKS`); a diferença é apenas o agendamento em múltiplos pulsos, não o preço. Assim, uma viagem de 24 ticks não contradiz o teto de 10 ticks: ela não é uma ação local e não "empresta" ticks de um pulso, apenas ocupa o intervalo de trânsito do próprio NPC.
+
+Cada NPC tem no máximo um `TravelPlan` ativo. Iniciar viagem com plano ativo, destino inválido ou rota acima dos limites é rejeitado na seleção da macroação e registrado como `PLANO_INVALIDO`, sem efeito parcial.
 
 ### 7.4 Propagação de rumores por intervalo
 
-O pulso de rumor ocorre a cada `RUMOR_INTERVAL_TICKS` ticks, ancorado no tick 0, depois da agenda do mesmo tick. Para cada rumor ativo, em `RumorId` crescente:
+O pulso de rumor ocorre a cada `RUMOR_INTERVAL_TICKS` ticks, depois da agenda do mesmo tick. **O tick 0 apenas ancora a cadência:** não há pulso no tick 0, porque o primeiro intervalo processado começa em `t0 + 1`; o primeiro pulso possível é o tick 60. Para cada rumor com ao menos uma cópia ativa, em `RumorId` crescente:
 
-1. Listar pares (portador, ouvinte) elegíveis na mesma localidade e dentro de `RUMOR_REACH_CELLS`, ambos presentes e vivos, com linha estrutural livre.
+1. Listar pares (portador, ouvinte) elegíveis na mesma localidade e dentro de `RUMOR_REACH_CELLS`, ambos presentes e vivos, com linha estrutural livre; o ouvinte é elegível apenas se não tem cópia ativa ou se a cópia oferecida (fidelidade do portador menos `TRANSFER_LOSS_BP`) é maior que a cópia ativa dele e maior ou igual a `MIN_COGNITION_BP`.
 2. Ordenar por `ActorId` do portador e, depois, por `ActorId` do ouvinte.
-3. Para os pares em ordem, até `MAX_RUMOR_ATTEMPTS_PER_PULSE` tentativas por rumor no pulso, sortear no stream `rumor` e propagar se o valor for menor que `chance = clamp(5000 + trust/5, 1000, 9000)`.
-4. Aplicar a perda de transferência e o limiar de cognição; registrar o fato.
+3. Para os pares em ordem, até `MAX_RUMOR_ATTEMPTS_PER_PULSE = 16` **sorteios** por rumor por pulso, um por par elegível: sortear no stream `rumor` e propagar se o valor for menor que `chance = clamp(5000 + trust/5, 1000, 9000)`. Ao atingir 16 sorteios, os pares restantes são omitidos com `LIMITE_ATINGIDO`; o limite conta sorteios, não transferências.
+4. Aplicar a perda de transferência e o limiar de cognição à cópia do ouvinte; registrar o fato.
 
-O portador original não perde fidelidade ao repassar; cada cópia é independente e tem fidelidade não crescente. O ouvinte não recebe o rumor se já tiver cópia de fidelidade igual ou maior. A propagação não usa prosa, modelo, overlay ou conhecimento privilegiado.
+O portador original não perde fidelidade ao repassar; cada cópia é independente e tem fidelidade não crescente. Se a cópia oferecida não superar a cópia ativa do ouvinte, não há substituição nem novo portador. A propagação não usa prosa, modelo, overlay ou conhecimento privilegiado.
 
 ### 7.5 Limites e falhas da agenda
 
-Limites declarados, não medições: `MAX_AGENDA_ENTRIES_PER_PULSE` por localidade; `MAX_ACTORS_PER_LOCALITY`; `MAX_RUMOR_ATTEMPTS_PER_PULSE` por rumor; `MAX_RUMOR_CARRIERS`; `MAX_RUMORS_PER_ACTOR`. Ao atingir um limite, a entrada ou transferência é omitida com resultado `LIMITE_ATINGIDO`, registrado no log; o estado não é corrompido e a agenda continua no tick seguinte. Não há expansão dinâmica silenciosa, fila ilimitada ou descarte sem registro.
+Limites declarados, não medições: `MAX_AGENDA_ENTRIES_PER_PULSE = 64` entradas por localidade por pulso; `AGENDA_LOCAL_ACTION_MAX_TICKS = 10` por ação local; `MAX_RUMOR_ATTEMPTS_PER_PULSE = 16` sorteios por rumor por pulso; `MAX_RUMOR_CARRIERS = 128` cópias ativas por rumor; `MAX_RUMORS_PER_ACTOR = 32` rumores por ator; `MAX_ACTORS_PER_LOCALITY = 64`. Ao atingir um limite, a entrada ou transferência é omitida com resultado `LIMITE_ATINGIDO`, registrado no log; a ordem de omissão é a ordem determinística de processamento (atores de maior `ActorId` na agenda; pares restantes na ordem de 7.4 nos rumores). O estado não é corrompido e a agenda continua no tick seguinte. Não há expansão dinâmica silenciosa, fila ilimitada ou descarte sem registro.
 
 ## 8. Relações sociais e testemunho (D-03)
 
@@ -610,9 +636,12 @@ Os deltas abaixo são **solicitados** ao par alvo para ator; o valor aplicado po
 | `perguntar_rumor` | sucesso | +50 | 0 | +100 | rumor com perda de 1000 bp |
 | `perguntar_rumor` | falha | 0 | 0 | -50 | sem informação |
 | `perguntar_rumor` | `SEM_INFORMACAO` | 0 | 0 | 0 | limite |
+| `perguntar_rumor` | `RUMOR_JA_CONHECIDO` | 0 | 0 | 0 | limite |
+| `perguntar_rumor` | `RUMOR_EXTINTO` | 0 | 0 | 0 | limite |
 | `contar_rumor` | sucesso | +50 | 0 | +100 | rumor com perda de 1000 bp |
 | `contar_rumor` | falha | 0 | 0 | -50 | sem transferência |
 | `contar_rumor` | `RUMOR_JA_CONHECIDO` | 0 | 0 | 0 | limite |
+| `contar_rumor` | `RUMOR_EXTINTO` | 0 | 0 | 0 | limite |
 | `ameaçar` | sucesso | -1000 | +2500 | -1500 | concessão |
 | `ameaçar` | `SEM_CONCESSAO` | -500 | +1000 | -800 | limite |
 | `ameaçar` | falha | -500 | +500 | -800 | resistência |
@@ -648,50 +677,57 @@ A mentira é um ato simbólico com dois sorteios, descrito em 5.6. A crença fal
 | `origin_actor` | `ActorId` | imutável após a criação |
 | `origin_tick` | `Tick` | tick da criação |
 | `origin_locality` | `LocalityId` | localidade da criação |
-| `fidelity_bp` | inteiro 0 a 10000 | não cresce na cópia |
+| `copies` | mapa ordenado `ActorId -> CopyState` | uma entrada por ator que já ouviu o rumor; `CopyState` tem `fidelity_bp`, `state` (`ATIVO` ou `EXTINTO`) e `acquired_tick` |
 | `half_life_ticks` | inteiro positivo | 1200 nesta proposta |
 | `scope` | `LOCAL` ou `REGIONAL` | `GROUP` fora desta sessão |
-| `carriers` | conjunto ordenado de `ActorId` | portadores vivos e conhecidos |
+| `carriers` | conjunto ordenado de `ActorId` | derivado das cópias com `state = ATIVO`; não é um segundo campo de fidelidade |
 | `min_cognition_bp` | inteiro | 4000 nesta proposta |
-| `state` | `ATIVO` ou `EXTINTO` | extinção é histórica, não apaga o fato |
+| `state` | `ATIVO` ou `EXTINTO` | derivado: `ATIVO` se ao menos uma cópia estiver ativa; `EXTINTO` se nenhuma estiver; a extinção não apaga o fato |
 
 Os campos formais, a codificação e a preservação em evento pertencem a `SOC-02` e `CTR-01`; esta seção fixa a semântica que `SOC-03` deve implementar em `crates/af-conversation/src/rumors.rs`.
 
 ### 9.2 Origem e fidelidade
 
+O modelo autoritativo é **uma cópia por portador**, não uma fidelidade única compartilhada. O rumor guarda a origem e o mapa de cópias; cada cópia tem a sua fidelidade e o seu estado.
+
 - A origem é conservada em todas as cópias; nenhuma transferência reescreve `origin_actor`, `origin_tick` ou `origin_locality`.
-- A fidelidade de uma cópia é sempre menor ou igual à do portador de origem no momento da transferência; ela nunca cresce por retransmissão, proximidade, render ou leitura.
-- Cada transferência subtrai `TRANSFER_LOSS_BP = 1000` bp, com piso em 0. A perda é aplicada à cópia do ouvinte; o portador mantém a sua.
-- A cada múltiplo de `HALF_LIFE_TICKS`, a fidelidade de todo rumor ativo é dividida por 2 com truncamento para baixo. A redução é monotônica e verificável por propriedade.
-- Um rumor com fidelidade menor que `MIN_COGNITION_BP` não é compreendido nem retransmitido; passa a `EXTINTO`, permanece no histórico e não volta a circular.
+- A fidelidade de uma cópia nova é a fidelidade da cópia-fonte menos `TRANSFER_LOSS_BP = 1000`, com piso em 0; ela nunca cresce por retransmissão, proximidade, render ou leitura.
+- O portador-fonte mantém a sua cópia intacta; a perda incide apenas sobre a cópia do ouvinte.
+- Um ouvinte só recebe ou substitui cópia se não tiver cópia ativa, ou se a cópia oferecida for **maior** que a ativa existente. Cópia igual ou menor não substitui: em ação direta o resultado é `RUMOR_JA_CONHECIDO`; no pulso, a transferência é omitida sem alterar relações.
+- Uma cópia oferecida com fidelidade menor que `MIN_COGNITION_BP` não é criada nem substitui cópia existente: em ação direta o resultado é `RUMOR_EXTINTO`; no pulso, a transferência é omitida. O ator que já tinha cópia extinta pode voltar a receber uma cópia ativa se um portador lhe oferecer fidelidade `>= MIN_COGNITION_BP`.
+- A cada múltiplo de `HALF_LIFE_TICKS`, **cada cópia ativa** tem a fidelidade dividida por 2 com truncamento para baixo, independentemente das demais. Se o resultado ficar abaixo de `MIN_COGNITION_BP`, a cópia passa a `EXTINTO`, sai do conjunto de portadores ativos e permanece no histórico; a redução é monotônica e verificável por propriedade.
+- O rumor é `ATIVO` enquanto existir ao menos uma cópia ativa; quando todas as cópias ficam `EXTINTO`, o rumor passa a `EXTINTO`. A extinção de uma cópia não extingue automaticamente as outras.
 
 ### 9.3 Portadores, viagem e propagação
 
-- Portadores são atores vivos que conhecem o rumor. Um portador em trânsito não propaga e não testemunha; ao chegar, leva o rumor consigo sem reinicializar origem ou fidelidade.
-- A morte de um portador remove-o do conjunto; o rumor sobrevive enquanto houver outro portador. Sem portadores, o rumor extingue-se.
+- Portadores são atores vivos com cópia `ATIVO`. Um portador em trânsito não propaga e não testemunha; ao chegar, leva a sua cópia consigo sem reinicializar origem ou fidelidade.
+- A morte de um portador torna a cópia dele inativa e remove o ator do conjunto de portadores; o rumor sobrevive enquanto houver outra cópia ativa. Sem cópias ativas, o rumor extingue-se.
 - A propagação só ocorre entre atores **co-presentes** na mesma localidade, dentro de `RUMOR_REACH_CELLS`, com linha estrutural livre. Não há propagação por telefone, rede, diário, overlay ou conhecimento do jogador.
 - `scope = LOCAL` restringe a propagação à localidade de origem/cópias presentes; um portador pode levar a cópia para outra localidade, e ela passa a circular lá. `scope = REGIONAL` permite propagação em qualquer localidade, sempre exigindo co-presença.
 - O sorteio de propagação usa o stream `rumor`, um por par elegível, na ordem de 7.4. A chance é `clamp(5000 + trust/5, 1000, 9000)`, onde `trust` é a confiança do ouvinte no portador.
-- Limites: `MAX_RUMOR_CARRIERS` por rumor, `MAX_RUMORS_PER_ACTOR` por ator, `MAX_RUMOR_ATTEMPTS_PER_PULSE` por rumor. Ao atingir o limite, a transferência é omitida com `LIMITE_ATINGIDO`, sem efeito parcial.
+- Limites: `MAX_RUMOR_CARRIERS = 128` cópias ativas por rumor, `MAX_RUMORS_PER_ACTOR = 32` rumores por ator, `MAX_RUMOR_ATTEMPTS_PER_PULSE = 16` sorteios por rumor por pulso. Ao atingir o limite, a transferência é omitida com `LIMITE_ATINGIDO`, sem efeito parcial.
+- As ações diretas `perguntar_rumor` (5.7), `contar_rumor` (5.8) e as concessões de `negociar`/`ameaçar` (5.5/5.9) seguem a mesma regra de substituição: só melhoram a cópia do ator; nunca a rebaixam.
 
 ### 9.4 Meia-vida, extinção e exemplo de linha temporal
 
-A fixture da sessão usa um rumor regional `R1`, tópico "interdição da ponte", origem em Iara (`L1`), fidelidade 10000, meia-vida 1200, escopo `REGIONAL`, portadores iniciais apenas Iara. A linha abaixo é o ramo de sucesso dos checks; a fixture fixa a seed e registra o ramo efetivo, e o E2E cobre também os ramos de falha.
+A fixture da sessão usa um rumor regional `R1`, tópico "interdição da ponte", origem em Iara (`L1`), fidelidade inicial 10000, meia-vida 1200, escopo `REGIONAL`, cópia inicial apenas de Iara. A tabela mostra a fidelidade **de cada cópia**; o ramo é o de sucesso dos checks, e a fixture fixa a seed e registra o ramo efetivo.
 
-| Tick | Evento | Fidelidade da cópia | Portadores |
+| Tick | Evento | Cópias ativas (fidelidade por portador) | Portadores ativos |
 | --- | --- | --- | --- |
-| 0 | criação na fixture, origem Iara | 10000 | Iara |
-| 7 | jogador pergunta a Iara | 9000 | Iara, jogador |
-| 42 | jogador conta a Bruna em `L2` | 8000 | Iara, jogador, Bruna |
-| 60 | pulso: Bruna conta a Caio em `L2` | 7000 | Iara, jogador, Bruna, Caio |
-| 60 | pulso: Iara conta a Tomé em `L1` | 9000 | Iara, jogador, Tomé |
-| 1200 | primeira meia-vida | metade da cópia de cada portador | inalterados |
+| 0 | criação na fixture, origem Iara | Iara 10000 | Iara |
+| 7 | jogador pergunta a Iara | Iara 10000; jogador 9000 | Iara, jogador |
+| 42 | jogador conta a Bruna em `L2` | Iara 10000; jogador 9000; Bruna 8000 | Iara, jogador, Bruna |
+| 60 | pulso: Bruna conta a Caio em `L2` | Iara 10000; jogador 9000; Bruna 8000; Caio 7000 | Iara, jogador, Bruna, Caio |
+| 60 | pulso: Iara conta a Tomé em `L1` | Tomé 9000, além das anteriores | Iara, jogador, Bruna, Caio, Tomé |
+| 100 | jogador pergunta a Caio; oferta 6000, cópia do jogador 9000 | sem substituição; `RUMOR_JA_CONHECIDO` | inalterados |
+| 1200 | primeira meia-vida, por cópia | Iara 5000; jogador 4500; Bruna 4000; Tomé 4500; Caio 3500, que fica `EXTINTO` | Iara, jogador, Bruna, Tomé; Caio deixa de ser portador ativo |
+| 2400 | segunda meia-vida, por cópia | Iara 2500; jogador 2250; Bruna 2000; Tomé 2250, todas abaixo de 4000 | nenhum; rumor passa a `EXTINTO` |
 
-O jogador que pergunta a Caio no tick 100 recebe uma cópia de 6000, mas mantém a sua cópia de 9000; o conhecimento do personagem guarda a maior fidelidade por `RumorId`, e o fato registra a tentativa de transferência. Nenhuma cópia sobe de fidelidade, e a origem continua Iara em todas elas.
+Aos 1200 ticks, a cópia de Caio (7000) cai para 3500, abaixo de `MIN_COGNITION_BP = 4000`; ela não é retransmissível e sai do conjunto de portadores ativos, mas o rumor continua ativo pelas cópias de Iara, jogador, Bruna e Tomé. Aos 2400, todas as cópias ficam abaixo do limiar e o rumor inteiro passa a `EXTINTO`. O efeito observável é direto: depois de 1200, perguntar a Caio retorna `SEM_INFORMACAO`; antes de 1200, perguntar a ele retorna `RUMOR_JA_CONHECIDO` para o jogador, porque a oferta de 6000 não supera a cópia de 9000. Nenhuma cópia sobe de fidelidade, e a origem continua Iara em todas elas.
 
 ### 9.5 Limites do subsistema
 
-Além dos limites de 9.3: não há rumor gerado por overlay, câmera, histórico, resumo regional, cache de NLG ou leitura de arquivo; não há propagação entre localidades sem portador; não há fusão de rumores de tópicos diferentes; não há "verdade" inferida por prosa. A extinção é definitiva para a cópia, mas o fato histórico permanece legível no replay.
+Além dos limites de 9.3: não há rumor gerado por overlay, câmera, histórico, resumo regional, cache de NLG ou leitura de arquivo; não há propagação entre localidades sem portador; não há fusão de rumores de tópicos diferentes; não há "verdade" inferida por prosa. A extinção é **por cópia**; o rumor só é `EXTINTO` quando nenhuma cópia ativa resta. O fato histórico permanece legível no replay.
 
 ## 10. Roteiro curado da sessão
 
@@ -699,8 +735,10 @@ Além dos limites de 9.3: não há rumor gerado por overlay, câmera, histórico
 
 - Jogador `P` começa no portão `G1a` de `L1`, tick 0, com 12 moedas, relações iniciais 0 com todos, exceto Iara e Bruna, que começam com confiança +2000 (conhecidas) para permitir uma sessão demonstrável; o valor é parte da fixture e está sujeito a PD-09.
 - Iara (`L1`) conhece `R1` desde o tick 0; Tomé, Bruna, Caio, Dara, Elias, Fábio e Gaia começam sem rumores.
+- O acordo do passo 4 usa valores explícitos da fixture: `pedido = ENCONTRO_FUTURO`, `meeting_tick = 180`, `meeting_locality = L2`, `offer_moeda = 3`. Nenhum desses valores é default de implementação.
 - Posições iniciais, foco inicial da TUI e seed são pinados pela fixture; os nomes de células não são inventados nesta spec.
-- A fixture deve ser executada por E2E-01 e pelo cenário de MOTOR-01; TUI-01 usa os mesmos fatos.
+- A fixture deve ser executada por E2E-01; TUI-01 usa os mesmos fatos. `MOTOR-01` pode reutilizar o cenário como evidência em etapa posterior, sem criar dependência ou obrigação para o cartão DOC-02.
+- O tick 0 é o estado inicial e ancora a cadência; não há pulso de agenda nem de rumor antes da primeira ação.
 
 ### 10.2 Passos observáveis em M2
 
@@ -709,7 +747,7 @@ Além dos limites de 9.3: não há rumor gerado por overlay, câmera, histórico
 | 1 | mover 2 células de pavimento até Iara | 2 | 2 | jogador adjacente a Iara | hash de outra localidade por foco |
 | 2 | falar com Iara (saudação) | 2 | 4 | confiança de Iara +50, empatia +100 | tick por abrir histórico |
 | 3 | perguntar rumor a Iara | 3 | 7 | `R1` conhecido pelo jogador, fidelidade 9000 | criação de rumor por leitura de UI |
-| 4 | negociar com Iara (encontro futuro, oferta 3) | 6 | 13 | acordo, 3 moedas transferidas, pulso de agenda no tick 10 | ticks por prosa da proposta |
+| 4 | negociar com Iara (encontro futuro em `L2` no tick 180, oferta 3) | 6 | 13 | acordo com `meeting_tick = 180`, `meeting_locality = L2`, 3 moedas transferidas, pulso de agenda no tick 10 | ticks por prosa da proposta |
 | 5 | viajar para a Feira de Sal | 24 | 37 | jogador em `L2`; agenda de `L1`, `L3`, `L4` processada nos ticks 20 e 30 | congelamento de `L1` por foco em `L2` |
 | 6 | falar com Bruna | 2 | 39 | confiança de Bruna +50 | efeito de câmera |
 | 7 | contar `R1` a Bruna | 3 | 42 | Bruna com cópia 8000 | aumento de fidelidade |
@@ -718,10 +756,10 @@ Além dos limites de 9.3: não há rumor gerado por overlay, câmera, histórico
 | 10 | viajar de volta a `L1` | 24 | 70 | pulso de rumor no tick 60: Bruna para Caio e Iara para Tomé | propagação sem portador |
 | 11 | perguntar rumor a Tomé | 3 | 73 | Tomé conhece `R1` sem o jogador ter contado | conhecimento vindo do overlay |
 | 12 | viajar de novo a `L2` | 24 | 97 | agenda regional nos ticks 80 e 90 | suspensão de `L1` |
-| 13 | perguntar rumor a Caio | 3 | 100 | Caio conhece uma cópia degradada; jogador mantém a melhor cópia | fidelidade crescendo |
+| 13 | perguntar rumor a Caio | 3 | 100 | Caio tem cópia 7000; oferta 6000 não supera a cópia 9000 do jogador, resultado `RUMOR_JA_CONHECIDO` | fidelidade crescendo ou substituição para baixo |
 | 14 | salvar, reabrir e reproduzir replay | 0 | 100 | mesmo tick, mesmo hash, mesmos fatos | tick por save/replay |
 
-Total: 100 ticks, dez pulsos de agenda (tick 10 a 100) e um pulso de rumor (tick 60). O ramo exato de cada check é determinado pela seed da fixture; a fixture deve registrar o ramo, e o E2E deve executar também uma variante de falha. Nenhum resultado desta tabela foi medido ou executado nesta etapa.
+Total: 100 ticks, dez pulsos de agenda (tick 10 a 100) e um pulso de rumor (tick 60). O tick 0 não processa pulso; ele apenas ancora a cadência, e o primeiro intervalo começa em `t0 + 1`. O ramo exato de cada check é determinado pela seed da fixture; a fixture deve registrar o ramo, e o E2E deve executar também uma variante de falha. Nenhum resultado desta tabela foi medido ou executado nesta etapa.
 
 ### 10.3 O que M2 demonstra e o que M3 acrescenta
 
@@ -752,7 +790,7 @@ M2 é o alvo de aceite desta spec. M3 reutiliza os mesmos fatos, custos e regras
 ### 11.1 Incluído nesta proposta
 
 - Uma sessão curada de 100 ticks em uma região de quatro localidades, com oito NPCs, agenda regional, relações, mentira, negociação, rumor e coerção social.
-- Movimento cardinal por terreno, viagem por arestas com custo determinístico, portões e reservas.
+- Movimento cardinal por terreno, viagem por arestas com custo determinístico, portões de chegada e reservas.
 - Uma moeda inteira como único recurso, usada apenas como oferta de negociação.
 - Estruturas estáticas existentes para ocupação e linha estrutural; nenhuma construção nova.
 - Save, reabertura e replay da região inteira; TUI/headless para M2.
@@ -763,7 +801,7 @@ M2 é o alvo de aceite desta spec. M3 reutiliza os mesmos fatos, custos e regras
 | Área | Limite explícito |
 | --- | --- |
 | Campanha | uma sessão, sem capítulos, missões, ramificações extensas ou segundo cenário de produto |
-| Combate | sem loop tático, iniciativa, dano letal, morte permanente ou loot; só coerção social e reações `FUGIR`/`APAZIGUAR` |
+| Combate | sem loop tático, iniciativa, dano letal, morte permanente ou loot; só coerção social. `FUGIR`/`APAZIGUAR` ficam desabilitadas e deferidas a `BEH-01`/`SOC-01`; `INITIATE_COMBAT` é recusada com `ACAO_FORA_DO_RECORTE` |
 | Construção | sem escavar, construir, cortar, crafting, fluidos ou demolição; `GRID-02` é posterior |
 | Recursos | sem economia, itens, comércio de bens, fome, fadiga ou crafting; só moedas de negociação |
 | Multiplayer | não existe; nenhuma rede, nuvem, servidor ou sessão compartilhada |
@@ -779,11 +817,18 @@ Recusas explícitas: uma intenção de construção, combate letal, comércio de
 
 | Constante | Valor proposto | Efeito ao atingir |
 | --- | --- | --- |
+| `AGENDA_INTERVAL_TICKS` | 10 | cadência dos pulsos; não é teto de viagem |
+| `AGENDA_LOCAL_ACTION_MAX_TICKS` | 10 | ação local de NPC acima do teto fica inelegível no pulso |
+| `MAX_AGENDA_ENTRIES_PER_PULSE` | 64 | entradas extras da localidade omitidas com `LIMITE_ATINGIDO` |
+| `MAX_RUMOR_ATTEMPTS_PER_PULSE` | 16 | sorteios restantes do rumor no pulso omitidos com `LIMITE_ATINGIDO` |
 | `MAX_LOCALITIES` | 16 | geração recusa spec acima do limite |
 | `MAX_ACTORS_PER_LOCALITY` | 64 | nova entidade não é criada; diagnóstico |
 | `MAX_MOVE_CELLS` | 64 | `CAMINHO_LONGO` |
 | `MAX_TRAVEL_EDGES` | 4 | `ROTA_EXCEDE_LIMITE` |
 | `MAX_TRAVEL_TICKS` | 240 | `ROTA_EXCEDE_LIMITE` |
+| `MAX_MEETING_HORIZON_TICKS` | 2400 | `INTENCAO_INVALIDA` para encontro fora do horizonte |
+| `PASS_VALIDITY_TICKS` | 600 | `INTENCAO_INVALIDA` para validade acima do teto |
+| `AWAY_MIN_DISTANCE_CELLS` | 3 | `DESTINO_INVALIDO` para `AFASTAR_SE` curto demais |
 | `SOCIAL_REACH_CELLS` | 2 | fora de alcance |
 | `WITNESS_REACH_CELLS` | 6 | não testemunha |
 | `RUMOR_REACH_CELLS` | 8 | não recebe rumor |
@@ -842,19 +887,19 @@ Os critérios abaixo são rastreáveis ao cartão DOC-02 e às interfaces consum
 
 ### 13.1 AC-DOC-02-01 — Sessão social observável na região multi-localidades
 
-Critério: a fixture da seção 10 executa os 14 passos e produz, no tick 100, uma consequência social observável em localidade distinta daquela em que o jogador estava no momento da ação (por exemplo, Tomé ou Caio conhecendo `R1` sem relato direto do jogador). Em M2, a observação é possível por recibos, histórico e resumo regional somente leitura; em M3, pelo cliente 2D. O foco da TUI ou da câmera não altera o resultado.
+Critério: a fixture da seção 10 executa os 14 passos e produz, no tick 100, uma consequência social observável em localidade distinta daquela em que o jogador estava no momento da ação (Tomé e Caio conhecem `R1` sem relato direto do jogador; no passo 13, a oferta de Caio não supera a cópia do jogador e o resultado é `RUMOR_JA_CONHECIDO`). Em M2, a observação é possível por recibos, histórico e resumo regional somente leitura; em M3, pelo cliente 2D. O foco da TUI ou da câmera não altera o resultado.
 
 Evidência futura: cenário `first-social-session` de E2E-01, fluxo de TUI-01 e, depois, aceite de PLAY-01 em M3. Status: **não verificado**.
 
 ### 13.2 AC-DOC-02-02 — Catálogo com sucesso, erro e limite
 
-Critério: cada ação da seção 5 tem intenção tipada, pré-condições, alvos válidos, resolução determinística com stream contratado, resultados de sucesso, falha e limite, efeitos em bp, fatos, log de replay e custo. `falar` custa 2 ticks e nenhum token, palavra, áudio ou latência; reexibir prosa não cria tick. Toda ação tem pelo menos um caso de rejeição sem efeito parcial.
+Critério: cada ação da seção 5 tem intenção tipada, pré-condições, alvos válidos, resolução determinística com stream contratado, resultados aplicáveis de sucesso, erro, limite e falha resolvida (explicitamente “não se aplica” quando não há sorteio), efeitos em bp, fatos, log de replay e custo. As macroações habilitadas de NPC (`OCIOSO`, `MOVER`, `FALAR`, `NEGOCIAR`, `VIAJAR`) têm custo e limite declarados; `FUGIR`, `APAZIGUAR` e `INITIATE_COMBAT` estão desabilitadas, sem efeito indefinido. `falar` custa 2 ticks e nenhum token, palavra, áudio ou latência; reexibir prosa não cria tick. Toda ação tem pelo menos um caso de rejeição sem efeito parcial.
 
 Evidência futura: testes de GAME-01 para movimento/viagem/social básico, SOC-01 para relações e mentira, TUI-01 para independência de UI. Status: **não verificado**.
 
 ### 13.3 AC-DOC-02-03 — Tempo lógico, agenda regional e resultados recusados
 
-Critério: a tabela 4.2 é a fonte única de custos inteiros; a agenda processa todas as localidades em ordem determinística; foco e câmera não congelam áreas; rejeição, cancelamento, obsolescência e resposta tardia têm 0 tick e 0 RNG; dry-run não consome RNG definitivo; nenhum modelo participa do tick; o replay preserva cursores e hash.
+Critério: a tabela 4.2 é a fonte única de custos inteiros; a agenda processa todas as localidades em ordem determinística; viagem de NPC é plano multi-pulso com `arrival_tick` e não é cobrada do teto de 10 ticks de ação local; foco e câmera não congelam áreas; rejeição, cancelamento, obsolescência e resposta tardia têm 0 tick e 0 RNG; dry-run não consome RNG definitivo; `MAX_RUMOR_ATTEMPTS_PER_PULSE = 16` sorteios por rumor por pulso e `MAX_AGENDA_ENTRIES_PER_PULSE = 64` entradas por localidade por pulso são determinísticos; a fidelidade de rumor é por cópia de portador; nenhum modelo participa do tick; o replay preserva cursores e hash.
 
 Evidência futura: testes de GAME-01, E2E-01 e REPLAY-01, incluindo comparação de hash com foco trocado e com prosa regenerada. Status: **não verificado**.
 
@@ -874,7 +919,12 @@ Arquivo futuro: `crates/af-core/tests/native_actions.rs`.
 
 - `given_actor_on_floor_when_move_one_cell_then_tick_advances_one` — custo 1 e chegada.
 - `given_actor_on_rough_terrain_when_move_then_cost_is_two` — terreno e custo por célula.
-- `given_actor_at_gate_when_travel_to_neighbor_then_cost_matches_edge_and_agenda_advanced` — viagem, custo 24 e agenda de todas as localidades.
+- `given_actor_in_locality_when_travel_to_neighbor_then_cost_matches_edge_and_agenda_advanced` — viagem, custo 24 e agenda de todas as localidades.
+- `given_actor_not_on_gate_when_travel_then_embarkation_overhead_covers_walk` — viagem não exige portão de origem.
+- `given_npc_travel_cost_above_agenda_interval_when_start_plan_then_arrival_tick_is_exact` — plano multi-pulso de NPC.
+- `given_meeting_missing_tick_when_negotiate_then_rejected_zero_cost` — campo explícito de `ENCONTRO_FUTURO`.
+- `given_pass_missing_gate_when_threaten_then_rejected_zero_cost` — campo explícito de `PASSAGEM`.
+- `given_away_missing_destination_when_threaten_then_rejected_zero_cost` — campo explícito de `AFASTAR_SE`.
 - `given_edge_blocked_when_travel_then_route_impossible_without_tick_or_rng` — rejeição 0/0.
 - `given_diagonal_move_when_resolve_then_invalid_intent` — cardinal apenas.
 - `given_dead_target_when_speak_then_rejected_without_partial_effect` — atomicidade.
@@ -901,8 +951,12 @@ Arquivo futuro: `crates/af-conversation/tests/regional_rumors.rs`.
 
 - `given_rumor_with_carrier_when_carrier_travels_then_origin_preserved` — origem imutável.
 - `given_transfer_when_apply_then_fidelity_decreases_by_1000` — perda de transferência.
-- `given_half_life_boundary_when_tick_then_fidelity_halved` — meia-vida.
-- `given_fidelity_below_min_cognition_when_transfer_then_rumor_extinct` — extinção.
+- `given_half_life_boundary_when_tick_then_each_active_copy_halved` — meia-vida por cópia.
+- `given_copy_below_min_cognition_when_half_life_then_copy_extinct_but_rumor_active` — extinção por cópia, rumor ainda ativo.
+- `given_all_copies_below_min_cognition_when_tick_then_rumor_extinct` — extinção do rumor.
+- `given_listener_with_higher_copy_when_tell_then_no_downgrade` — `RUMOR_JA_CONHECIDO`.
+- `given_rumor_attempt_cap_when_pulse_then_16_draws_and_limit_recorded` — limite de 16 sorteios.
+- `given_offered_copy_below_min_cognition_when_transfer_then_no_copy_created` — limiar de cognição na transferência.
 - `given_scope_local_when_listener_in_other_locality_then_no_transfer` — escopo.
 - `given_actor_in_transit_when_rumor_pulse_then_no_propagation` — trânsito.
 - `given_focus_on_one_locality_when_pulse_then_other_locality_propagates` — sem congelamento.
@@ -950,13 +1004,13 @@ Nenhuma escolha abaixo está aprovada. Cada uma tem recomendação, justificativ
 | --- | --- | --- | --- | --- |
 | `PD-01` | Escala de tempo: 1 tick por passo, atos sociais de 2 a 6 ticks, sessão de 100 ticks | aceitar | mantém o mundo dirigido por ações, com granularidade suficiente para agenda e leitura | nova escala precisa ser re-pinada; nenhum valor pode ser ajustado por implementação |
 | `PD-02` | Movimento cardinal, sem diagonais; escada/rampa +1; alcance social 2 células com linha estrutural | aceitar | elimina ambiguidade de custo e de ordem; impede interação através de parede | movimento diagonal exige novo contrato de custo e desempate; alcance maior facilita interação, mas muda testes |
-| `PD-03` | Viagem atômica e abstrata, custo simétrico, sem encontros de estrada; limite de 240 ticks | aceitar | mantém a sessão curta e determinística, sem sistema de encontros não aprovado | encontros exigem agenda de trânsito, RNG e testes próprios; assimetria exige justificativa de terreno |
+| `PD-03` | Viagem atômica e abstrata, sem exigir portão de origem; sobrecarga de 2 ticks cobre o embarque; custo simétrico; sem encontros de estrada; NPC em plano multi-pulso; limite de 240 ticks | aceitar | mantém a sessão curta e determinística, sem sistema de encontros não aprovado | encontros exigem agenda de trânsito, RNG e testes próprios; assimetria exige justificativa de terreno |
 | `PD-04` | Recorte: sem combate letal, construção, crafting, itens ou economia; só moedas de negociação | aceitar | D-03 prioriza o eixo social e evita promessas não aprovadas | incluir combate/construção exige cartões e critérios próprios; não pode ser "implícito" |
 | `PD-05` | Rótulos e limiares de empatia, medo e confiança; clamp em ±10000 distinto de rejeição | aceitar | dá leitura observável sem criar autoridade paralela; preserva 1 bp | outros limiares exigem atualização de UI, NLG e testes; remover rótulos reduz observabilidade |
 | `PD-06` | Mentira com dois sorteios (crença e detecção); detecção só pelo alvo nesta sessão | aceitar | mantém a resolução determinística e limitada; testemunha só recebe fato/rumor | detecção por testemunha exige novo contrato e mais sorteios; um sorteio só reduz nuance |
-| `PD-07` | Rumor: pulso 60, perda 1000 bp, meia-vida 1200, limiar 4000, escopos `LOCAL` e `REGIONAL` | aceitar | permite observar propagação e degradação na sessão sem torná-las instantâneas | outros valores exigem re-pinagem; `GROUP` exige definição de grupo e contrato próprio |
-| `PD-08` | Agenda: pulso 10, subconjunto de macroações, trânsito com `arrival_tick`, limite 64 entradas por pulso | aceitar | garante ordem estável e atividade regional sem modelo | outra cadência muda o roteiro e os pulsos; habilitar combate de NPC exige recorte novo |
-| `PD-09` | Fixture: quatro localidades, oito NPCs, confiança inicial +2000 para Iara e Bruna, 12 moedas, seed pinada | aceitar | dá uma sessão demonstrável e reproduzível sem fixar cânone | outra fixture/seed exige novo golden; o produto continua regional, não vila |
+| `PD-07` | Rumor com uma cópia por portador: pulso 60, perda 1000 bp, meia-vida 1200 por cópia, limiar 4000, escopos `LOCAL`/`REGIONAL`, 16 sorteios por rumor por pulso | aceitar | permite observar propagação e degradação por portador sem tornar a fidelidade global nem instantânea | outros valores exigem re-pinagem; `GROUP` exige definição de grupo e contrato próprio |
+| `PD-08` | Agenda: pulso 10, teto local 10, viagem de NPC multi-pulso com `arrival_tick`, 64 entradas por localidade por pulso, 16 sorteios de rumor; `FUGIR`/`APAZIGUAR` desabilitadas | aceitar | garante ordem estável, atividade regional e viagens sem contradizer o teto local | outra cadência muda o roteiro e os pulsos; habilitar `FUGIR`/`APAZIGUAR` exige contrato e testes próprios |
+| `PD-09` | Fixture: quatro localidades, oito NPCs, confiança inicial +2000 para Iara e Bruna, 12 moedas, encontro em `L2` no tick 180, seed pinada | aceitar | dá uma sessão demonstrável e reproduzível sem fixar cânone | outra fixture/seed exige novo golden; o produto continua regional, não vila |
 
 Fora da tabela, continuam pendentes de decisão humana, em outros cartões: formato de save, largura de IDs, stack de render, alcance do overlay, contrato de percepção, MLP/genética e política de hardware. Esta spec não os antecipa.
 
@@ -1000,10 +1054,13 @@ Este documento não edita `ROADMAP.md`, `decisions.md`, `wave-spec.md`, prompts,
 | bp | basis point; `10000 bp = 100%`; deltas inteiros |
 | Localidade | área da região com identidade, grelha e portões |
 | Aresta | trajeto entre portões de duas localidades, com custo e estado |
-| Portão | célula de entrada/saída de uma localidade; reservável |
-| Ator em trânsito | ator viajando; ausente de localidades até `arrival_tick` |
-| Fidelidade | qualidade de uma cópia de rumor, em bp, não crescente |
-| Portador | ator que conhece e pode retransmitir um rumor |
+| Portão | célula de chegada de uma localidade, reservável; a partida não exige estar sobre o portão |
+| Ator em trânsito | ator viajando, inclusive por plano multi-pulso; ausente de localidades até `arrival_tick` |
+| Fidelidade | qualidade de uma cópia de rumor de um portador, em bp, não crescente |
+| Cópia de rumor | estado `fidelity_bp`/`state`/`acquired_tick` de um ator para um `RumorId`; há no máximo uma cópia por ator e rumor |
+| Portador | ator com cópia `ATIVO` que pode retransmitir o rumor |
+| Plano de viagem | `TravelPlan` de NPC com `departure_tick`, rota e `arrival_tick`, processado em múltiplos pulsos |
+| `MoverPlan` | deslocamento local agendado de um NPC para uma célula, com caminho e custo válidos dentro de um pulso |
 | Escopo | alcance de propagação de um rumor: `LOCAL` ou `REGIONAL` |
 | Fixture | cenário curado de teste, não escopo de produto |
 | `BaseReadView` | projeção limitada de leitura de M2, sem FOV completo |
