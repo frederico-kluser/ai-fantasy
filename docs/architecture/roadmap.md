@@ -112,10 +112,17 @@ sem qualquer runtime associado. O produto real da TypeSafe é este:
   LFM3” e o sufixo “hermeneutic-core” deixam de fazer parte do nome. O ficheiro
   original mantém-se na raiz do repositório só como **fonte histórica**, sem valor
   normativo.
+- **Mini-MLP por personagem (individualidade).** Cada personagem tem o **seu próprio
+  perceptron de múltiplas camadas**, inicializado pelo arquétipo da raça/espécie e
+  afiado pela experiência de vida; detalhe na **secção 2.8**. Fase **F8**.
 - **Redes neurais por raça/espécie.** Ideia aprovada e registada na **secção 2.8**:
   pequenas redes neurais por raça/espécie para treinar comportamentos (trabalho,
   estilo de combate, dia a dia) com treino e **evolução darwiniana**. Execução
   prevista na fase **F8**; o MVP (F0–F7) não depende dela.
+- **Mundo em blocos (estilo Dwarf Fortress/Minecraft).** Cada bloco da grelha pode ser
+  casa, caverna, buraco, árvore, parede ou água; detalhe na **secção 2.9**.
+- **Visualização 2D isométrica, sem 3D real.** O render final é 2D com visão isométrica;
+  **não haverá qualquer visualização 3D real**; detalhe na **secção 2.10**.
 
 ---
 
@@ -123,10 +130,12 @@ sem qualquer runtime associado. O produto real da TypeSafe é este:
 
 ### 1.1 Visão
 
-Um RPG procedural em modo texto/ASCII, inspirado no *Adventure Mode* de *Dwarf Fortress*,
-onde:
+Um RPG procedural inspirado no *Adventure Mode* de *Dwarf Fortress*, com o mundo numa
+**grelha de blocos** (casas, cavernas, buracos, árvores — estilo *Dwarf
+Fortress*/*Minecraft*) e visualização final **2D isométrica — nunca 3D real**, onde:
 
 - o mundo é simulado por regras determinísticas, não por texto gerado;
+- cada personagem é uma **individualidade**: o seu próprio mini perceptron (secção 2.8);
 - cada interação social é um evento simbólico auditável;
 - o diálogo é uma **interpretação sob procura** de eventos, não a fonte de verdade;
 - a IA local acrescenta flexibilidade (ações inéditas, narrativa) sem comprometer
@@ -144,7 +153,8 @@ onde:
 ### 1.3 Não objetivos (nesta fase)
 
 - Multiplayer, nuvem, contas, telemetria remota.
-- Render 3D, animação, áudio em tempo real.
+- **3D real em visualização** — excluído para sempre: o render final é 2D isométrico
+  (secção 2.10). Animação rica e áudio em tempo real também não são objetivos.
 - Editor visual de regras ou *modding* arbitrário.
 - “Agente autónomo” que joga sozinho; o foco é a simulação e a experiência do jogador.
 - Qualquer dependência de JEV, OpenRouter ou API paga.
@@ -278,17 +288,25 @@ Fora desse fluxo, **nenhum texto é gerado**. O *game loop* não espera pelo mod
 - Event log append-only; snapshots periódicos; replay reproduz o estado.
 - Formato versionado, com hash e *checksum*; save antigo migra sem perda.
 
-### 2.8 Redes neurais por raça/espécie (comportamentos evolutivos)
+### 2.8 Mini-MLP por personagem e redes por raça/espécie (individualidade)
 
 > **Estado:** ideia aprovada e desenhada; execução na fase **F8**. O MVP (F0–F7) não
 > depende disto — a FSM + Utility AI da secção 2.2 continua a ser a base.
 
-A ideia: cada **raça/espécie** do jogo tem uma **rede neuronal pequena** (centenas a
-poucos milhares de parâmetros) que condiciona o comportamento dos seus indivíduos —
-**trabalho**, **estilo de combate** e **dia a dia** — aprendida por **treino** e afiada
-por **evolução darwiniana** ao longo das gerações da simulação.
+A ideia tem dois níveis:
 
-**Porquê redes pequenas por raça/espécie (e não LLM):**
+1. **Mini-MLP por personagem** — cada personagem tem o **seu próprio perceptron de
+   múltiplas camadas** (pequeno: centenas a poucos milhares de parâmetros). É a
+   **individualidade**: ninguém pensa exatamente como ninguém. O mini-MLP nasce do
+   arquétipo da raça/espécie com variação, é **afiado pela experiência de vida** (o que
+   viveu, ganhou e perdeu) e é **transmitido aos descendentes**.
+2. **Rede por raça/espécie** — o arquétipo de grupo que condiciona **trabalho**,
+   **estilo de combate** e **dia a dia** da população.
+
+Ambos são aprendidos por **treino** e afiados por **evolução darwiniana** ao longo das
+gerações da simulação.
+
+**Porquê mini redes por personagem/raça (e não LLM):**
 
 - inferência determinística e barata dentro do *tick* (ponto fixo, sem `f32`);
 - os pesos são **dados de simulação**: versionáveis no *save*, reproduzíveis por *seed*;
@@ -301,9 +319,9 @@ por **evolução darwiniana** ao longo das gerações da simulação.
 | Peça | Desenho |
 | --- | --- |
 | Arquitetura | MLP pequena (2–3 camadas ocultas); entradas = estado percebido (fome, risco, aliados, recursos); saída = *scores* das macroações + parâmetros de estilo (agressividade, cautela, preferência de trabalho). |
-| Pesos | Base por raça/espécie (arquétipo) + variação individual (mutação inicial). Quantizados em ponto fixo; SHA-256 do genoma no *save*. |
+| Pesos | Dois níveis: **arquétipo por raça/espécie** (base) e **genoma por personagem** (o mini-MLP de cada um: arquétipo + mutação inicial + experiência). Quantizados em ponto fixo; SHA-256 do genoma no *save*. |
 | Treino | (a) **reforço in-game**: sucesso/fracasso ajusta ligeiramente os pesos do indivíduo; (b) **treino offline** (`xtask train-behavior`): algoritmo genético / *evolution strategies* sobre cenários determinísticos, com arquétipos revistos por humanos antes de entrarem em vigor. |
-| Evolução darwiniana | Os indivíduos reproduzem-se: os pesos descendem por **cruzamento** (mistura) + **mutação** (RNG determinístico, *stream* `behavior`); a **aptidão** é o desempenho real medido pela simulação (sobrevivência, recursos, objetivos cumpridos). Populações extintas perdem o seu genoma. |
+| Evolução darwiniana | Os indivíduos reproduzem-se: o **genoma (mini-MLP) de cada personagem** desce por **cruzamento** (mistura) + **mutação** (RNG determinístico, *stream* `behavior`); a **aptidão** é o desempenho real medido pela simulação (sobrevivência, recursos, objetivos cumpridos). Populações extintas perdem o seu genoma. |
 | Integração | A rede **modula** a FSM + Utility AI (secção 2.2): pondera macroações e estilos; nunca escreve estado diretamente — o núcleo continua a decidir e aplicar. |
 | Persistência | Genomas no *save* (versionados, com migração); *replay* reproduz exatamente as decisões (mesmo *seed* + genoma ⇒ mesma ação). |
 
@@ -324,10 +342,47 @@ por **evolução darwiniana** ao longo das gerações da simulação.
 **Critérios de aceitação (F8):**
 
 - [ ] Mesmo *seed* + genoma ⇒ mesma sequência de decisões (hash igual em 100 execuções).
+- [ ] Dois personagens da mesma raça/espécie e *seed* de mundo divergem de comportamento
+      (individualidade observável e reproduzível).
 - [ ] Cenário E2E `evolution-100-generations` reproduzível e com *golden*.
 - [ ] Um cenário de extinção perde o genoma da população extinta sem afetar as outras.
 - [ ] Mutação de código do módulo ≥ 90%; complexidade dentro dos limites da secção 8.
 - [ ] Formato do genoma documentado; saves antigos migram sem perda.
+
+### 2.9 Mundo em blocos (estilo *Dwarf Fortress* / *Minecraft*)
+
+O mundo é uma **grelha de blocos**, como no *Dwarf Fortress*: cada bloco é uma unidade
+de construção que pode ser **casa, caverna, buraco, árvore, parede, água, rocha ou
+chão**. Escavar, construir, cortar árvores e abrir buracos é a linguagem do mundo — e o
+estado do mundo é 100% determinístico e serializável.
+
+| Peça | Desenho |
+| --- | --- |
+| Bloco | Tipo + estado (ex.: `TREE`, `WALL`, `CAVE`, `HOLE`, `HOUSE`, `WATER`, `FLOOR`), com material e flags; identidade estável. |
+| Grelha | Coordenadas inteiras `(x, y, z)` com níveis (como os *z-levels* do DF); sem geometria contínua — nada de malhas ou alturas flutuantes. |
+| Operações | Escavar, construir, cortar árvores, abrir buracos, tapar cavernas — tudo como comandos determinísticos do núcleo. |
+| Integração | Os blocos vivem no estado do `af-core` (ECS/dados indexados); *pathfinding*, linha de visão e propagação leem a grelha. |
+| Persistência | Grelha no *save* (compressão por região), versionada; o *replay* reproduz exatamente a mesma grelha. |
+
+Regras: grelha em inteiros (sem `f32`); mesmo *seed* + comandos ⇒ mesma grelha; e a
+**simulação não conhece a câmara** — o render é apenas um consumidor de estado
+(secção 2.10).
+
+### 2.10 Visualização: 2D isométrico, sem 3D real
+
+> **Decisão final de visualização:** o jogo é renderizado em **2D com visão isométrica**
+> (blocos projetados em diamante, como os clássicos isométricos). **Não haverá qualquer
+> visualização 3D real** — nem agora, nem ao final: sem câmara 3D, sem malhas, sem
+> sombras volumétricas, sem *engine* 3D. A profundidade é ilusão de projeção isométrica
+> **2D**.
+
+- O núcleo não renderiza: expõe o estado do mundo (blocos, atores, eventos) por uma API
+  de leitura estável; a **visualização 2D isométrica** é feita por um cliente dessa API
+  (renderização assegurada pelo maintainer do projeto).
+- A TUI/ASCII continua a existir como interface de depuração, testes E2E e *fallback* —
+  nunca é a visualização final do jogo.
+- Orçamentos de render (sprites por ecrã, camadas, *culling* isométrico) entram na fase
+  do render (**F9**); a simulação nunca espera pelo render.
 
 ---
 
@@ -978,7 +1033,8 @@ Resumo; o contrato completo está em
 | **F5 — NLG** | Prompts, parser, cache, checklist factual | 100 sequências sem alucinação mecânica; latência |
 | **F6 — UI** | TUI, input, modal de conversa, saves, settings | E2E de UI; acessibilidade texto |
 | **F7 — Hardening** | Soak 12 h, performance, packaging, SBOM, release | memória < 2,8 GB; release `v0.1.0` |
-| **F8 — Comportamento neural** | Redes neurais por raça/espécie, treino por reforço, evolução darwiniana (secção 2.8) | genomas determinísticos; cenário E2E de 100 gerações; mutação ≥ 90% |
+| **F8 — Comportamento neural** | Mini-MLP por personagem (individualidade) + arquétipos por raça/espécie, treino por reforço, evolução darwiniana (secção 2.8) | genomas determinísticos; individualidade observável; cenário E2E de 100 gerações; mutação ≥ 90% |
+| **F9 — Mundo em blocos e render 2D** | Grelha de blocos (casas, cavernas, buracos, árvores — secção 2.9) e visualização isométrica 2D, sem 3D (secção 2.10) | grelha determinística e reproduzível; render consome estado sem tocar na simulação; cenário E2E de construção/escavação |
 
 Cada fase só começa quando a anterior tem os testes e a documentação verdes. Não se
 “avança para a UI” com o core instável.
@@ -1016,6 +1072,7 @@ Questões abertas: ver [`overview.md`](overview.md#15-decisões-abertas).
 | “Mediana de 56 tokens no `<think`” | ⚠️ alegação | medir; não é garantia |
 | “Zero alucinações” | 🎯 meta | verificação factual + testes |
 | “100% testável” | 🎯 meta arquitetural | definição + gates |
+| Visualização final é 2D isométrica, sem 3D real | ✅ decisão | secção 2.10; reforçada no README |
 
 O documento original citava fontes secundárias e imagens de *marketing*. Aqui, cada número
 tem um estado: verificado, alegação ou meta. Nenhum número de fabricante é tratado como
@@ -1070,6 +1127,7 @@ contrato.
 - [ ] A arquitetura, TDD, E2E e complexidade estão ligados aos docs normativos.
 - [ ] As redes neurais da secção 2.8 mantêm determinismo e testabilidade.
 - [ ] O nome do documento é apenas `roadmap` e a decisão está registada na secção 0.8.
+- [ ] O mundo é grelha de blocos e a visualização final é 2D isométrica (sem 3D real).
 - [ ] Os números externos estão marcados como alegação/meta.
 - [ ] As licenças estão corretas e os pesos não são distribuídos.
 - [ ] O roadmap tem fases com critérios de saída testáveis.
