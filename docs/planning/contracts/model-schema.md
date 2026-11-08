@@ -343,10 +343,13 @@ de facto.
 O conjunto reservado é exaustivo e único para parâmetros e chaves JSON:
 
 ```text
-proposal_id, rule_id, schema_id, model, model_id, model_sha256, prompt, prompt_hash,
-prompt_version, cassette_id, request_id, tick, revision, fact_seq, planned_fact_seq,
-seed, temperature, trace, draw, rng, timestamp, notes, raw_digest, rule_content_hash,
-effect_set_hash, validator_version
+proposal_id, rule_id, proposal_hash, schema_id, model, model_id, model_sha256, model_version,
+prompt, prompt_hash, prompt_version, cassette_id, request_id, tick, revision, region_id,
+actor_id, target_id, fact_seq, planned_fact_seq, seed, temperature, trace, draw, rng,
+timestamp, notes, raw_digest, raw_reply_bytes, rule_content_hash, effect_set_hash,
+validator_version, facts_hash, parse_status, validation_status, error_stage, error_code,
+requested_amount, effective_amount, saturation_policy, saturation_axis,
+narrative_version, fallback_template_version
 ```
 
 Um nome deste conjunto, como parâmetro ou como chave em qualquer objeto, é
@@ -421,13 +424,18 @@ Regras por efeito:
    emitir o nome canônico.
 10. O allowlist é fechado e refere os sete kinds do CTR-01; nenhum efeito novo é inventado neste
     contrato. Um kind futuro exige `schema_version` novo e revisão do CTR-01.
+11. `transfer_currency` só pode aparecer no ramo `on_success`; `on_failure` não pode contê-lo
+    (`IntentEffectMismatch`). Se `ActionFacts.offer_currency=Some(amount)`, `on_success` contém
+    exatamente um `transfer_currency` com esse `amount`; se `None`, nenhum (`IntentEffectMismatch`).
+    Duas ocorrências no mesmo ramo são `DuplicateCurrencyEffect`; `from == to` é `SelfTransfer`.
+    Estas regras são de validação e antecedem a materialização.
 
 ### 3.5 Selectores
 
 | Selector | Liga a | Contextos válidos | Expansão |
 | --- | --- | --- | --- |
-| `actor` | ator da ação | `from`/`to` de transferências; alvo de `apply_status`/`delta_hp` | um ator |
-| `target` | alvo da ação | alvo de qualquer efeito; `from`/`to` de transferências | um ator, se existir |
+| `actor` | ator da ação | `from`/`to` de `transfer_item`; `from` de `transfer_currency`; alvo de `apply_status`/`delta_hp` | um ator |
+| `target` | alvo da ação | alvo de qualquer efeito; `to` de `transfer_currency`; `from`/`to` de `transfer_item` | um ator, se existir |
 | `bystanders` | testemunhas elegíveis | `delta_relationship`, `attach_label`, `apply_status`, `delta_hp`, `propagate_rumor` | lista ordenada, 0..N |
 | `region` | região | apenas `propagation.scope` | não é alvo de efeito |
 
@@ -837,6 +845,8 @@ está registada em F-13.
 | `AmountOutOfRange` | `amount_bp` fora de `-10000..=10000`; zero é `ZeroDelta` |
 | `ZeroDelta` | delta de relação ou HP igual a zero |
 | `DurationOutOfRange` | `duration_ticks` fora de `1..=525600` |
+| `InvalidCheckModifier` | `facts.check_modifier` fora de `-20..=20`; ausente é `MissingFact` |
+| `ArithmeticOverflow` | soma inteira na validação excedeu o tipo |
 | `EffectCountExceeded` | mais de oito efeitos num ramo |
 | `LabelCountExceeded` | mais de três `attach_label` num ramo |
 | `DuplicateLabel` | mesmo alvo e rótulo duas vezes |
@@ -865,7 +875,7 @@ está registada em F-13.
 | `QuantityOutOfRange` | quantidade insuficiente ou acima do estoque |
 | `ItemAlreadyHeld` | `to` já tem o mesmo `ItemId` |
 | `InsufficientCurrency` | carteira de `from` insuficiente |
-| `IntentEffectMismatch` | `transfer_currency` com intent diferente de `NEGOTIATE`/`INFORM_PATH`, direção `from!=actor`/`to!=target`, `offer_currency != Some(amount)` ou `currency_transfer_allowed=false` |
+| `IntentEffectMismatch` | `transfer_currency` com intent diferente de `NEGOTIATE`/`INFORM_PATH`, direção `from!=actor`/`to!=target`, `offer_currency != Some(amount)`, `currency_transfer_allowed=false`, presença em `on_failure` ou ausência/duplicidade quando `offer_currency=Some(amount)` |
 | `WalletOverflow` | carteira de `to` acima de `10000` |
 | `RumorNotFound` | rumor inexistente |
 | `RumorNotKnown` | ator sem cópia ativa |
@@ -905,7 +915,7 @@ saturado.
 | item já com o destino | rejeita | `ItemAlreadyHeld` |
 | estado já presente | rejeita | `StatusAlreadyPresent` |
 | item usado com `items_enabled=false` | rejeita | `ItemEffectNotEnabled` |
-| moeda com intent, direção, oferta ou gate incoerentes | rejeita | `IntentEffectMismatch` |
+| moeda com intent, direção, oferta, ramo ou ocorrência incoerentes | rejeita | `IntentEffectMismatch` |
 | DC/duração/quantidade/escopo fora do limite | nunca satura | rejeição |
 
 Regras de saturação:
@@ -919,7 +929,8 @@ Regras de saturação:
 3. A validação calcula `old + delta` a partir de `ActionFacts` e é o **primeiro** estágio que pode
    detectar a saturação; devolve `ClampNotAuthorized` quando a flag falta. A materialização repete a
    verificação na staging e devolve o mesmo código, com `stage=MATERIALIZE`, se os factos tiverem
-   mudado. Não existe um segundo código para o mesmo caso.
+   mudado. Não existe um segundo código para o mesmo caso. A soma é verificada com aritmética
+   inteira antes de qualquer ramo; overflow é `ArithmeticOverflow`, nunca saturação.
 4. Cada saturação produz um registo com `requested_amount`, `effective_amount`,
    `saturation_policy`, `saturation_axis`, `rule_id` e `planned_fact_seq`. O efeito no `EffectSet`
    usa o valor efetivo; o pedido original fica na auditoria. Isto satisfaz o requisito do CTR-01 de
@@ -1059,8 +1070,8 @@ que o INT-04/INT-07 forneça esta resolução; enquanto não existir, a material
 6. `attach_label`, `apply_status`, `transfer_currency` e `propagate_rumor` verificam duplicados,
    catálogo, carteira, intent/oferta, fidelidade e existência na staging; não há criação implícita
    de rumor. `transfer_currency` exige `from=actor`, `to=target`, `offer_currency=Some(amount)`,
-   `currency_transfer_allowed=true` e intent `NEGOTIATE`/`INFORM_PATH`; qualquer desvio é
-   `IntentEffectMismatch`.
+   `currency_transfer_allowed=true`, intent `NEGOTIATE`/`INFORM_PATH` e presença apenas em
+   `on_success`, exatamente uma quando a oferta existe; qualquer desvio é `IntentEffectMismatch`.
 7. `propagate_rumor` não escolhe a perda: usa a fidelidade da cópia de origem validada e deixa a
    aplicação de `TRANSFER_LOSS_BP` e as testemunhas para o SOC-03. Um `amount_bp` diferente da
    fidelidade de origem é `RumorFidelityMismatch`.
@@ -1123,7 +1134,7 @@ que o INT-04/INT-07 forneça esta resolução; enquanto não existir, a material
 | `LethalDamageNotAuthorized` | dano efetivo levaria a HP < 1 |
 | `WalletOverflow` | carteira efetiva acima de 10000 |
 | `InsufficientCurrency` | saldo efetivo insuficiente |
-| `IntentEffectMismatch` | intent/oferta/direção/gate de moeda incoerentes |
+| `IntentEffectMismatch` | intent/oferta/direção/gate ou ramo/ocorrência de moeda incoerentes |
 | `ItemEffectNotEnabled` | item usado com `items_enabled=false` |
 | `ItemNotFound` | item ausente na staging |
 | `ItemNotHeld` | item não está com a origem |
@@ -1141,9 +1152,10 @@ que o INT-04/INT-07 forneça esta resolução; enquanto não existir, a material
 | `StaleFacts` | revisão mudou |
 | `ArithmeticOverflow` | soma inteira excedeu o tipo |
 
-Duplicados, catálogo, intervalos e posse já verificados na validação não são reemitidos na
-materialização, exceto quando a staging prova que os factos mudaram (`ActorDead`, `TargetDead`,
-`StaleTarget`, `StaleFacts`). Um erro de conservação é `EffectConflict`; não existe um segundo
+Duplicados, catálogo e intervalos são erros de **validação** e não são reemitidos na materialização.
+A staging reexecuta existência, posse, carteira, HP, fidelidade, intenção e alvo, e PODE emitir os
+códigos correspondentes da tabela; se os factos mudaram, emite `ActorDead`, `TargetDead`,
+`StaleTarget` ou `StaleFacts`. Um erro de conservação é `EffectConflict`; não existe um segundo
 código para o mesmo caso.
 
 ## 6. Portas de modelo
@@ -1388,9 +1400,9 @@ Casos válidos (10 categorias × 20):
 | aliases | os quatro nomes históricos (`attributes_involved`, `on_success_changes`, `on_failure_changes`, `propagation_rules`), um por caso |
 | efeitos | cada um dos sete kinds, isolado e combinado |
 | selectores | `actor`, `target`, `bystanders` com 0, 1 e N testemunhas |
-| fronteiras | DC 5/25, `amount_bp` ±10000, `duration` 1/525600, `half_life` 1200/525600 |
+| fronteiras | DC 5/25, `amount_bp` ±10000, `duration` 1/525600, `half_life` 1200 exato |
 | catálogos | cada atributo, eixo, rótulo e estado válido |
-| propagação | `LOCAL`, `REGIONAL`, pisos e extremos |
+| propagação | `LOCAL`, `REGIONAL`, valores exatos 10000/1200/4000 |
 | raciocínio | ausente, presente, 8192 bytes exatos |
 | cardinalidade | oito efeitos, três labels, resposta de 65535 bytes |
 
@@ -1472,6 +1484,12 @@ given_currency_without_negotiate_intent_when_validated_then_intent_effect_mismat
 given_currency_reversed_when_validated_then_intent_effect_mismatch
 given_currency_offer_mismatch_when_validated_then_intent_effect_mismatch
 given_currency_gate_false_when_validated_then_intent_effect_mismatch
+given_currency_on_failure_when_validated_then_intent_effect_mismatch
+given_currency_twice_when_validated_then_duplicate_currency_effect
+given_currency_self_when_validated_then_self_transfer
+given_currency_missing_when_offer_present_then_intent_effect_mismatch
+given_currency_extra_when_offer_absent_then_intent_effect_mismatch
+given_overflowing_relationship_sum_when_validated_then_arithmetic_overflow
 given_half_life_2400_when_validated_then_propagation_budget_mismatch
 given_min_cognition_3999_when_validated_then_propagation_budget_mismatch
 given_initial_fidelity_9999_when_validated_then_propagation_budget_mismatch
@@ -1536,7 +1554,7 @@ NLG, cache e corpus.
 | schema fechado, versão, aliases, tipos, allowlist | §3, §9.2 | `missing_schema_version`, `propagation_rules_alias`, `provenance_parameter`, `unknown_field` |
 | DC/deltas/duração, rejeição vs saturação, ≤8 | §4.4, §5, §9.3 | `zero_relationship_delta`, `clamp_not_authorized`, `saturated_with_record`, `effect_set_overflow` |
 | selectores, IDs, posse, alvos, overlay | §3.5–§3.7, §9.2 | `self_transfer`, `self_target`, `item_not_held`, `item_effect_not_enabled` |
-| check e propaganda de orçamento | §3.7, §5.2 | `check_resolution_missing`, `check_mismatch`, `propagation_budget_mismatch` |
+| check e orçamento de propagação | §3.7, §5.2 | `check_resolution_missing`, `check_mismatch`, `propagation_budget_mismatch` |
 | portas System One/LLM, fakes/cassettes | §6, §9.4 | `too_many_questions`, `malformed_answer`, `abstain_without_tick`, `margin_999` |
 | NLG âncoras/claims/fallback/cache | §7, §9.4 | `invented_item_claim`, `two_perspectives`, `retold_fact`, `cache_hit_tick_unchanged` |
 | parser único e corpus 200+200 | §8, §9.4 | corpus completo (400 casos) |

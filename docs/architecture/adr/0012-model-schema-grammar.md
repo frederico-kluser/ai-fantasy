@@ -127,14 +127,14 @@ Negativas e riscos:
 - Testes de schema: versão ausente (`MissingParameter`), aliases (incluindo `propagation_rules`),
   desconhecidos/proveniência, duplicados, tipos, intervalos, catálogos, selectores.
 - Testes de validação: posse, item/rumor, `items_enabled`, alvo morto/ausente, auto-transferência,
-  auto-alvo relacional, intent/oferta de moeda, escopo, pisos de propagação.
+  auto-alvo relacional, intent/oferta de moeda, escopo, constantes exatas de propagação (10000/1200/4000).
 - Testes de materialização: saturação autorizada, dano letal, 1 bp, oito efeitos, hash,
   preview/commit, `CheckResolutionMissing`/`CheckMismatch`, moeda e orçamento de propagação.
 - Testes de portas: 16 perguntas, timeout, score inválido, margem 999/1000, fakes/cassettes, live
   ignorado.
 - Testes de NLG: claim inventada, prosa contraditória, fallback, cache/locale, duas perspetivas,
   overlay não usado.
-- Revisão independente `REVIEW-CTR-04` R2 antes de qualquer freeze ou implementação.
+- Revisão independente `REVIEW-CTR-04` R3 antes de qualquer freeze ou implementação.
 
 ## Referências
 
