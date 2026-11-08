@@ -97,6 +97,14 @@ custos de sistema e guardrails (§4.2/§11.3), o que não custa tempo (§4.3), o
 matriz de sorteios (§5.10), os resultados e o consumo de RNG por resultado (§6), a agenda regional
 (§7), a linha temporal de rumor (§9.4) e o roteiro curado (§10).
 
+O payload canónico de `REGION` — `Seed(u64)`, `generator_version`, `RegionId` e `spec_digest` — é
+propriedade do `CTR-03` (`docs/planning/contracts/region-perception-overlay.md`, worktree `ctr-03`).
+Este contrato referencia a seed `u64` e a derivação, não redefine `RegionId`/`spec_digest` e regista
+a dependência em `P-09` (§9.2). O `RegionId` é um `u64` não nulo, não é `EntityId` e é derivado pelo
+`CTR-03` §2.2 como `first_u64_be(BLAKE3("AFRI" || generator_version u16 || seed u64 || spec_digest))`;
+`spec_digest` é `BLAKE3-256("AFRS" || RegionSpec canónica)`. O CTR-02 consome o valor e o hash, sem
+recalcular nem substituir a fórmula.
+
 `PD-01` (escala de tempo), `PD-03` (viagem, sobrecarga de embarque e limite de 240 ticks), `PD-07`
 (parâmetros de rumor) e `PD-08` (cadência e limites de agenda) parametrizam diretamente este
 contrato. Ele é **condicional** à ratificação desses itens: se forem alterados, este documento
@@ -111,10 +119,12 @@ exige nova versão e goldens re-pinados; nenhum valor pode ser ajustado por impl
   erro tipado, sem wrap e sem alterar estado.
 - Tipos em code spans são propostas de domínio; nomes de erros são variantes tipadas propostas.
 - `§` refere-se a secções deste contrato; `DOC-02 §x` refere-se à spec de gameplay.
-- Os resultados de ação usam os nomes e os códigos do DOC-02 §6.1: `1 SUCESSO`, `2 FALHA_RESOLVIDA`,
-  `3 REJEITADA`, `4 CANCELADA_PELO_JOGADOR`, `5 OBSOLETA`, `6 RESPOSTA_TARDIA`, `7 DRY_RUN`.
-  `FALHA_DE_DURABILIDADE` é uma condição de aplicação, não um resultado de mundo, e não entra no
-  log como entrada de mundo (§7.4).
+- Os resultados de ação usam os nomes do DOC-02 §6.1. Este contrato atribui os códigos `1`…`7` da
+  tabela §2.4 **para uso no log**, sem afirmar que o DOC-02 os numera: `1 SUCESSO`,
+  `2 FALHA_RESOLVIDA`, `3 REJEITADA`, `4 CANCELADA_PELO_JOGADOR`, `5 OBSOLETA`,
+  `6 RESPOSTA_TARDIA`, `7 DRY_RUN`. A oitava linha do DOC-02, `FALHA_DE_DURABILIDADE`, não é
+  resultado de mundo: é `AppError::Durability` com `durability = NotDurable`, 0 tick e 0 RNG
+  adicionais, e não entra no log como entrada publicante (§7.4).
 - Nenhum valor de hash de estado ou de log é afirmado neste documento; os goldens pertencem a
   `CORE-01`/`CORE-02`/`STORE-01` após o freeze.
 
@@ -174,13 +184,15 @@ Custos de sistema e guardrails usados por este contrato, também do DOC-02 §4.2
 `PASS_VALIDITY_TICKS = 600`, `RUMOR_REACH_CELLS = 8`, `MAX_RUMOR_CARRIERS = 128`,
 `MAX_RUMORS_PER_ACTOR = 32`.
 
-**Cálculo de `viajar` (decisão para freeze).** O DOC-02 §4.2 escreve `2 + soma das células da
-rota` e qualifica a unidade de cobrança como “por aresta percorrida e por célula”; as duas leituras
-coincidem na fixture de até duas arestas e divergem a partir de três. Este contrato fixa a leitura
-**por aresta**: `custo = Σ_arestas (2 + Σ_células_do_corredor custo_de_entrada) + sobrecarga_da_aresta`,
-com a sobrecarga de aresta fornecida pelo estado de região de `CTR-03` e **zero quando a região
-declarar zero**. A leitura alternativa (“2” uma única vez por viagem) fica registada como
-`Q-01` em §9.2 e não pode ser adotada por implementação. A recomendação está em §12.
+**Cálculo de `viajar` (fechado).** O DOC-02 §4.2 fixa `2 + soma das células` e a unidade “por aresta
+percorrida e por célula”; §3.2 explica que a sobrecarga fixa de 2 é paga **uma vez por aresta**, não
+uma vez por comando, e não há sobrecarga adicional. Este contrato fixa exatamente:
+`custo = Σ_arestas (2 + Σ_células_do_corredor custo_de_entrada)`.
+Nenhuma sobrecarga extra é admitida; se `CTR-03` publicar `cost_ticks` por aresta como agregado,
+esse valor MUST ser igual a `2 + Σ células` do corredor, sem duplicação. Divergência é
+`CostMismatch`. A leitura “2 uma vez por viagem” está **rejeitada**: com duas arestas já diverge dos
+exemplos do DOC-02 (E13+E23 = 31 e L3→L4 = 33 na leitura correta; 29 e 31 na leitura rejeitada).
+Ratificar a redação é do DOC-02/maintainer, não deste contrato; `Q-01` fica fechada.
 
 O caminho de `mover` é único por contrato (menor custo; empate pela sequência lexicográfica de
 células `(z, y, x)` e pela ordem de vizinhos `N, L, S, O`, conforme DOC-02 §3.3) e o custo é a soma
@@ -228,8 +240,10 @@ Regras:
   aplica apenas os efeitos de falha. Nunca é tratada como rejeição.
 - Só os resultados 1 e 2 promovem `revision`; os resultados 3–7 são duráveis no log (para que o
   replay reconte ticks e cursores), mas não alteram o estado canónico nem o hash.
-- `FALHA_DE_DURABILIDADE` não é um código de mundo: é devolvida pela aplicação quando o commit
-  durável ou o ACK falham (§7.4). Ela nunca produz um recibo que afirme efeito durável.
+- O DOC-02 §6.1 lista **oito** resultados; os sete primeiros têm os códigos `1`…`7` desta tabela. A
+  oitava linha, `FALHA_DE_DURABILIDADE`, não é um `outcome` de mundo: é condição de aplicação
+  (`AppError::Durability`/`durability = NotDurable`), com 0 tick e 0 RNG adicionais, e nunca produz
+  recibo que afirme efeito durável (§7.4).
 - Um resultado não pode ser “promovido” por retry: repetir a mesma `intent_id` devolve o recibo
   já gravado, sem reexecutar a ação (§8.4).
 
@@ -362,15 +376,23 @@ Validação de `AGENDA`:
   `DuplicateCanonicalKey`; ordem errada é `CanonicalOrderViolation` (CTR-01).
 - `seq` é alocado de forma monotônica e nunca reutilizado no mesmo save; o valor é durável e
   entra no hash. Duas entradas no mesmo `due_tick` são desempatadas por `seq` crescente.
+- `seq` é o nome deste payload; o CTR-01 §5.2 escreve `seq` e o §5.4 escreve `sequence` para a
+  mesma chave de agenda. São o mesmo campo e o wire usa `seq`; não há segundo campo.
 - `locality` MUST existir na lista de localidades; `subject_actor` MUST existir em `ACTORS`.
 - `kind` desconhecido é `InvalidAgendaEntry`; `payload_len` incompatível com o `kind` é
   `InvalidAgendaEntry`.
 - `TRAVEL_ARRIVAL` MUST coincidir campo a campo com o plano de viagem do ator em `ACTORS`
   (§6.2): `departure_tick`, `arrival_tick`, `destination_locality`, `arrival_gate`, `route_len` e
-  o prefixo de `route_edges`. Divergência é `AgendaActorMismatch` e impede o load e o commit.
-- `SCHEDULED_MEETING` MUST ter `due_tick` em `(creation_tick, creation_tick + MAX_MEETING_HORIZON_TICKS]`
-  e `counterparty_actor` existente e distinto de `subject_actor`; violação é `InvalidAgendaEntry`.
-  A semântica de desfecho do encontro é pendência herdada (§9.2, `P-06`).
+  o prefixo de `route_edges`. Além disso, o `locality` do prefixo da entrada MUST ser igual a
+  `destination_locality`, e `subject_actor` MUST ser o `ActorId` cujo plano em `ACTORS` está a ser
+  comparado (o plano pertence ao sujeito, não a outro ator). `arrival_gate` MUST pertencer à
+  localidade de destino e `route_edges` MUST existir. Divergência é `AgendaActorMismatch` e
+  impede o load e o commit.
+- `SCHEDULED_MEETING` MUST ter `due_tick` em `(creation_tick, creation_tick + MAX_MEETING_HORIZON_TICKS]`,
+  `counterparty_actor` existente e distinto de `subject_actor`, e `counterparty_locality` existente
+  e não nula; o `locality` do prefixo MUST ser igual a `counterparty_locality`. `subject_actor` é o
+  proponente e `counterparty_actor` o outro lado. Violação é `InvalidAgendaEntry`. A semântica de
+  desfecho do encontro é pendência herdada (§9.2, `P-06`).
 - Pulsos de agenda e de rumor são **derivados da cadência**: nunca são gravados como entradas. Uma
   entrada de pulso é `InvalidAgendaEntry`; duplicar a contagem de ticks é erro de contrato.
 - O payload não contém texto, prosa, caminho de arquivo, nome de apresentação ou dado de UI.
@@ -465,23 +487,41 @@ Regras normativas:
 
 - Existem quatro streams de domínio, com códigos fixos: `1 social`, `2 combat`, `3 rumor`,
   `4 spawn`. O código `0` é reservado e código desconhecido é `UnknownRngStream`. Nesta sessão,
-  `social` e `rumor` são usados; `combat` e `spawn` existem para separação de domínio e para
-  geração/regeneração de região, e não são consumidos durante um tick desta sessão.
-- O `RngState` guarda, por stream, uma **posição** `u64`: o número de palavras de 64 bits já
-  consumidas naquele stream. Não guarda seed, estado de gerador em memória nem ponteiro opaco.
-- A `Seed` é `[u8; 32]` e vive na secção `REGION` (tag 1, dona `CTR-03`), não na secção `RNG`.
-  A derivação é por domínio:
-  `stream_seed = BLAKE3-256("AI-FANTASY-RNG-V1" || seed[32] || code_u16_be)`.
-  O gerador de cada stream é ChaCha20 (RFC 7539), inicializado com `stream_seed`; a palavra `n` é
-  a palavra de índice `n` do fluxo determinístico desse gerador (posição de palavra, não de byte).
-- Uma fixture que declare seed `u64` é expandida na fronteira por
-  `BLAKE3-256("AF-SEED-V1" || u64_be)`; só os 32 bytes resultantes entram no estado e no hash.
-  A largura canónica da seed é decisão para freeze (§12) e deve ser confirmada com `CTR-03`.
+  `social` e `rumor` são usados; `combat` e `spawn` ficam reservados a domínios futuros e não são
+  consumidos durante um tick desta sessão. A geração de região usa a PRF própria do `CTR-03` e
+  **não** consome estas streams; `spawn` não é um RNG de geração paralelo.
+- `Seed(u64)` é o tipo canónico da seed, alinhado ao roadmap (“`Tick(u64)`, `Seed(u64)`”) e ao
+  `CTR-03` (dono do payload `REGION`). `RegionId`, `spec_digest` e `generator_version` são
+  propriedade do `CTR-03`; este contrato referencia a derivação e não a redefine (§9.2, `P-09`).
+- O `RngState` é o valor de runtime `{ seed: Seed, positions: [u64; 4] }`: a seed **e** as posições
+  por stream. A seed não é duplicada na secção `RNG` (tag 10): ela vive na secção `REGION` (tag 1,
+  dona `CTR-03`) e é reconstruída no load; a secção `RNG` grava apenas as posições (§4.8). Sem seed
+  no `RngState`, `draw` não é realizável e uma seed global seria proibida.
+- A chave de 32 bytes de cada stream é derivada explicitamente da seed `u64`:
+  `stream_key = BLAKE3-256("AI-FANTASY-RNG-KEY-V1" || u64_be(seed) || u16_be(code))`.
+  Não há `seed[32]` canónica nem expansão opcional de fixture: a seed é `u64`, e a chave de 32
+  bytes é sempre derivada por essa fórmula.
+- O gerador de cada stream é **ChaCha20 original, RFC 7539 §2.3**, com 20 rondas (10 duplas), e os
+  parâmetros fixados:
+  - chave: `stream_key` de 32 bytes;
+  - nonce: 12 bytes, todos zero;
+  - contador de bloco de 32 bits: começa em `0` e incrementa uma vez por bloco de 64 bytes;
+  - serialização de saída: as 16 palavras de 32 bits de cada bloco em **little-endian**, na ordem
+    do RFC;
+  - palavra de 64 bits `n`: `bloco = n / 8`, par `j = n % 8`, e
+    `word = u32_le[2j] | (u32_le[2j + 1] << 32)` (palavra 32-bit par no low, ímpar no high).
+  Uma implementação que use `rand_chacha` MUST fixar a versão no lockfile e provar, com o golden
+  `given_seed_and_position_when_draw_then_word_is_pinned`, que o fluxo coincide com esta
+  construção; `ChaCha20Rng` com inicialização ou posição de palavra diferente do RFC não é aceite
+  por semelhança de nome.
 - Não existe RNG global, `thread_rng`, entropia de relógio, `Instant`, contador de sistema,
   endereço de memória ou seed por chamada. A mesma seed, as mesmas posições e as mesmas requisições
   produzem as mesmas palavras em Windows e Linux.
 - O tick não é entropia. Consumir RNG em função de `tick`, de foco, de câmera ou de tempo de CPU é
   sorteio invisível por definição (§4.6).
+- Vetor de teste da construção: seed `1`, stream `1`, posição `0`; o primeiro word de 64 bits é
+  comparado com um golden capturado por `CORE-01` depois do freeze. Nenhum valor de palavra ou de
+  hash é afirmado nesta proposta.
 
 ### 4.2 `DrawSpec`, `DrawOutcome` e assinatura
 
@@ -509,8 +549,10 @@ draw(state: &RngState, request: DrawSpec) -> Result<DrawOutcome, DomainError>
 | `words_consumed` | `u32` | `1..=8`; palavras efetivamente lidas, incluindo rejeições. |
 | `position_after` | `u64` | `index + words_consumed`; posição a promover. |
 
-`draw` é **puro**: lê `state` e devolve o resultado, sem mutar o estado recebido. A promoção do
-cursor é explícita e pertence ao chamador (§4.4): o chamador promove exatamente
+`draw` é **puro**: lê `state` e devolve o resultado, sem mutar o estado recebido. Ele deriva
+`stream_key` de `state.seed` e de `request.stream` (§4.1) a cada chamada; não recebe seed por
+parâmetro e não lê seed de ambiente ou de global. Um `RngState` sem seed é `MissingSeed`. A
+promoção do cursor é explícita e pertence ao chamador (§4.4): o chamador promove exatamente
 `position_after` em caso de commit, e nada em caso de rejeição, cancelamento, obsolescência,
 resposta tardia, dry-run ou falha de invariante.
 
@@ -636,9 +678,11 @@ Validação de `RNG`:
   ausência, duplicata ou código desconhecido é `InvalidRngSection`.
 - `position` MUST caber em `u64`; não há posição negativa nem sentinela.
 - O payload tem tamanho fixo `4 + 4 × (2 + 8) = 44` bytes; não há padding.
-- A seed não é repetida nesta secção: uma secção `RNG` sem `REGION` com seed é `MissingSeed`, e a
-  seed é a única fonte da derivação.
-- O payload entra no hash regional e no save; é restaurado literalmente em `load`.
+- A seed (`u64`) não é repetida nesta secção: ela vive em `REGION` e é a única fonte da derivação;
+  uma secção `RNG` cujo estado reconstruído não encontre seed é `MissingSeed`. O `RngState` de
+  runtime combina `REGION.seed` com as quatro posições e é o que `draw` recebe.
+- O payload entra no hash regional e no save; é restaurado literalmente em `load`, e a chave de
+  32 bytes é sempre re-derivada por BLAKE3, nunca gravada.
 - `combat` e `spawn` existem e são preservados mesmo sem consumo nesta sessão; remover uma stream
   “não usada” seria uma mudança de formato, não uma otimização.
 
@@ -658,17 +702,22 @@ Cabeçalho de 32 bytes:
 | 4 | `version` | `u8` | `1` | Versão do formato. |
 | 5 | `flags` | `u8` | `0` | Reservado; MUST zero. |
 | 6 | `reserved` | `u16` | `0` | MUST zero. |
-| 8 | `entry_count` | `u32` | variável | Número de entradas. |
+| 8 | `entry_count` | `u32` | variável | Número de entradas **do segmento** deste log. |
 | 12 | `contract_version` | `u32` | `1` | Versão do `SimulationContract` usado. |
-| 16 | `checkpoint_revision` | `u64` | variável | Revisão do checkpoint de origem. |
-| 24 | `checkpoint_entry_seq` | `u64` | variável | Última entrada coberta pelo checkpoint. |
+| 16 | `checkpoint_revision` | `u64` | variável | Revisão do checkpoint coberto por este log. |
+| 24 | `base_entry_seq` | `u64` | variável | `entry_seq` do checkpoint; o log começa em `base_entry_seq + 1`. |
+
+O log é **relativo ao checkpoint**: cobre o segmento `(base_entry_seq, base_entry_seq + entry_count]`.
+`base_entry_seq = 0` denota log desde o estado inicial. `entry_count = 0` é `EmptyLog` (um arquivo
+sem entradas não é um log); o replay de um checkpoint sem entradas é representado por `inputs`
+vazio, não por um arquivo vazio.
 
 Entrada, com parte fixa de **148 bytes** seguida de blocos variáveis:
 
 | Offset relativo | Campo | Tipo | Semântica |
 | --- | --- | --- | --- |
 | 0 | `entry_len` | `u32` | Comprimento total da entrada, incluindo este campo. |
-| 4 | `seq` | `u64` | `1..=entry_count`, contíguo. |
+| 4 | `seq` | `u64` | `base_entry_seq + 1 ..= base_entry_seq + entry_count`, contíguo. |
 | 12 | `tick_before` | `u64` | Tick antes da entrada. |
 | 20 | `tick_after` | `u64` | Tick depois da entrada. |
 | 28 | `revision_before` | `u64` | Revisão antes da entrada. |
@@ -704,14 +753,69 @@ antes do rodapé é `Truncated`; bytes depois do rodapé são `TrailingBytes`.
 
 ### 5.2 Entradas normalizadas de comando
 
-- `kind = 1 COMMAND` representa uma intenção resolvida do jogador ou de um ator de agenda. O
-  `payload` contém os campos normalizados do `NativeIntent`/`ResolvedCommand`, na ordem fixa:
-  `kind` da ação, `actor`, `target` (0 se ausente), `destination_kind` (`0` nenhum, `1` célula,
-  `2` localidade), `destination_id`/`x`/`y`/`z`, `topic_kind`/`topic_id`, `offer_moeda`,
-  `meeting_tick`, `meeting_locality`, `gate_id`, `validity_ticks`, `away_x`/`away_y`/`away_z`,
-  `registro`, `pedido`, `exigencia`, `claim_value`, `seed_rumor`, `resolved_digest` de 32 bytes e
-  `cost_ticks` repetido para conferência.
-- O `resolved_digest` é BLAKE3-256 da descrição canónica do caminho/rota resolvidos e do custo
+`kind = 1 COMMAND` representa uma intenção resolvida do jogador ou de um ator de agenda. O
+`payload` é **fixo, big-endian e sem padding**, com exatamente **162 bytes** (`payload_len = 162`);
+qualquer outro comprimento é `InvalidPayload`. Campos opcionais usam presença `u8` (`0` ausente, `1`
+presente); quando ausentes, os bytes do valor MUST ser zero.
+
+| Offset | Campo | Tipo | Regra |
+| --- | --- | --- | --- |
+| 0 | `action_kind` | `u16` | `1..=8` do catálogo DOC-02. |
+| 2 | `actor` | `u64` | `ActorId` não nulo. |
+| 10 | `target_present` | `u8` | `0`/`1`. |
+| 11 | `target` | `u64` | `ActorId` se presente; `0` se ausente. |
+| 19 | `destination_kind` | `u8` | `0` nenhum, `1` célula, `2` localidade. |
+| 20 | `destination_locality` | `u64` | `LocationId` se kind `2`; `0` caso contrário. |
+| 28 | `x` | `i32` | célula se kind `1`; `0` caso contrário. |
+| 32 | `y` | `i32` | idem. |
+| 36 | `z` | `i16` | idem. |
+| 38 | `topic_present` | `u8` | `0`/`1`. |
+| 39 | `topic_kind` | `u8` | `0` ausente, `1` FACT, `2` RUMOR. |
+| 40 | `topic_id` | `u64` | `FactId`/`RumorId` conforme kind; `0` se ausente. |
+| 48 | `offer_present` | `u8` | `0`/`1`. |
+| 49 | `offer_moeda` | `u32` | `CurrencyAmount` `1..=10_000` se presente; `0` se ausente. |
+| 53 | `meeting_tick_present` | `u8` | `0`/`1`. |
+| 54 | `meeting_tick` | `u64` | `Tick` absoluto se presente. |
+| 62 | `meeting_locality_present` | `u8` | `0`/`1`. |
+| 63 | `meeting_locality` | `u64` | `LocationId` se presente. |
+| 71 | `gate_present` | `u8` | `0`/`1`. |
+| 72 | `gate_id` | `u64` | `GateId` kind 6 se presente. |
+| 80 | `validity_present` | `u8` | `0`/`1`. |
+| 81 | `validity_ticks` | `u32` | `1..=PASS_VALIDITY_TICKS` se presente. |
+| 85 | `away_present` | `u8` | `0`/`1`. |
+| 86 | `away_x` | `i32` | célula se presente; `0` caso contrário. |
+| 90 | `away_y` | `i32` | idem. |
+| 94 | `away_z` | `i16` | idem. |
+| 96 | `registro` | `u8` | `0` ausente ou `1..=4` (DOC-02 §5.1). |
+| 97 | `pedido` | `u8` | `0` ausente ou `1..=4`. |
+| 98 | `exigencia` | `u8` | `0` ausente ou `1..=3`. |
+| 99 | `claim_present` | `u8` | `0`/`1`. |
+| 100 | `claim_value` | `u16` | código `1..=N` se presente; `0` se ausente. |
+| 102 | `seed_rumor` | `u8` | `0`/`1`. |
+| 103 | `fidelity_offered_present` | `u8` | `0`/`1`. |
+| 104 | `fidelity_offered_bp` | `u16` | `0..=10_000` se presente (`perguntar_rumor`). |
+| 106 | `fidelity_received_present` | `u8` | `0`/`1`. |
+| 107 | `fidelity_received_bp` | `u16` | `0..=10_000` se presente. |
+| 109 | `scheduled_tick_present` | `u8` | `0`/`1`. |
+| 110 | `scheduled_tick` | `u64` | `Tick` calculado e registado (`ameaçar`). |
+| 118 | `resolved_digest` | 32 bytes | BLAKE3-256 do caminho/rota resolvidos e do custo. |
+| 150 | `intent_id` | `u64` | Chave de idempotência da intenção; não nula em `COMMAND`/`CANCELLATION`. |
+| 158 | `cost_ticks` | `u32` | Custo aplicado, repetido para conferência. |
+
+Regras:
+
+- `action_kind` e os campos de presença MUST ser coerentes com a ação: campo obrigatório ausente,
+  campo proibido presente ou enum fora da faixa é `InvalidPayload`.
+- `destination_kind = 1` exige `x`/`y`/`z` e `destination_locality = 0`; `kind = 2` exige
+  `destination_locality` e `x = y = z = 0`; `kind = 0` exige tudo zero.
+- Uma presença em `1` com valor zero é inválida quando o campo exige valor positivo; `fidelity_*_bp`
+  pode ser `0` quando presente se a ação o permitir.
+- `intent_id` MUST ser não nulo em `COMMAND` e `CANCELLATION`; é a chave do índice durável de
+  recibos e permite reconstruir a idempotência a partir do log. Duas entradas com o mesmo
+  `intent_id` e outcomes publicantes diferentes são `DuplicateIntent`. Em `DRY_RUN`, o campo
+  transporta o `preview_id` e `flags.bit0 = 1`; o índice de recibos não o reserva como intenção
+  real.
+- `resolved_digest` é BLAKE3-256 da descrição canónica do caminho/rota resolvidos e do custo
   (células `(z,y,x)` ordenadas do caminho, ou arestas `EdgeId` e corredores da rota). O replay
   recomputa o caminho/rota pela regra do DOC-02 e compara o digest; divergência é `Divergence`.
 - O payload não contém prosa, tokens, palavras, áudio, latência, caminho de arquivo, estado de UI,
@@ -719,28 +823,60 @@ antes do rodapé é `Truncated`; bytes depois do rodapé são `TrailingBytes`.
 - Um comando que exija modelo tem `flags.bit1` e bloco externo; a ação nativa correspondente não
   depende do modelo e nunca fica bloqueada pela ausência dele.
 
+Ordem canónica dos blocos variáveis:
+
+- `draws[]` aparece na **ordem de execução** dos sorteios (a mesma em que `draw` foi chamado).
+  Dentro de cada stream, `index` é estritamente crescente e
+  `index[k+1] = index[k] + words[k]`; `1 <= words <= 8` e `value < bound`. Ordem diferente é
+  `InvalidDrawOrder`.
+- `touched[]` é ordenado por `code` ascendente, sem repetição, com `position_before` igual à posição
+  do stream antes do primeiro draw e `position_after` igual à posição depois do último; a diferença
+  MUST igualar a soma de `words` dos draws daquele stream. Violação é `InvalidTouchedStreams`.
+- `payload` de comando tem `payload_len = 162`; os blocos aparecem na ordem `draws`, `touched`,
+  `payload`, `events`, `external`, com os comprimentos declarados.
+
 ### 5.3 Entradas externas normalizadas
 
-- `kind = 2 MODEL_PROPOSAL`: bloco externo com `origin u8` (`1` sidecar local, `2` humano),
-  `decision u8` (`1` propor, `2` abster, `3` timeout), `proposal_kind u16`, `accepted u8`,
-  `candidate_len u32`, `candidate[]` no formato de §5.2 e `raw_digest` de 32 bytes do texto bruto do
-  modelo. O texto bruto não entra no estado nem no hash; o digest serve de auditoria.
-- `kind = 3 MODEL_TIMEOUT` e `kind = 4 MODEL_ABSTENTION`: sem payload de comando; `outcome = 6`,
-  `cost_ticks = 0`, nenhuma mudança de estado; documentam por que a ação não ocorreu.
-- `kind = 5 CANCELLATION`: `outcome = 4`, `cost_ticks = 0`; regista a intenção cancelada e o ponto
-  antes do commit. Nenhum efeito é desfeito.
+Bloco externo fixo de **41 bytes** seguido de `candidate`:
+
+| Offset | Campo | Tipo | Regra |
+| --- | --- | --- | --- |
+| 0 | `origin` | `u8` | `1` sidecar local, `2` humano. |
+| 1 | `decision` | `u8` | `1` propor, `2` abster, `3` timeout. |
+| 2 | `proposal_kind` | `u16` | `1..=8` quando propõe; `0` caso contrário. |
+| 4 | `accepted` | `u8` | `0`/`1`; `1` só quando `decision = 1`. |
+| 5 | `candidate_len` | `u32` | `162` quando há candidato; `0` caso contrário. |
+| 9 | `raw_digest` | 32 bytes | BLAKE3-256 do texto bruto do modelo; não entra no estado. |
+| 41 | `candidate` | `candidate_len` | Bytes de §5.2, quando presente. |
+
+Regras:
+
+- `kind = 2 MODEL_PROPOSAL`: `external_len = 41 + 162`, `candidate_len = 162`, `candidate` é
+  byte-a-byte o payload de §5.2, `proposal_kind` é o `action_kind` do candidato, `command_kind`
+  repete-o e `payload_len = 0`. `accepted = 1` significa que a aplicação aceitou o candidato; o
+  replay não revalida a proposta, consome o candidato normalizado.
+- `kind = 3 MODEL_TIMEOUT` e `kind = 4 MODEL_ABSTENTION`: `external_len = 41`, `candidate_len = 0`,
+  `proposal_kind = 0`, `accepted = 0`, `decision` `3`/`2`, `payload_len = 0`; sem efeito e sem tick.
+- `kind = 5 CANCELLATION`: `external_len = 0`, `payload_len = 162` com o comando cancelado,
+  `outcome = 4`; nenhum efeito é desfeito.
 - Uma entrada externa nunca promove cursor de RNG, nunca avança tick e nunca cria fato de mundo.
   Ela existe para que o replay reproduza a decisão sem chamar modelo, relógio ou configuração
   implícita.
 - Se o log referencia uma resposta de modelo para uma ação que não a exigia, ou falta a resposta de
   uma ação que a exigia, o replay falha com `UnexpectedExternalInput`/`MissingExternalInput`.
+- O texto bruto do modelo não entra no estado nem no hash; só o `raw_digest` e o candidato
+  normalizado são registados. Prosa, tokens e latência não têm campo.
 
 ### 5.4 Ordem, tick e revisão
 
-- `seq` é contíguo de `1` a `entry_count`, sem buracos e sem repetição; qualquer outro caso é
-  `OutOfOrder`.
+- `seq` é contíguo de `base_entry_seq + 1` a `base_entry_seq + entry_count`, sem buracos e sem
+  repetição; qualquer outro caso é `OutOfOrder`. `seq` é absoluto no log do save, não relativo ao
+  arquivo.
 - `tick_before`/`tick_after` são não decrescentes; `tick_after` de uma entrada é igual a
   `tick_before` da seguinte. `tick_before` da primeira entrada é o tick do checkpoint.
+- O cabeçalho MUST coincidir com o checkpoint usado: `checkpoint_revision` igual à revisão do
+  checkpoint e `base_entry_seq` igual ao `entry_seq` do checkpoint; divergência é
+  `CheckpointLogMismatch`.
 - Entrada publicante (`flags.bit3 = 1`): `outcome` em `{1, 2}`, `cost_ticks >= 1`,
   `tick_after = tick_before + cost_ticks` e `revision_after = revision_before + 1`.
 - Entrada não publicante: `outcome` em `{3, 4, 5, 6, 7}`, `cost_ticks = 0`,
@@ -763,15 +899,23 @@ replay_range(checkpoint: Checkpoint, inputs: &[RecordedInput], contract: &Simula
 ```
 
 - `Checkpoint` contém `revision`, `entry_seq`, `state_hash` e os bytes canónicos do estado; a seed
-  vem da secção `REGION` do próprio estado.
-- `RecordedInput` é a entrada `AFRL` descodificada; `contract` é passado explicitamente e fixa
-  versão, tabela de custos, constantes e limites. Nenhum dos dois é lido de ambiente.
-- Replay completo consome todas as entradas e devolve o estado final, a revisão, a entrada final e o
-  hash final; a cada entrada publicante compara o hash calculado com `hash_after`; a primeira
-  divergência é `Divergence { seq, expected, actual }`.
+  vem da secção `REGION` do próprio estado. O `entry_seq` do checkpoint é a **cobertura de estado**
+  da revisão (última entrada que alterou o estado); entradas não publicantes posteriores entram em
+  `inputs` e são reproduzidas, mesmo que `head.entry_seq` seja maior.
+- `RecordedInput` é a entrada `AFRL` descodificada; `inputs` é o segmento **relativo** ao
+  checkpoint, com a primeira entrada em `checkpoint.entry_seq + 1`, e nunca inclui entradas já
+  cobertas. Se o chamador passar um arquivo `AFRL`, o header MUST coincidir com o checkpoint
+  (`base_entry_seq` e `checkpoint_revision`), senão `CheckpointLogMismatch`; o header não é
+  reaplicado.
+- `contract` é passado explicitamente e fixa versão, tabela de custos, constantes e limites.
+  Nenhum dos dois é lido de ambiente.
+- Replay completo consome todas as entradas de `inputs` e devolve o estado final, a revisão, a
+  entrada final e o hash final; a cada entrada publicante compara o hash calculado com
+  `hash_after`; a primeira divergência é `Divergence { seq, expected, actual }`. `inputs` vazio é
+  um no-op válido que devolve o hash do checkpoint.
 - Replay parcial começa obrigatoriamente em `checkpoint.entry_seq + 1` e termina em `stop_at_seq`;
-  `stop_at_seq` MUST ser uma entrada publicante, senão `PartialBoundary`. O hash final do trecho é
-  comparado com o `hash_after` dessa entrada.
+  `stop_at_seq` MUST existir em `inputs`, MUST ser publicante e MUST ser `>=` à primeira entrada,
+  senão `PartialBoundary`. O hash final do trecho é comparado com o `hash_after` dessa entrada.
 - Trechos entre localidades são suportados porque o estado contém todas as localidades: um trecho
   que atravessa `L1 → L2` reproduz agenda, rumores e hash de `L1`, `L3` e `L4` mesmo sem foco.
 - Replay do dry-run e de rejeições: as entradas não publicantes reproduzem o mesmo resultado e
@@ -789,6 +933,8 @@ replay_range(checkpoint: Checkpoint, inputs: &[RecordedInput], contract: &Simula
 | Bytes depois do rodapé | `TrailingBytes` |
 | `entry_len` ou tamanho calculado divergente | `EntryLengthMismatch` |
 | `seq` fora de ordem, repetido ou com buraco | `OutOfOrder` |
+| Header não coincide com o checkpoint (`base_entry_seq`/`checkpoint_revision`) | `CheckpointLogMismatch` |
+| Arquivo de log sem entradas (`entry_count = 0`) | `EmptyLog` |
 | `tick_after < tick_before` ou descontinuidade | `TickRegression` |
 | `revision_after < revision_before` ou salto | `RevisionRegression` |
 | `hash_before` diferente do `hash_after` anterior | `HashChainMismatch` |
@@ -837,7 +983,7 @@ O estado canónico segue o envelope `AFCS` v2 do CTR-01: `magic`, `version`, `bo
 
 | Tag | Secção | Conteúdo |
 | --- | --- | --- |
-| 1 | `REGION` | Limites da região e `Seed` de 32 bytes (dona `CTR-03`). |
+| 1 | `REGION` | Limites, `Seed(u64)`, `generator_version`, `RegionId` e `spec_digest` (dona `CTR-03`; derivação referenciada, não redefinida — `P-09`). |
 | 2 | `LOCALITIES` | Identidades e estado das localidades (dona `CTR-03`). |
 | 3 | `STRUCTURES` | Estruturas e ocupação estrutural (dona `CTR-03`). |
 | 4 | `BLOCKS` | Blocos por `(LocationId, z, y, x)` (dona `CTR-03`). |
@@ -1003,13 +1149,19 @@ Cabeçalho fixo de 64 bytes, seguido do estado canónico `AFCS`:
 | 8 | `revision` | `u64` | `>= 1` | Revisão da qual este estado é o resultado. |
 | 16 | `state_len` | `u64` | variável | Comprimento exato do estado canónico. |
 | 24 | `state_hash` | 32 bytes | BLAKE3-256 | Hash do estado que segue. |
-| 56 | `entry_seq` | `u64` | variável | Última entrada `AFRL` coberta por esta revisão. |
+| 56 | `entry_seq` | `u64` | variável | Última entrada que alterou este estado (cobertura de estado da revisão). Entradas não publicantes posteriores não mudam este valor. |
 
 - O arquivo é `header || state`; `state_len` é exato e não há padding, cauda ou campo extra.
 - O nome do arquivo é `r<revision>-<state_hash hexadecimal>.aifs`, no diretório
   `<save_root>/<save_id>/revisions/`. O nome é derivado do conteúdo, não escolhido por humano.
 - `state_hash` MUST coincidir com `state_hash(canonical_state(state))`; um arquivo cujo hash não
   coincide é `HashMismatch` e nunca é carregado.
+- No load, o cabeçalho MUST ser validado contra a linha do catálogo e o nome do arquivo. Isto é,
+  `header.revision` igual a `row.revision`, `header.entry_seq` igual ao `row.entry_seq` de
+  **cobertura de estado** e o nome igual a `r<revision>-<state_hash hexadecimal>.aifs`; qualquer
+  divergência é `DurabilityInconsistency`, e um hash divergente é `HashMismatch`. `row.entry_seq`
+  não é `head.entry_seq`: uma entrada não publicante posterior avança `head.entry_seq` sem mudar o
+  estado nem o `entry_seq` da revisão. Não há load “por nome” que ignore o cabeçalho.
 - `version > 1` é `FutureSchema`: o arquivo é preservado e recusado; nunca é sobrescrito,
   renomeado ou “downgraded”.
 - Arquivos AIFS são imutáveis. Uma revisão nova é um arquivo novo; não se edita um arquivo
@@ -1037,18 +1189,22 @@ falhar e nenhum passo posterior pode “compensar” os anteriores:
 6. `fsync` do diretório de revisões.
 7. Abrir transação `BEGIN IMMEDIATE` no catálogo; inserir a linha de revisão
    `(save_id, revision, state_hash, entry_seq, file_size)`; inserir a entrada `AFRL` em
-   `log_entries`; atualizar `head` com compare-and-swap sobre `(revision, entry_seq)` anteriores.
-   Zero linhas afetadas no CAS é `RevisionConflict` (escritor concorrente).
+   `log_entries`; inserir o recibo no índice durável
+   `receipts(save_id, intent_id) -> (revision, entry_seq, state_hash, outcome, cost_ticks,
+   receipt_digest)`, ou o recibo não publicante correspondente; atualizar `head` com
+   compare-and-swap sobre `(revision, entry_seq)` anteriores. Zero linhas afetadas no CAS é
+   `RevisionConflict` (escritor concorrente). Revisão, entrada, recibo e `head` são gravados na
+   **mesma** transação: um crash em qualquer ponto faz rollback dos quatro juntos.
 8. `COMMIT`. O retorno do `COMMIT` é a condição de durabilidade do registro, não um `flush`
    explícito posterior.
 9. Devolver `CommitReceipt { save_id, revision, state_hash, entry_seq, file_size }`.
 10. Só depois de 9 o app pode emitir ACK ao jogador (§7.4).
 
 Entradas não publicantes (rejeição, cancelamento, obsolescência, resposta tardia, dry-run) seguem
-o mesmo protocolo nos passos 7–9, sem arquivo AIFS novo: inserem a entrada `AFRL` e atualizam
-`head.entry_seq`, mantendo `revision` e `state_hash`. O ACK de uma recusa também só existe depois
-de a entrada estar durável; se a gravação falhar, o app reporta `RESULTADO_NAO_DURAVEL` e a
-intenção pode ser repetida de forma idempotente.
+o mesmo protocolo nos passos 7–9, sem arquivo AIFS novo: inserem a entrada `AFRL` e o recibo
+correspondente no índice, e atualizam `head.entry_seq`, mantendo `revision` e `state_hash`. O ACK de
+uma recusa também só existe depois de a entrada e o recibo estarem duráveis; se a gravação falhar,
+o app reporta `RESULTADO_NAO_DURAVEL` e a intenção pode ser repetida de forma idempotente.
 
 ### 7.4 ACK ao jogador
 
@@ -1088,9 +1244,12 @@ cuja linha e arquivo concordam.
 
 1. Abrir o catálogo e executar `PRAGMA integrity_check`; falha é `CatalogCorrupt` e leva ao backup
    mais recente (§7.7), sem apagar o catálogo corrompido.
-2. Ler `head`; verificar a linha correspondente, o arquivo AIFS, o tamanho, o magic, a versão e o
-   `state_hash`; verificar que a última entrada `AFRL` tem `seq = head.entry_seq` e
-   `hash_after = head.state_hash`.
+2. Ler `head`; verificar a linha correspondente, o arquivo AIFS, o tamanho, o magic, a versão, o
+   `state_hash` e a coincidência de `header.revision`/`header.entry_seq` com a linha de **cobertura
+   de estado** e com o nome do arquivo (§7.2); verificar que a última entrada `AFRL` tem
+   `seq = head.entry_seq` e `hash_after = head.state_hash` (entradas não publicantes preservam o
+   hash, portanto a cadeia continua válida). Qualquer divergência é `DurabilityInconsistency` ou
+   `HashMismatch`, nunca um load parcial.
 3. Se a cabeça falhar, percorrer revisões anteriores por ordem decrescente até encontrar uma
    revisão íntegra; devolver `RecoveredToPreviousRevision { skipped: Vec<u64> }` e iniciar a sessão
    nessa revisão. O app MUST informar o jogador que os efeitos das revisões ignoradas não são
@@ -1143,6 +1302,10 @@ substituem nem renomeiam as assinaturas aprovadas e ficam sujeitas ao freeze.
   `contract_version`. O store calcula e verifica o hash; não confia no chamador.
 - `Checkpoint` contém `save_id`, `revision`, `entry_seq`, `state_hash`, `state` e o caminho lógico
   do arquivo; não contém `Instant`, caminho absoluto dependente de host ou configuração implícita.
+  `load` devolve o `entry_seq` da **cobertura de estado** (o mesmo do cabeçalho AIFS e da linha da
+  revisão) e `state_hash` da revisão; as entradas não publicantes posteriores são lidas por
+  `load_log(checkpoint.entry_seq + 1)` e entram no replay. `head.entry_seq` é a última entrada
+  durável do log e pode ser maior; não é confundido com a cobertura de estado.
 - `EventSink` regista eventos de domínio opacos no mesmo catálogo, com `batch_seq` e `digest`;
   `EventBatchAck { first_seq, last_seq, digest, revision }` é idempotente por
   `(save_id, revision, batch_seq)`.
@@ -1350,18 +1513,21 @@ ele compõe resolução, passo e durabilidade.
 | `P-06` | Desfecho de `SCHEDULED_MEETING`, validade/expiração de passagem (`PASS_VALIDITY_TICKS`) e reserva de portão. | `SOC-02`/`GAME-01`/`INT-05`; `CTR-03` para reserva. | Enquanto aberta, o disparo de encontro é no-op registado e passagens não têm efeito materializado; `GAME-01` não pode prometer concessão. | Aberta. |
 | `P-07` | Atributos de ator usados nas fórmulas sociais (`linguagem_bp`, `inteligencia_bp`, `percepcao_bp`). | DOC-02 §5.1 diz que chegam normalizados “por CTR-01”, mas o CTR-01 rev 5 não fixa a secção; dono `S-CORE`/`RULE-01`. | Sem secção, as fórmulas só podem usar constantes de fixture pinadas no `SimulationContract`; `SOC-01` não pode evoluir atributos por ator. | Aberta (bridge por contrato). |
 | `P-08` | Componentes de ator restantes: HP, ordem de inventário, estado de FSM, moedas em itens. | `CTR-01`/`CTR-04`/`BEH-01`. | Fora do recorte atual; `GAME-01` não pode implementar combate/inventário/MLP antes de contrato próprio. | Aberta (não bloqueia a sessão social). |
-| `Q-01` | Leitura do custo de `viajar`: “2 por aresta” (§2.2 deste contrato) versus “2 uma vez por viagem” (DOC-02 §4.2, fórmula `2 + soma`). | DOC-02/maintainer; `CTR-03` fornece sobrecarga por aresta. | Muda o custo de rotas com 3–4 arestas; `GAME-01` não pode pinar testes de viagem longa sem a decisão. | Recomendada a leitura por aresta; aberta. |
+| `P-09` | Payload canónico de `REGION` (seed `u64`, `generator_version`, `RegionId`, `spec_digest`) e a derivação de `RegionId`/`spec_digest`. | Dono `CTR-03` (`docs/planning/contracts/region-perception-overlay.md`, worktree `ctr-03`); `CTR-02` referencia e não redefine. | Até o `CTR-03` congelar o payload, `CORE-01`/`STORE-01` não podem pinar os bytes canónicos de `REGION` nem o hash regional completo; o `RngState` já usa `Seed(u64)`. | Aberta (dependência de contrato irmão). |
 
 ### 9.3 Consumidores que não podem avançar
 
-- `GAME-01`: bloqueado em `P-02` (moeda), `P-03` (cooldown), `P-06` (encontro/passagem) e `Q-01`
-  (custo de viagem com 3–4 arestas) para além dos handlers que não usam esses elementos.
+- `GAME-01`: bloqueado em `P-02` (moeda), `P-03` (cooldown) e `P-06` (encontro/passagem) para além
+  dos handlers que não usam esses elementos; o custo de `viajar` está fechado por §2.2.
 - `SOC-01`: bloqueado em `P-03` e `P-07` para cooldown e atributos por ator.
 - `SOC-03`: bloqueado em `P-01` para semântica de origem; pode usar o layout e o stream já fixados.
 - `REPLAY-01`: pode avançar com `AFRL`, mas fica bloqueado em `P-05` para materializar eventos de
   domínio.
-- `STORE-01`/`STORE-02`: podem avançar na durabilidade e no load; o `STORE-02` fica bloqueado em
-  `P-05` para migrar eventos e em `P-04` para migrar memória/atributos.
+- `STORE-01`/`STORE-02`: podem avançar na durabilidade e no load; `STORE-01` fica bloqueado em
+  `P-09` para pinar os bytes de `REGION`/hash completo, e `STORE-02` fica bloqueado em `P-05` para
+  migrar eventos e em `P-04` para migrar memória/atributos.
+- `CORE-01`: bloqueado em `P-09` para o golden do envelope completo; pode fixar `ACTORS`/`AGENDA`/
+  `RNG` e o hash das secções versionadas.
 - `APP-01`: pode avançar no recibo e na idempotência; bloqueado em `P-02` para negociação com
   moeda e em `P-05` se o recibo precisar do evento materializado.
 - `BEH-01`: bloqueado em `P-04` e `P-08`; nenhuma memória ou genoma é persistido antes disso.
@@ -1380,8 +1546,8 @@ verifica.
 | --- | --- | --- | --- | --- |
 | `AC-CTR-02-01` | Custos lógicos por comando; render/NLG/relógio/viewport não avançam nem selecionam; rejeição/obsolescência com resultado e custo definidos; dry-run não gasta RNG. | §2.1–§2.7, §4.4, §6.3 | Tabela de custos referenciada; intervalo e ordem; tabela resultado × tick × RNG; lista de 0 ticks; dry-run sem promoção. | `CORE-02`/`GAME-01` com testes de custo, recusa e dry-run; `TUI-01` com hash antes/depois de foco. |
 | `AC-CTR-02-02` | Agenda regional determinística, limites por pulso, viagem NPC multi-pulso, atividade de todas as áreas sem viewport, agenda no estado/hash. | §3.1–§3.6, §6.1, §6.4 | Ordem de pulso; payload `AGENDA` com `seq`; regra `arrival_tick`; nível único `REGIONAL_ATIVA`; secção no hash regional. | `CORE-02`/`BEH-02` com 10k ticks, limites `LIMITE_ATINGIDO` e comparação de hash de áreas fora do foco. |
-| `AC-CTR-02-03` | Streams isoladas; snapshot/replay preservam cursores; empates, overflow e distribuição inválida com resultado definido; nenhum sorteio invisível. | §4.1–§4.8, §5.5 | Códigos de stream e derivação; `DrawSpec`/`DrawOutcome`; algoritmo com limite de 8 palavras; payload `RNG` de 44 bytes; auditoria de consumo. | `CORE-01`/`SOC-03` com isolamento social × combat, restauração de cursor e casos de erro; auditoria de chamadas. |
-| `AC-CTR-02-04` | Log versionado e replay completo/parcial entre localidades preservam hash; truncamento/fora de ordem/versão falham; durabilidade preserva último estado em crash; métricas voláteis fora do golden; recibo não afirma efeito perdido. | §5.1–§5.8, §6.3–§6.5, §7.1–§7.9, §8.2–§8.4 | `AFRL` v1 com cabeçalho/entrada/rodapé e cadeia; tabela de rejeições; autoridade dupla; tabela de crash; recibo `Acked` e invalidação pós-restart. | `REPLAY-01`/`STORE-01`/`APP-01` com replay cruzado, crash em cada etapa, restauro e golden sem campos voláteis. |
+| `AC-CTR-02-03` | Streams isoladas; snapshot/replay preservam cursores; empates, overflow e distribuição inválida com resultado definido; nenhum sorteio invisível. | §4.1–§4.8, §5.5 | `Seed(u64)` no `RngState`, chave BLAKE3 por stream e ChaCha20 RFC fixado; `DrawSpec`/`DrawOutcome`; limite de 8 palavras; payload `RNG` de 44 bytes; auditoria de consumo. | `CORE-01`/`SOC-03` com isolamento social × combat, restauração de cursor, word golden e casos de erro. |
+| `AC-CTR-02-04` | Log versionado e replay completo/parcial entre localidades preservam hash; truncamento/fora de ordem/versão falham; durabilidade preserva último estado em crash; métricas voláteis fora do golden; recibo não afirma efeito perdido. | §5.1–§5.8, §6.3–§6.5, §7.1–§7.9, §8.2–§8.4 | `AFRL` v1 relativo (`base_entry_seq`), entrada 148, payload de comando 162, rodapé e cadeia; tabela de rejeições; autoridade dupla; recibo na transação; tabela de crash; `Acked` e invalidação pós-restart. | `REPLAY-01`/`STORE-01`/`APP-01` com replay de checkpoint não zero, crash em cada etapa, restauro e golden sem campos voláteis. |
 
 Rastreabilidade ao cartão: “render/NLG/relógio/viewport não avançam nem selecionam a simulação”
 está em `AC-CTR-02-01` e §3.6; “ações e trajetos entre áreas reproduzem agenda/hash” está em
@@ -1418,6 +1584,10 @@ verifica um comportamento. Nenhum depende de rede, GPU, pesos ou relógio real.
 3. `given_npc_travel_when_cross_pulses_then_arrival_tick_matches_plan`.
 4. `given_actor_out_of_focus_when_change_camera_then_hash_unchanged`.
 5. `given_all_localities_when_action_in_l1_then_l2_l3_l4_agenda_processed`.
+6. `given_two_edges_when_travel_cost_then_matches_doc02_examples`.
+7. `given_agenda_travel_locality_mismatch_when_load_then_invalid`.
+8. `given_scheduled_meeting_bad_counterparty_locality_when_load_then_invalid`.
+9. `given_region_seed_when_derive_region_id_then_ctr03_formula`.
 
 ### 11.4 RNG
 
@@ -1427,6 +1597,9 @@ verifica um comportamento. Nenhum depende de rede, GPU, pesos ou relógio real.
 4. `given_cursor_near_max_when_draw_then_overflow_error`.
 5. `given_rejected_action_when_compare_cursor_then_unchanged`.
 6. `given_drawn_values_tie_when_resolve_then_key_order_not_redraw`.
+7. `given_seed_and_position_when_draw_then_word_is_pinned`.
+8. `given_same_seed_different_stream_when_derive_key_then_domain_separated`.
+9. `given_seed_one_position_zero_when_draw_on_windows_and_linux_then_same_word`.
 
 ### 11.5 Log e replay
 
@@ -1436,6 +1609,13 @@ verifica um comportamento. Nenhum depende de rede, GPU, pesos ou relógio real.
 4. `given_partial_range_when_replay_then_hash_matches_boundary`.
 5. `given_cross_locality_travel_when_replay_then_hash_matches_live`.
 6. `given_missing_external_input_when_replay_then_error`.
+7. `given_base_entry_seq_nonzero_when_replay_then_first_seq_is_base_plus_one`.
+8. `given_log_truncated_before_checkpoint_when_replay_then_checkpoint_log_mismatch`.
+9. `given_command_payload_when_roundtrip_then_162_bytes`.
+10. `given_draws_out_of_execution_order_when_validate_then_invalid_draw_order`.
+11. `given_payload_and_entry_when_encode_then_golden_digest_matches`.
+12. `given_log_truncated_after_checkpoint_when_replay_then_truncated_error`.
+13. `given_entry_when_encode_then_entry_len_matches`.
 
 ### 11.6 Durabilidade
 
@@ -1446,6 +1626,8 @@ verifica um comportamento. Nenhum depende de rede, GPU, pesos ou relógio real.
 5. `given_hash_mismatch_when_load_then_recovered_to_previous_revision`.
 6. `given_corrupt_head_when_load_then_no_durable_state_or_fallback`.
 7. `given_backup_rotation_when_verify_then_newest_verified_kept`.
+8. `given_crash_between_revision_and_receipt_when_restart_then_both_absent`.
+9. `given_aifs_header_revision_mismatch_when_load_then_durability_inconsistency`.
 
 ### 11.7 Canonicalização
 
@@ -1454,6 +1636,7 @@ verifica um comportamento. Nenhum depende de rede, GPU, pesos ou relógio real.
 3. `given_actors_with_transit_when_hash_then_transit_included`.
 4. `given_wallet_transfer_when_apply_then_total_conserved`.
 5. `given_same_state_when_canonicalize_twice_then_same_hash`.
+6. `given_region_id_and_seed_when_canonicalize_then_both_in_hash`.
 
 ### 11.8 Apresentação e NLG
 
@@ -1477,10 +1660,10 @@ revisão independente e ratificação do maintainer. Este documento não se auto
 | 4 | Agenda canónica com `seq` e apenas `TRAVEL_ARRIVAL`/`SCHEDULED_MEETING`; pulsos derivados. | Aceitar. | Evita dupla contagem de ticks e mantém a ordem estável no save. | Gravar pulsos como entradas duplicaria ticks e mudaria o hash. |
 | 5 | Viagem de NPC multi-pulso com `arrival_tick` em `ACTORS` e entrada em `AGENDA`, validadas entre si. | Aceitar. | Preserva o teto local de 10 ticks sem inventar ação composta. | Sem `arrival_tick`, a agenda não reproduz chegadas. |
 | 6 | Nível único `REGIONAL_ATIVA`; nenhum LOD, hibernação ou seletor por viewport. | Aceitar. | D-07 e DOC-02 §3.4 exigem região inteira ativa. | Qualquer LOD por câmera viola D-04/D-07 e o hash regional. |
-| 7 | RNG por posições por stream, ChaCha20 domain-separated, seed de 32 bytes em `REGION`. | Aceitar. | Snapshot e replay trivialmente verificáveis; sem estado de gerador opaco. | Guardar estado interno do gerador dificulta migração e prova. |
+| 7 | RNG por posições por stream; `Seed(u64)` em `REGION`; chave de 32 bytes derivada por BLAKE3; ChaCha20 RFC 7539 com nonce/contador/ordem fixados. | Aceitar. | Snapshot e replay verificáveis; alinha `Seed(u64)` ao roadmap/CTR-03; sem estado de gerador opaco. | Outra largura de seed/construção quebra o golden cross-platform. |
 | 8 | Amostragem por rejeição com `MAX_DRAW_WORDS = 8` e erros tipados. | Aceitar. | Resultado uniforme exato e terminação definida. | Módulo simples enviesa; laço sem limite não termina. |
 | 9 | Quatro streams fixas, incluindo `combat`/`spawn` preservadas sem consumo. | Aceitar. | Isolamento de domínio e compatibilidade futura. | Remover stream “não usada” é mudança de formato e de hash. |
-| 10 | `AFRL` v1 com entrada fixa de 148 bytes, cadeia de hash e rodapé digest. | Aceitar. | Versionamento, deteção de truncamento e prova por entrada. | Log sem cadeia não deteta edição nem buraco. |
+| 10 | `AFRL` v1 com log relativo ao checkpoint (`base_entry_seq`), entrada fixa de 148 bytes, cadeia de hash e rodapé digest. | Aceitar. | `seq` absoluto e replay sem reaplicar entradas cobertas; versionamento e deteção de truncamento. | Log sem cadeia ou `seq` relativo ambíguo não prova ordem nem buraco. |
 | 11 | Replay parcial só em fronteira publicante. | Aceitar. | Hash final corresponde a revisão durável. | Parar a meio de uma ação inventaria um estado inexistente. |
 | 12 | Recusas e dry-runs duráveis no log antes do ACK. | Aceitar. | Replay reconta ticks/cursores e prova que não consumiram RNG. | Perder recusas impede provar 0 tick/0 RNG. |
 | 13 | Autoridade dupla: AIFS para bytes de estado, SQLite/WAL para ordem/log. | Aceitar. | Cada parte tem uma responsabilidade verificável por hash. | Uma autoridade só obrigaria a confiar em blob ou em índice sem prova. |
@@ -1493,13 +1676,16 @@ revisão independente e ratificação do maintainer. Este documento não se auto
 | 20 | Memória, atributos e genoma fora do hash até nova secção/versão. | Aceitar. | O envelope v2 não os tem; não se fabrica tag. | Gravar fora do envelope quebra round-trip e replay. |
 | 21 | Eventos de domínio opacos com `events_digest` até `P-05`. | Aceitar. | Permite log/recibo sem fixar layout alheio. | Inventar layout aqui colide com `INT-05`. |
 | 22 | `step` puro com `SimContext` versionado; `execute` compõe commit/ACK. | Aceitar. | Mantém o núcleo sem I/O e a durabilidade numa fronteira só. | `step` com I/O impede replay e teste determinístico. |
-| 23 | Custo de `viajar` por aresta (`2 + células` por aresta) e sobrecarga de região explícita (`Q-01`). | Aceitar a leitura por aresta; confirmar no DOC-02. | A coluna de unidade de cobrança do DOC-02 diz “por aresta percorrida”. | A leitura “2 uma vez” muda custos de rotas com 3–4 arestas. |
+| 23 | `custo_viajar = Σ_arestas (2 + Σ células do corredor)`, sem sobrecarga adicional; `Q-01` fechada. | Aceitar. | É a fórmula do DOC-02 §4.2/§3.2 e reproduz os exemplos 24/31/33. | Outra leitura divergiria dos goldens já fixados pela spec. |
+| 24 | `Seed(u64)` canónica em `REGION`; `RegionId`/`spec_digest`/`generator_version` referenciados do `CTR-03` (`P-09`). | Aceitar. | Alinha roadmap/CTR-03; evita duas larguras de seed e derivação duplicada. | Seed `[u8;32]` ou `RegionId` redefinido quebraria o hash regional e a integração. |
+| 25 | Payload de comando fixo de 162 bytes com presença explícita; `draws[]` na ordem de execução e `touched[]` por stream. | Aceitar. | Torna `entry_len` e o digest reproduzíveis byte a byte. | Payload sem larguras/ordem impede round-trip e replay. |
+| 26 | Recibo no índice durável dentro da transação de revisão/log/head. | Aceitar. | Crash entre commit e ACK não perde o recibo idempotente. | Recibo fora da transação permite efeito durável sem retry idempotente. |
 
 ## 13. Como este contrato será consumido
 
 | Consumidor | Interface | O que consome | O que não pode improvisar |
 | --- | --- | --- | --- |
-| `CORE-01` | `INT-02` (produtor) | `RngState`, `draw`, streams, payload `RNG` | RNG global, módulo enviesado, stream extra ou cursor fora do hash. |
+| `CORE-01` | `INT-02` (produtor) | `RngState` (`seed: Seed` + posições), `draw`, streams, payload `RNG`; consome `REGION` do CTR-03 (`P-09`) | RNG global, módulo enviesado, stream extra, seed de 32 bytes ou cursor fora do hash. |
 | `CORE-02` | `INT-05` (produtor) | `step`, ordem de tick, agenda, invariantes | I/O no passo, agenda ad hoc, correção silenciosa de invariante. |
 | `GAME-01` | `INT-04` (produtor) | custos, catálogo, `CostMismatch`, `ResolvedCommand` | Custo por prosa/latência, custo divergente do DOC-02, ação composta. |
 | `REPLAY-01` | `INT-06` (produtor) | `AFRL`, `replay`, `replay_range`, rejeições | Modelo no replay, configuração implícita, tolerância a log inválido. |
@@ -1525,8 +1711,8 @@ revisão independente e ratificação do maintainer. Este documento não se auto
 - As secções `REGION`, `LOCALITIES`, `STRUCTURES` e `BLOCKS` continuam de `CTR-03`; este contrato
   fixa `ACTORS`, `AGENDA` e `RNG` e não substitui a geometria da região.
 - A semântica de rumor continua de `SOC-02`/`SOC-03`; o layout de evento continua de `INT-05`.
-- As pendências `P-01`…`P-08` e `Q-01` bloqueiam os consumidores indicados em §9.3; nenhuma delas
-  é resolvida por suposição de implementação.
+- As pendências `P-01`…`P-09` bloqueiam os consumidores indicados em §9.3; nenhuma delas é
+  resolvida por suposição de implementação. `Q-01` está fechada em §2.2.
 - `REVIEW-CTR-02` e o aceite do maintainer são obrigatórios; `DELIVERED_TO_REVIEW` não é `DONE`,
   `INTEGRATED` nem freeze.
 - A entrega não executou `cargo`, modelo, rede, push, PR, integração ou cleanup; o estado do
@@ -1535,6 +1721,9 @@ revisão independente e ratificação do maintainer. Este documento não se auto
 ## 15. Referências
 
 - [Contrato CTR-01 — identidade, unidades e eventos](<identity-events.md>), rev 5.
+- `CTR-03` — região, percepção e overlay: `docs/planning/contracts/region-perception-overlay.md`
+  (worktree `ctr-03`), seed `u64`, `RegionId`/`spec_digest` e derivação de `REGION`; referenciado em
+  §4.1/§6.1 e `P-09`.
 - [Especificação de gameplay DOC-02](<../gameplay-spec.md>), rev 6.
 - [Especificação da onda — manifesto](<../wave-spec.md>), SHA-256 `328a8c7e…a360769`.
 - [Revisão de projeto — L-01](<../project-review.md>).

@@ -28,6 +28,11 @@ essa intenção em regra verificável que impeça uma implementação de escolhe
 O [CTR-02](<../../planning/contracts/time-replay-save.md>) usa `SaveStore`, `EventSink` e a secção
 `AGENDA`; `STORE-01`, `STORE-02` e `APP-01` dependem desta decisão para começar.
 
+A fronteira da região — `Seed(u64)`, `generator_version`, `RegionId` e `spec_digest` — é do `CTR-03`
+(`docs/planning/contracts/region-perception-overlay.md`, worktree `ctr-03`), não deste ADR nem do
+CTR-02. O CTR-02 referencia a seed `u64` e a derivação de chave; a dependência fica registada como
+`P-09` no contrato.
+
 ## Decisão
 
 Vamos adotar uma autoridade durável **dupla e verificada**, um protocolo de commit com ACK posterior
@@ -37,16 +42,20 @@ ao durável e uma política de atividade regional única e explícita.
    revisão; o catálogo SQLite em WAL é a autoridade da ordem (revisão corrente, cadeia de entradas
    `AFRL`, recibos e metadados). Uma revisão só é durável quando o arquivo AIFS existe com o
    `state_hash` esperado **e** o catálogo tem a linha correspondente com o mesmo hash, revisão e
-   `entry_seq`. Nenhum dos dois, isoladamente, autoriza ACK.
+   `entry_seq`. Nenhum dos dois, isoladamente, autoriza ACK. O load valida também o cabeçalho AIFS
+   (`revision`, `entry_seq`) e o nome `r<revision>-<hash>.aifs` contra a linha do catálogo; qualquer
+   divergência é `DurabilityInconsistency`/`HashMismatch`, nunca load parcial.
 2. **Protocolo de commit.** Escrever temporário no mesmo diretório, verificar hash, publicar com
    semântica no-clobber, `fsync` do arquivo e do diretório, abrir transação `BEGIN IMMEDIATE`,
-   inserir revisão e entrada de log, atualizar `head` por compare-and-swap com `synchronous = FULL`
-   e considerar o retorno do `COMMIT` como o ponto de durabilidade. Publicação parcial é erro e não
-   é promovida a `head`.
+   inserir revisão, entrada de log, recibo no índice durável e atualizar `head` por
+   compare-and-swap com `synchronous = FULL`, considerando o retorno do `COMMIT` como o ponto de
+   durabilidade. Os quatro registros entram na mesma transação; publicação parcial é erro e não é
+   promovida a `head`.
 3. **ACK depois do durável.** `ActionReceipt` só afirma `Acked { revision, state_hash, entry_seq }`
-   depois do `CommitReceipt`. Rejeições, cancelamentos, obsolescências, timeouts e dry-runs também
-   são gravados antes do recibo, como entradas não publicantes. Retry é idempotente pela
-   `intent_id`; nunca cobra tick ou RNG adicionais nem duplica efeito.
+   depois do `CommitReceipt`, e o recibo é gravado na mesma transação da revisão/entrada.
+   Rejeições, cancelamentos, obsolescências, timeouts e dry-runs também são gravados antes do
+   recibo, como entradas não publicantes com recibo próprio. Retry é idempotente pela `intent_id`;
+   nunca cobra tick ou RNG adicionais nem duplica efeito.
 4. **Recuperação explícita.** No arranque, verificar catálogo, `head`, arquivo AIFS, cadeia de log e
    hash. Se a cabeça falhar, cair para a revisão anterior íntegra com
    `RecoveredToPreviousRevision` e informar o jogador de que os efeitos ignorados não são duráveis;
@@ -65,6 +74,12 @@ ao durável e uma política de atividade regional única e explícita.
    hash, com transição definida por dado e reproduzível no replay; exige nova versão do contrato e
    novo ADR. É proibido derivar nível de atividade de apresentação, distância da câmera ou presença
    do jogador.
+8. **RNG reproduzível.** A seed canónica é `Seed(u64)` em `REGION` (propriedade do CTR-03); a chave
+   de 32 bytes por stream é derivada por BLAKE3-256 com domínio próprio, e o gerador é ChaCha20 RFC
+   7539 com nonce zero de 12 bytes, contador de bloco desde 0, palavras little-endian e palavra de
+   64 bits formada por duas palavras de 32 bits (par no low, ímpar no high). O `RngState` inclui a
+   seed e as posições; `draw` deriva a stream explicitamente, sem seed global. Qualquer crate usada
+   deve provar igualdade com esse fluxo por golden.
 
 ## Consequências
 
@@ -92,7 +107,7 @@ ao durável e uma política de atividade regional única e explícita.
   exige verificação do `PRAGMA` efetivo.
 - Um sistema de arquivos sem rename atómico ou sem `fsync` de diretório exige tratamento próprio;
   a implementação deve falhar de forma explícita, não fingir atomicidade.
-- Migração future-only pode impedir rollback de produto; a mitigação é preservar o original e
+- Migração forward-only pode impedir rollback de produto; a mitigação é preservar o original e
   exigir decisão humana, não reescrever o passado.
 - A pressão por desempenho pode reintroduzir LOD por câmera; o critério de hash antes/depois de
   mudar foco é o guarda-corpo.
@@ -122,6 +137,10 @@ ao durável e uma política de atividade regional única e explícita.
 - `given_actor_out_of_focus_when_change_camera_then_hash_unchanged`.
 - `given_backup_rotation_when_verify_then_newest_verified_kept`.
 - `given_future_schema_when_load_then_preserved_and_refused`.
+- `given_seed_and_position_when_draw_then_word_is_pinned`.
+- `given_base_entry_seq_nonzero_when_replay_then_first_seq_is_base_plus_one`.
+- `given_command_payload_when_roundtrip_then_162_bytes`.
+- `given_aifs_header_revision_mismatch_when_load_then_durability_inconsistency`.
 - Teste de hash antes/depois de trocar foco, câmera, viewport e painel: igualdade obrigatória.
 - Replay completo e parcial reproduzem o hash da cabeça durável, inclusive entre localidades.
 
