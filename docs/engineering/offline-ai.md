@@ -163,8 +163,10 @@ automaticamente.
 - Ferramenta `propose_emergent_action` com parâmetros JSON; sem ferramentas perigosas.
 - `defer_loading=True` para o catálogo de ferramentas nativas; só `search_tools` visível.
 - *Output* máximo: 4K tokens; `temperature=0.1`, `top_k=50`, `repeat_penalty=1.1`.
-- Parsing XML estrito; JSON validado com `serde` + `deny_unknown_fields`; tamanho máximo
-  64 KiB; sem *eval*.
+- Enquadramento e gramática de tool call ainda em revisão em CTR-04 do
+  [ROADMAP](<../../ROADMAP.md>); tokens `<function=...>`/`<parameter=...>` não provam XML
+  padrão bem formado. Mapear explicitamente nomes dos parâmetros e versão ao schema fechado;
+  JSON validado com `deny_unknown_fields`, limite de 64 KiB e nenhuma execução por eval.
 - Se o modelo falhar ou violar o schema: rejeitar, registar motivo, não tocar no estado.
 - A resposta do LFM3 **nunca** é aplicada diretamente; passa pelo materializador.
 
@@ -204,15 +206,30 @@ automaticamente.
 | Modelo alucina no NLG | *Checklist* factual falha; usa-se template; regista-se a rejeição. |
 | Save antigo | Migração; se falhar, não sobrescrever e oferecer *backup*. |
 
-O jogo tem de ser **jogável sem modelos**. A IA melhora a experiência; não é uma
-dependência dura.
+O jogo tem de ser **jogável sem modelos**. A IA melhora a experiência; não é dependência dura.
+
+**Revisão documental: 2026-11-08.** Tempo é orientado por ações de movimento/fala simbólica,
+não pela geração de palavras, latência ou timeout de um modelo. Espera, fallback e abstenção
+externos precisam ser normalizados e registrados para replay conforme CTR-02; custos de
+comandos e agenda ainda são contratos futuros, não definidos pelo relógio real.
+
+Modelos live/sidecars ficam fora do tick; a mini-MLP pura em ponto fixo da trilha posterior
+consome percepção autoritativa, nunca o overlay de silhuetas privilegiadas do jogador.
+A região de várias localidades existe desde a base; nenhuma área é congelada pela câmera.
+
+D-05 não impõe teto de hardware nesta etapa. CPU/GPU da mesma máquina serão usadas em
+Windows/Linux, com medições identificando perfil/build/contexto. Números de latência/memória
+são referências diagnósticas, não gates de escopo; métricas ficam fora do hash/golden.
+O manifesto ainda precisa vincular runtime, pesos, template e projector aplicável por
+versão/hash/bytes/origem. Não se afirma que model cards, compatibilidade, hashes ou licenças
+foram verificados por esta edição documental.
 
 ## 8. Testes com modelos
 
 | Nível | Como | Onde corre |
 | --- | --- | --- |
 | Unit | `ScriptedSystemOne`, `FixtureLlm`; sem rede. | Todo PR |
-| Contrato | Mesmos casos contra fake e adaptador real (loopback). | PR crítico / nightly |
+| Contrato | Mesmos casos contra fake/cassette no PR e adaptador real preprovisionado em execução separada. | Fake/cassette no PR; real em nightly/manual |
 | Cassette | Resposta real gravada, sanitizada, replay. | Todo PR |
 | Live | Modelos reais, latência e qualidade. | Nightly/manual |
 | Soak | 12 h com modelos e memória monitorizada. | Nightly/manual |
@@ -230,7 +247,7 @@ Regras:
 - [ ] Pesos verificados por SHA-256 e tamanho.
 - [ ] `llama-server` em `127.0.0.1`, porta efémera, `--no-webui` se aplicável.
 - [ ] Endpoint `/v1/systemone` responde `output_tokens: 0`.
-- [ ] LFM3 devolve *tool call* XML válido e o parser aceita/rejeita corretamente.
+- [ ] Tool call segue o contrato de gramática/mapeamento aprovado; parser aceita e rejeita os casos especificados, sem presumir XML padrão.
 - [ ] Nenhum pedido fora de loopback (teste com transporte falso).
 - [ ] *Fallback* testado com modelos desligados.
 - [ ] Licença e limite comercial exibidos no provisionamento.

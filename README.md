@@ -9,16 +9,24 @@
   <img src="https://img.shields.io/badge/status-foundation-orange.svg" alt="Status: foundation">
 </p>
 
-> **Status: fundação (`v0.1.0-docs`).** Ainda **não há código executável**. Este
-> repositório contém a arquitetura, as regras de engenharia, a estratégia de testes e a
-> governança que antecedem a primeira linha de Rust. O objetivo desta fase é deixar o
-> projeto **100% testável por construção**, não “provar que roda”.
+> **Status: F0 — fundação documental. Revisão: 2026-11-08.** Ainda não há aplicação
+> executável. Este repositório planeja arquitetura, engenharia, testes e governança;
+> aprovar Markdown não autoriza construir código, scaffold, CI, worktrees ou releases.
+> Primeiro validar o motor; depois entregar o primeiro jogável 2D. Não houve bump de
+> versão de software ou edição manual de changelog nesta revisão.
 
 ## O que é
 
-**AI Fantasy** é um RPG de mundo aberto inspirado no *Adventure Mode* de *Dwarf
-Fortress*, com o mundo numa **grelha de blocos** e visualização final **2D isométrica**,
-com o motor **Hermeneutic Core**:
+**AI Fantasy** é um RPG inspirado no Adventure Mode de Dwarf Fortress, com o motor
+**Hermeneutic Core**, grelha de blocos e visualização final **2D isométrica**. A primeira
+base simulável já é uma **região procedural com várias localidades**: o foco inicial em
+relações sociais e rumores permite observar interações entre áreas e corrigir problemas
+antes que escalem, não reduz o mundo a uma vila isolada.
+
+**Tempo por ação:** movimentar-se e falar no mundo avançam ticks com custo determinístico;
+NLG, espera de inferência e câmera/UI não acrescentam simulação. Focar uma localidade não
+congela as outras nem retira suas entidades do estado canônico. Valores de custo e política
+regional ainda exigem contrato, não um relógio obrigatório de 100 ms.
 
 - O mundo é uma **grelha de blocos** estilo *Dwarf Fortress*/*Minecraft*: todo o
   **material de construção do mapa é um cubo** (pedra, madeira, parede, telhado, chão) e
@@ -30,7 +38,8 @@ com o motor **Hermeneutic Core**:
 - A simulação é **matemática e determinística**: nenhum texto é gerado no *game loop*.
 - As interações sociais são gravadas como **tuplos simbólicos** (zero-string log).
 - O diálogo é traduzido **sob procura** (*lazy NLG*), quando o jogador o abre.
-- Toda a inferência corre **localmente** (offline), em modelos pequenos de ~2B.
+- LLM e System One rodam localmente (offline) fora do tick; a mini-MLP individual é uma
+  função pura em ponto fixo na trilha posterior, alimentada por percepção autoritativa.
 - Regras emergentes são **propostas** por um modelo local e **materializadas por código
   determinístico** — nunca executadas diretamente pelo modelo.
 
@@ -41,20 +50,21 @@ diamante, como nos clássicos isométricos. **Não haverá nada de 3D real, nem 
 final**: sem câmara 3D, sem malhas, sem *engine* 3D. A profundidade é pura projeção
 isométrica 2D; a TUI/ASCII fica apenas como interface de depuração e *fallback*.
 
-**Renderiza-se apenas o que é visto** — lógica de *fog of war* à la *Dwarf Fortress* e
-*Age of Empires*, em três camadas:
+O **ambiente** segue três camadas de percepção: visão ativa do personagem, memória
+last-seen desvanecida/congelada e desconhecido escuro. Memória só muda com percepção
+autoritativa, nunca por navegar na câmera ou gerar texto.
 
-1. **Visão ativa** — onde o personagem **olha** (campo de visão com direção): o mundo ao
-   vivo, com criaturas e construções atualizadas.
-2. **Memória de ambientes** — onde já viu mas não olha agora: o caminho fica **meio
-   apagado** e **congelado** (sem atualizar criaturas nem mudanças de construção) — é a
-   **memória do personagem sobre o ambiente**.
-3. **Escuro** — onde nunca viu: **totalmente escuro**.
+**Exceção deliberada:** todos os personagens atrás das construções, inclusive os não
+percebidos, aparecem como **silhuetas em um overlay privilegiado** para o jogador.
+É a escolha explícita de “raio X”, não a recomendação de limitar a atores já vistos.
+O overlay não atualiza memória do ambiente, informação de rumores ou conhecimento/MLP dos
+NPCs. Alcance, áreas nunca vistas e regras entre z-levels continuam em contrato, sem apagar
+a intenção de incluir não percebidos.
 
-Personagens (o próprio e outros) **por detrás de uma construção** aparecem como
-**silhueta**, e a câmara sobe/desce no eixo de altura para ver andares **acima ou abaixo**
-(z-levels). Tudo está registado no [roadmap](docs/architecture/roadmap.md) (secções 2.9
-a 2.11).
+Câmera e navegação por z-levels são livres de custo temporal e não mudam o estado regional.
+Stack e ponte do render ainda não foram escolhidas; a visualização continua responsabilidade
+do maintainer. Detalhes no [roadmap canônico](<docs/architecture/roadmap.md#210-visualização-2d-isométrico-sem-3d-real>)
+e no [ADR 0009 proposto](<docs/architecture/adr/0009-privileged-silhouette-overlay.md>).
 
 ## Regra zero: tudo offline
 
@@ -63,7 +73,8 @@ O runtime não abre ligações à Internet. Ponto.
 - O jogo e os modelos correm na mesma máquina.
 - Os únicos sockets permitidos são **loopback** (`127.0.0.1`) para os *sidecars*
   `llama-server` locais.
-- Modelos, pesos e *prompts* são ficheiros locais; não há telemetria, conta ou API key.
+- Modelos, pesos e prompts são arquivos locais; não há telemetria remota, conta ou API key.
+  Métricas locais opt-in seguem a política de privacidade.
 - Se um modelo não estiver disponível, o jogo continua com o **fallback determinístico**:
   a ausência de IA degrada a experiência, não bloqueia a simulação.
 
@@ -81,21 +92,26 @@ A errata completa, com as afirmações corrigidas e as consequências para o có
 
 ```mermaid
 flowchart LR
-    P[Jogador] --> UI[af-tui / CLI]
-    UI --> CORE[af-core<br/>ECS + tick determinístico]
-    CORE --> RULES[af-rules<br/>validação + materialização]
-    CORE --> CONV[af-conversation<br/>eventos simbólicos]
-    CONV --> NLG[af-nlg<br/>NLG lazy]
-    RULES --> SO[porta System One]
-    NLG --> LLM[porta LLM]
-    SO -. loopback .-> D1[llama-server<br/>d1-2B]
-    LLM -. loopback .-> LFM[llama-server<br/>LFM3-1.7B]
-    CORE --> STORE[(SQLite local)]
+    P[Jogador] --> UI[Cliente TUI ou CLI]
+    UI --> APP[af-app composição]
+    APP --> CORE[af-core região tick replay]
+    CORE --> RULES[af-rules]
+    CORE --> CONV[af-conversation]
+    APP --> NLG[af-nlg leitura lazy]
+    APP --> SO[Adaptador System One]
+    APP --> LLM[Adaptador LLM]
+    APP --> STORE[Adaptador store]
+    SO -. loopback .-> D1[d1-2B local]
+    LLM -. loopback .-> LFM[LFM3 local]
+    STORE --> DB[(SQLite e saves locais)]
 ```
 
-Nenhuma seta atravessa a Internet. O núcleo (`af-core`) não conhece HTTP, SQLite nem
-modelos: fala apenas com **portas** (traits) que os adaptadores implementam. Essa é a
-propriedade que torna tudo testável.
+**Legenda:** o desenho mostra composição e chamadas, não imports. A
+[tabela e o grafo normativos de crates](<docs/architecture/overview.md#4-componentes-e-crates>)
+fixam a direção das dependências: core não importa adaptadores, app, UI ou NLG; NLG não
+importa core. O app compõe portas e adaptadores, sem I/O externo ao runtime offline.
+O cliente 2D ainda terá sua stack/ponte contratada; subagents de desenvolvimento e juiz de
+integração do [ROADMAP](<ROADMAP.md>) não são processos ou componentes do jogo.
 
 ## Princípios
 
@@ -142,7 +158,9 @@ Comece por aqui:
 
 | Documento | Para quê |
 | --- | --- |
-| [Roadmap e errata JEV](docs/architecture/roadmap.md) | A visão técnica completa, corrigida e com arquitetura, TDD, E2E e complexidade. |
+| [ROADMAP de execução](<ROADMAP.md>) | Atividades, dependências, ondas, juiz de integração e critérios de aceite; planejamento, não autorização de construção. |
+| [Definições e errata JEV](<docs/architecture/roadmap.md>) | Visão e definições canônicas reconciliadas com as respostas humanas. |
+| [Decisões do maintainer](<docs/planning/decisions.md>) | Oito escolhas recebidas e complemento da região procedural desde a base. |
 | [Arquitetura de software](docs/architecture/overview.md) | C4, crates, portas/adaptadores, determinismo, dados e runtime offline. |
 | [Regras de desenvolvimento](docs/engineering/development-rules.md) | O contrato normativo do dia a dia. |
 | [Estratégia de testes](docs/engineering/testing-strategy.md) | TDD, pirâmide, E2E, cobertura, mutação e testes com modelos. |
@@ -167,7 +185,7 @@ cargo mutants --workspace --in-place
 Enquanto isso, a validação desta base é documental:
 
 ```bash
-# lint de Markdown, links e governança (quando o Node estiver disponível)
+# lint de Markdown; links e governança requerem verificações separadas
 npx markdownlint-cli2 "**/*.md"
 ```
 
@@ -193,7 +211,7 @@ O **código** deste repositório é distribuído sob a licença **MIT** — ver 
 Os **pesos dos modelos** **não** são distribuídos nem relicenciados por este projeto. Eles
 pertencem aos respetivos fornecedores e estão sujeitos à **LFM Open License v1.0** (Liquid
 AI), que permite uso comercial gratuito apenas para entidades com receita anual inferior a
-US$ 10 milhões. Leia [`docs/engineering/offline-ai.md`](docs/engineering/offline-ai.md#licenças-e-distribuição)
+US$ 10 milhões. Leia [licenças dos modelos](<docs/engineering/offline-ai.md#6-licenças-e-distribuição>)
 antes de empacotar o jogo para terceiros.
 
 ---
@@ -201,14 +219,19 @@ antes de empacotar o jogo para terceiros.
 ## English overview
 
 **AI Fantasy** is an offline-first procedural RPG engine inspired by *Dwarf
-Fortress* adventure mode. The world is a block grid (houses, caves, holes, trees) and the
-final visualization is **2D isometric — no real 3D at all**; each character is an
+Fortress* adventure mode. The initial simulation is a procedural region with several
+localities, not a single-village product. Movement and symbolic speech advance logical time;
+NLG, model latency and camera navigation do not. The world is a block grid and the final
+visualization is **2D isometric — no real 3D at all**; each character is an
 individual with its own mini perceptron (MLP) shaped by life experience and darwinian
 evolution. The simulation is deterministic and emits symbolic tuples, not
 prose; dialogue is rendered lazily by a local LFM3-1.7B model, and fast typed decisions
 are made by a local d1-2B System One model. No cloud calls, no telemetry, no “JEV
 runtime”: JEV was only the historical label for the System One role. The repository is in
-its foundation phase — architecture and engineering rules first, code next. See
+its documentation-only foundation phase. All characters behind constructions, including
+unperceived ones, have a deliberately privileged silhouette overlay; it does not update
+last-seen memory or NPC/MLP knowledge. Its range and height rules remain a contract to review.
+Planning approval does not authorize implementation. See
 [the architecture overview](docs/architecture/overview.md) and
 [the corrected roadmap](docs/architecture/roadmap.md).
 

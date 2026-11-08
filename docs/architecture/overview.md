@@ -1,8 +1,10 @@
 # Arquitetura de Software — Hermeneutic Core
 
-> **Estado:** fundação. Este documento é normativo para a arquitetura; o código ainda não
-> existe. Quando a implementação divergir, o ADR correspondente tem de ser atualizado ou
-> superseded. Decisões: [`adr/`](adr/).
+> **Estado:** F0 — fundação, sem código executável. Revisão documental: **2026-11-08**.
+> Este documento descreve fronteiras e contratos; decisões aceitas são preservadas e
+> divergências estruturais exigem novo ADR. [ADRs](<adr/README.md>) e
+> [roadmap canônico](<roadmap.md>) explicam a arquitetura; o
+> [ROADMAP de execução](<../../ROADMAP.md>) concentra atividades, dependências e ondas.
 
 ## 1. Objetivo e atributos de qualidade
 
@@ -16,11 +18,21 @@ interações sociais simbolicamente e só gera linguagem quando o jogador pede. 
 | **Determinismo** | Mesmo seed + entradas ⇒ mesmo estado canónico e mesmo hash. |
 | **Testabilidade** | Todo o comportamento é observável e controlável por portas públicas. |
 | **Legibilidade** | Funções curtas, nomes claros, dependências explícitas, ADRs. |
-| **Performance** | Milhares de entidades e ticks baratos; IA fora do *game loop*. |
-| **Portabilidade** | Windows, Linux e macOS primeiro; mobile depois. |
+| **Performance** | Medir trabalho por ação, região e inferência; LLMs/sidecars fora do tick, MLP pura determinística na trilha posterior. Sem teto de hardware nesta etapa. |
+| **Portabilidade** | Desenvolvimento e testes na mesma máquina CPU/GPU em Windows/Linux; portabilidade desktop para macOS planejada, mobile posterior. |
 
-Não objetivos nesta fase: multiplayer, nuvem, editor visual, *modding* arbitrário,
-render 3D, sincronização entre dispositivos.
+A base simulável já é uma **região procedural com várias localidades**, não uma vila isolada.
+Ações de movimento/fala avançam ticks lógicos e agendas regionais; câmera, NLG e relógio real
+não avançam o mundo. Focar uma área não congela as outras nem retira suas entidades do hash.
+Regras detalhadas de custo e atividade regional permanecem em revisão no
+[ADR 0008 proposto](<adr/0008-action-driven-simulation-time.md>).
+
+Subagents de desenvolvimento e o juiz de integração são papéis de execução do
+[ROADMAP](<../../ROADMAP.md>), não componentes ou processos do jogo. Não confundem paralelismo
+entre worktrees com paralelismo do tick, cuja regra do ADR 0005 permanece.
+
+Não objetivos nesta fase: multiplayer, nuvem, editor visual, modding arbitrário,
+render 3D e sincronização entre dispositivos. A stack do cliente 2D ainda está aberta.
 
 ## 2. Contexto (C4 — nível 1)
 
@@ -43,39 +55,40 @@ para a Internet de propósito: a ausência é a decisão.
 
 ```mermaid
 flowchart TB
-    subgraph Processo["Processo ai-fantasy (Rust)"]
-        APP[af-app<br/>composition root]
-        TUI[af-tui<br/>terminal]
-        SCEN[af-scenario<br/>headless]
-        CORE[af-core<br/>ECS + tick + replay]
-        RULES[af-rules<br/>schema + materializador]
-        CONV[af-conversation<br/>eventos + rumores]
-        NLG[af-nlg<br/>prompts + parser]
-        PORTS[af-ports<br/>traits]
-        DOM[af-domain<br/>tipos + matemática]
+    subgraph Processo["Composição local ai-fantasy (Rust)"]
+        TUI[af-tui terminal]
+        SCEN[af-scenario headless]
+        APP[af-app composition root]
+        CORE[af-core ECS região tick replay]
+        RULES[af-rules validação materialização]
+        CONV[af-conversation eventos rumores]
+        NLG[af-nlg prompts parser narrativa]
+        SO[af-system-one adaptador]
+        LLM[af-llm adaptador]
+        STORE[af-store adaptador]
     end
-    subgraph Sidecars["Sidecars (processos locais)"]
-        D1[llama-server d1-2B<br/>127.0.0.1]
-        LFM[llama-server LFM3-1.7B<br/>127.0.0.1]
+    subgraph Sidecars["Modelos locais em loopback"]
+        D1[llama-server d1-2B]
+        LFM[llama-server LFM3-1.7B]
     end
-    DB[(SQLite<br/>local)]
-    APP --> TUI
-    APP --> SCEN
+    DB[(SQLite e saves locais)]
+    TUI -->|fachada| APP
+    SCEN -->|fachada| APP
     APP --> CORE
     APP --> NLG
-    APP --> POR[...adaptadores...]
+    APP --> SO
+    APP --> LLM
+    APP --> STORE
     CORE --> RULES
     CORE --> CONV
-    CORE --> PORTS
-    RULES --> DOM
-    CONV --> DOM
-    NLG --> CONV
-    NLG --> RULES
-    PORTS --> DOM
-    POR --> D1
-    POR --> LFM
-    APP --> DB
+    SO -. HTTP loopback .-> D1
+    LLM -. HTTP loopback .-> LFM
+    STORE --> DB
 ```
+
+**Legenda:** setas indicam composição/chamadas e fronteiras de I/O, não uma lista de
+imports. Domínio e portas fornecem tipos/contratos; a tabela e o grafo da seção 4 são a
+referência de dependências de código. O cliente 2D futuro não tem stack ou crate escolhida.
 
 O núcleo não conhece HTTP, SQLite, relógio de parede ou `std::env`. Os adaptadores
 implementam portas; o `af-app` injeta as implementações. Essa é a fronteira que permite
@@ -116,28 +129,43 @@ flowchart TD
     TUI[af-tui]
     SCEN[af-scenario]
 
-    DOM --> PORTS
-    PORTS --> CORE
-    RULES --> CORE
-    CONV --> CORE
-    CORE --> NLG
-    PORTS --> SO
-    PORTS --> LLM
-    PORTS --> STORE
-    CORE --> APP
-    NLG --> APP
-    SO --> APP
-    LLM --> APP
-    STORE --> APP
-    APP --> TUI
-    APP --> SCEN
+    PORTS --> DOM
+    RULES --> DOM
+    CONV --> DOM
+    CORE --> DOM
+    CORE --> PORTS
+    CORE --> RULES
+    CORE --> CONV
+    NLG --> DOM
+    NLG --> PORTS
+    NLG --> RULES
+    NLG --> CONV
+    SO --> DOM
+    SO --> PORTS
+    LLM --> DOM
+    LLM --> PORTS
+    STORE --> DOM
+    STORE --> PORTS
+    APP --> DOM
+    APP --> PORTS
+    APP --> RULES
+    APP --> CONV
+    APP --> CORE
+    APP --> NLG
+    APP --> SO
+    APP --> LLM
+    APP --> STORE
+    TUI --> APP
+    SCEN --> APP
 ```
 
 Regras:
 
-1. As setas apontam para **dentro** (direção de dependência: quem está em baixo depende de
-   quem está em cima). Não há ciclos.
-2. `af-core` nunca importa `af-app`, `af-tui`, `af-store`, `af-system-one` ou `af-llm`.
+1. Neste grafo, **A → B significa que A depende de B**; as setas reproduzem a coluna
+   “Depende de” da tabela. Não indicam fluxo de eventos ou execução. Não há ciclos.
+2. `af-core` nunca importa `af-app`, `af-tui`, `af-store`, `af-system-one`, `af-llm` ou
+   `af-nlg`. `af-nlg` também não depende de `af-core`; recebe fatos/contratos de domínio,
+   conversa, regras e portas, com composição feita no app.
 3. `af-domain` não importa nada do workspace; é o vocabulário comum.
 4. Adaptadores não vazam tipos de transporte (HTTP, SQLite) para o núcleo.
 5. Toda a API pública tem `///` e exemplo compilável quando aplicável.
@@ -200,26 +228,35 @@ sequenceDiagram
     A-->>P: resultado
 ```
 
-Nenhum modelo participa no tick. A NLG é sempre *lazy* e o seu resultado não altera estado.
+Nenhum **LLM, System One ou sidecar live** participa das decisões internas do tick.
+A mini-MLP pura em ponto fixo da trilha posterior pode modular a FSM/Utility AI
+como função determinística; não recebe a camada privilegiada de silhuetas.
+A NLG é lazy e somente leitura: seu resultado e sua demora não alteram estado ou tempo.
+
+**Tempo por ação:** movimentar-se e falar simbolicamente consome o custo lógico contratado;
+abrir histórico, gerar mais texto, esperar inferência ou navegar na câmera não acrescenta
+simulação. A agenda regional processa os ticks devidos sem congelar áreas fora do foco.
+Custos e ordem de processamento permanecem no [ADR 0008 proposto](<adr/0008-action-driven-simulation-time.md>).
+
+**Limite do diagrama:** ele ilustra responsabilidades, não aprova a ordem durável de
+commit, append, checkpoint e resposta ao jogador. Autoridade do save, revalidação de snapshot,
+RNG transacional e protocolo de publicação precisam ser fechados em CTR-02 do
+[ROADMAP](<../../ROADMAP.md>); não se aceita sucesso que depois se perca no log por falha de I/O.
 
 ## 7. Modelo de dados
 
 ### 7.1 IDs e unidades
 
-```rust
-pub struct ActorId(u32);
-pub struct ItemId(u32);
-pub struct LocationId(u32);
-pub struct Tick(u64);
-pub struct Seed(u64);
-pub struct BasisPoints(i32); // 10_000 = 100%
-pub struct Fixed(Q16_16);    // ponto fixo para atributos
-```
-
-- IDs são geracionais: `(index, generation)` embalados num `u64`; nunca reutilizar sem
-  incrementar a geração.
-- Unidades no nome: `_bp` (basis points), `_ticks`, `_ms`, `_dc`.
-- `f32`/`f64` não entram no estado autoritativo.
+- IDs são estáveis e geracionais; reutilizar um índice precisa distinguir sua nova geração.
+  O desenho anterior declarou newtypes `u32` e, ao mesmo tempo, IDs embalados em `u64`.
+  **A largura, o empacotamento e as referências históricas não estão aprovados**: CTR-01 do
+  [ROADMAP](<../../ROADMAP.md>) deve fechar esse contrato sem perda de identidade.
+- `Tick` e `Seed` usam a noção `u64` já documentada; relações e unidades usam inteiros/ponto
+  fixo. `10_000` basis points equivale a 100%; conversões e limites precisam ser explícitos.
+- Unidades no nome: `_bp` (basis points), `_ticks`, `_ms`, `_dc`. Milissegundos de diagnóstico
+  não são ticks do mundo nem custos de ação.
+- `f32`/`f64` não entram no estado autoritativo; probabilidades externas são normalizadas
+  na fronteira com aritmética, rejeição e arredondamento a contratar.
 
 ### 7.2 Componentes do ator
 
@@ -231,13 +268,19 @@ pub struct Fixed(Q16_16);    // ponto fixo para atributos
 | `Inventory` | Lista ordenada de `ItemId` + equipamento. |
 | `Relationships` | Pares Flecs com eixos: confiança, medo, empatia, dependência, hostilidade. |
 | `AiState` | FSM + última decisão de utilidade + *cooldowns*. |
-| `Memory` | Referências a eventos/rumores relevantes (IDs, não texto). |
+| `Memory` | IDs de eventos/rumores e snapshots do ambiente autoritativamente percebido; sem prosa. Overlay de silhuetas não atualiza last-seen ou conhecimento. |
 
 ### 7.3 Registo de conversa (zero-string)
 
-`ConversationEventRecord` é escrito num buffer fixo de **48 bytes** (42 de carga útil, 6 de
-alinhamento/reserva). Não usar `#[repr(packed)]`; a serialização é explícita, campo a campo,
-para não depender de layout de compilador.
+O desenho anterior de `ConversationEventRecord` indicava 48 bytes com 42 úteis + 6
+reservados, mas a tabela publicada soma **46 bytes**. A tabela abaixo documenta esse desenho
+inconsistente para revisão, **não um layout aprovado**. Não se escolhe automaticamente
+46 + 2: IDs `u32`/geracionais `u64`, deltas percentuais `i8` sem precisão de 1 bp e um único
+item/HP para até oito efeitos exigem contrato completo.
+
+CTR-01 do [ROADMAP](<../../ROADMAP.md>) deve fechar identidade, offsets, ordem dos bytes,
+reserva, precisão e preservação de todos os fatos. Serialização será explícita, sem
+`#[repr(packed)]` ou dependência de layout de compilador.
 
 | Campo | Tipo | Bytes | Semântica |
 | --- | --- | --- | --- |
@@ -257,7 +300,7 @@ para não depender de layout de compilador.
 | `labels` | `u32` | 4 | Bitmask: amizade, casamento, inimizade, família, aliança. |
 | `statuses` | `u32` | 4 | Bitmask fisiológico. |
 | `rumor` | `u32` | 4 | Rumor transmitido (0 = nenhum). |
-| **Total** | | **48** | 42 úteis + 6 reservados. |
+| **Soma dos campos publicados** | | **46** | Observação aritmética; formato final, reservas, IDs e precisão pendentes de CTR-01. |
 
 O registo não contém texto. A NLG reconstrói o diálogo a partir da sequência, dos rótulos e
 dos estados anexados.
@@ -311,6 +354,32 @@ Regras do schema:
 - O materializador aplica *clamps* e orçamento (máx. 8 efeitos por resultado).
 - A proveniência é anexada pelo núcleo, nunca pelo modelo.
 
+**Gramática ainda em revisão:** esse JSON é desenho de `RuleProposal`, não prova de parsing
+real. O exemplo de tool call usa tokens `<function=...>`/`<parameter=...>`, não XML padrão,
+e nomes `attributes_involved`/`on_success_changes`/`on_failure_changes`/`propagation_rules`
+diferentes de `attributes`/`on_success`/`on_failure`/`propagation`; também precisa reconciliar
+versão obrigatória. CTR-04 do [ROADMAP](<../../ROADMAP.md>) fecha enquadramento, mapeamento,
+cardinalidade, duplicatas e sintaxe, sem ampliar a allowlist ou aplicar respostas diretamente.
+
+### 7.5 Percepção regional e apresentação privilegiada
+
+A primeira base é uma região procedural com várias localidades. FOV e memória são dados
+simulados do observador; câmera/foco não congela outras áreas nem remove suas entidades do
+estado canônico. Construção/percepção/render posterior amplia a base, não inaugura a região.
+
+A API somente leitura precisa de **dois canais separados**, com contrato em CTR-03:
+
+- **Percepção autoritativa:** visão atual, snapshot last-seen congelado e desconhecido por
+  observador; abastece conhecimento, NPCs e inputs percebidos da MLP.
+- **Overlay privilegiado de apresentação:** silhuetas de **todos** os personagens atrás de
+  construções, inclusive não percebidos. Não atualiza last-seen, informação de rumores,
+  memória do ambiente ou conhecimento/MLP dos NPCs.
+
+O overlay revela presença ao jogador deliberadamente. Alcance, áreas nunca vistas, z-levels,
+permissões e DTO concreto ainda não estão definidos; não se reintroduz “somente percebidos”
+como resolução técnica. O [ADR 0009 proposto](<adr/0009-privileged-silhouette-overlay.md>)
+registra a decisão e os testes futuros. Mover câmera/abrir NLG não muda tempo ou memória.
+
 ## 8. Determinismo
 
 O contrato completo está no [ADR 0005](adr/0005-deterministic-simulation-contract.md).
@@ -324,7 +393,12 @@ step(world, command, ctx) -> (world', events, stats)
 - Sistemas correm numa ordem topológica fixa; queries que afetam resultado são ordenadas.
 - Estado canónico: chaves ordenadas, coleções ordenadas, sem `HashMap`, sem `f32`, sem
   timestamps voláteis. Hash BLAKE3.
-- Teste de prova: 100 execuções com o mesmo seed ⇒ mesmo hash; replay do log ⇒ mesmo hash.
+- Teste planejado: 100 execuções com a mesma seed e entradas autoritativas normalizadas
+  produzem o mesmo hash; replay não consulta modelos ou relógio real. O formato dessas
+  entradas, RNG transacional e autoridade durável permanecem em CTR-01/CTR-02.
+- Tempo é dirigido por custo lógico das ações, não relógio real ou duração do texto NLG.
+  A região completa, agendas, genomas e memória relevantes às decisões permanecem no hash;
+  câmera, overlay de apresentação e medições voláteis ficam fora.
 
 ## 9. Runtime offline e *sidecars*
 
@@ -358,7 +432,7 @@ Configuração por ambiente (sem rede):
 
 | Variável | Efeito |
 | --- | --- |
-| `AF_OFFLINE` | `1` (default) proíbe qualquer socket não-loopback. |
+| `AF_OFFLINE` | Offline é invariante, não opção para ligar nuvem; valor diferente não habilita sockets externos. |
 | `AF_MODELS_DIR` | Diretório dos pesos e manifestos. |
 | `AF_SAVE_DIR` | Diretório de saves e SQLite. |
 | `AF_SEED` | Seed inicial (debug/testes). |
@@ -369,10 +443,12 @@ Configuração por ambiente (sem rede):
 - SQLite local, `rusqlite` com `bundled`, WAL, `foreign_keys=ON`.
 - Tabelas: `schema_migrations`, `saves`, `events`, `narratives`, `rules`, `telemetry`
   (opt-in).
-- **Save atómico:** escrever em `*.tmp`, `fsync`, `rename`; manter o anterior como
-  `.bak`. Nunca sobrescrever em sítio.
-- **Formato:** `AIFS` magic + versão + seed + tick + hash + payload (CBOR/Postcard) +
-  checksum. Limite de tamanho e validação antes de desserializar.
+- **Requisito de durabilidade:** falha preserva o último save válido. A proposta de exportar
+  snapshot com `tmp`/`fsync`/`rename` e backup não autoriza renomear um banco WAL aberto.
+- **Formato em revisão:** AIFS, versão, seed, tick, hash, payload e checksum são desenho;
+  codec, layout e limites precisam ser fechados, não escolhidos entre CBOR/Postcard por suposição.
+- **CTR-02 pendente:** autoridade entre banco, log e snapshot, ordem durável de commit/append,
+  recuperação após crash e momento de publicar sucesso; [ROADMAP](<../../ROADMAP.md>).
 - **Migrações:** forward-only, versionadas, testadas com fixtures de saves antigos.
 - **Event log:** append-only, ordenado por tick/sequência; permite replay e auditoria.
 - **Cache de narrativa:** chave = hash da sequência + modelo + versão do *prompt* + locale;
@@ -423,8 +499,16 @@ Configuração por ambiente (sem rede):
 | Memória combinada | < 2,8 GB | soak test 12 h |
 | Save/load 10k entidades | < 250 ms p95 | benchmark |
 
-Números da fabricante (por exemplo, “5,7 ms numa H100”) são **referências externas**, não
-metas do projeto; medimos no hardware suportado e publicamos os resultados.
+**Revisão D-05:** os números desta tabela são referências diagnósticas históricas, não
+limites aprovados de hardware ou gates de escopo nesta etapa. A CPU/GPU da mesma máquina do
+maintainer será usada para desenvolver e testar em Windows/Linux. Não reduzir a região ou
+adiar correções para obedecer artificialmente a 2,8 GB ou à latência de um perfil não escolhido.
+
+Resultados futuros devem declarar hardware, sistema, build, contexto, população/localidades,
+concorrência, aquecimento e amostras. Tempo de execução, uso de memória e percentis vão para
+artefatos separados, fora do hash/golden determinístico. Os gates de correção, qualidade,
+offline e determinismo continuam obrigatórios. Requisitos mínimos e política de regressão
+serão decididos com evidência; nenhum benchmark ou model card foi revalidado neste pacote.
 
 ## 15. Decisões abertas
 
@@ -435,7 +519,17 @@ metas do projeto; medimos no hardware suportado e publicamos os resultados.
 | O-03 | UX de provisionamento de modelos (manual vs comando explícito). | ADR futuro |
 | O-04 | Licença dos assets (arte, fontes, áudio). | ADR futuro |
 | O-05 | Suporte mobile (iOS/Android) e limites de memória. | ADR futuro |
-| O-06 | Qualidade do NLG em português vs inglês. | medir na fase 5 |
+| O-06 | Qualidade do NLG em português vs inglês. | Medição futura na trilha de NLG. |
+| O-07 | Custos de ações, ordem de agendas e transação de tempo/replay. | CTR-02/DOC-02; [ADR 0008 proposto](<adr/0008-action-driven-simulation-time.md>). |
+| O-08 | Alcance, áreas nunca vistas, z-levels, permissões e API do overlay de todos os personagens. | CTR-03; [ADR 0009 proposto](<adr/0009-privileged-silhouette-overlay.md>). Não restringir a apenas percebidos. |
+| O-09 | IDs geracionais, evento compacto de soma 46 versus declaração 42/48, precisão e fatos completos. | CTR-01; formato não aprovado. |
+| O-10 | Gramática de tool call, mapeamento ao schema e autoridade durável do save. | CTR-04 e CTR-02; não resolvidos por exemplos. |
+| O-11 | Política de atividade e limites da região com várias localidades desde a base. | CTR-03/DOC-02; câmera/foco não congela áreas nem as exclui do hash. |
+| O-12 | Stack e ponte concreta do cliente 2D, perfis mínimos de hardware do produto. | D-06 aberta; D-05 sem teto nesta etapa. |
+
+Essas pendências têm trabalho e aceite no [ROADMAP de execução](<../../ROADMAP.md>).
+Decisões de produto registradas não são aprovação de implementação matemática ou execução
+imediata de contratos, código, testes ou releases.
 
 ## 16. Referências
 
