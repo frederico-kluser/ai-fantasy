@@ -16,6 +16,7 @@ apenas **o quê**; o código explica o como.
 | [0007](0007-license-and-model-distribution.md) | Licença do código e dos modelos | Aceite |
 | [0008](<0008-action-driven-simulation-time.md>) | Tempo por ações do personagem | Proposto — decisão de produto registrada; contrato técnico em revisão |
 | [0009](<0009-privileged-silhouette-overlay.md>) | Overlay de silhuetas separado da percepção | Proposto — decisão de produto registrada; contrato técnico em revisão |
+| [0010](<0010-identity-event-layout.md>) | Identidade geracional e layout de evento versionado | Proposto — [contrato CTR-01](<../../planning/contracts/identity-events.md>) em revisão |
 
 **Revisão documental: 2026-11-08.** Os novos registros preservam a devolutiva do
 [maintainer](<../../planning/decisions.md>), mas não aprovam fórmulas, APIs ou implementação.
