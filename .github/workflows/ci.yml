@@ -169,7 +169,10 @@ jobs:
           python3 - <<'PY'
           import re, subprocess, sys
           header = re.compile(r'^(feat|fix|docs|style|refactor|perf|test|build|ci|chore|revert)(\([^)]*\))?!?: .+')
-          skip = re.compile(r'^(Merge |Revert "|Reapply "|fixup!|squash!)')
+          # Isenções de AUTOMAÇÃO: merge/revert do git e commits agrupados de
+          # bots (`tipo(deps)(deps):`, não reescrevíveis sem rebase). Humanos
+          # não usam estes padrões; o título do PR/squash impõe a convenção.
+          skip = re.compile(r'^(Merge |Revert "|Reapply "|fixup!|squash!)|^\w+\(deps\)\(deps\): ')
           out = subprocess.run(['git', 'log', '--pretty=tformat:%s', '-n', '25', 'HEAD'],
                                capture_output=True, text=True).stdout
           bad = 0
