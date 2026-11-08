@@ -1,8 +1,8 @@
 # Contrato CTR-05 — Evidências, versões e matriz de qualidade
 
 > **Status:** **PROPOSTA PARA FREEZE — pendente de revisão independente**; nenhum código de
-> aplicação, scaffold, toolchain Rust resolvido, peso, medição de aplicação ou release foi
-> produzido por este contrato.
+> aplicação, scaffold, pin de toolchain, peso, medição de aplicação ou release foi produzido
+> por este contrato.
 
 | Campo | Valor |
 | --- | --- |
@@ -37,8 +37,8 @@ existente; os comandos com marca de descoberta pendente são **propostas**, não
   **reprodução**, **ausência** e **não execução**; proibição de converter alegação em medição.
 - Fixação de versões e licenças: toolchain Rust, runtime de modelos, pesos, template de chat,
   projector, model cards, dependências e artefactos de release.
-- Política de pin e MSRV: pin somente depois de evidência local; ferramenta ausente é reportada,
-  nunca tratada como `N/A`.
+- Política de pin e MSRV: pin somente depois de evidência local; ferramenta instalada fora do
+  `PATH` é `NO_PATH`, ferramenta realmente não instalada é `AUSENTE`, e nenhuma vira `N/A`.
 - Registo da máquina real (Windows observado; Linux com procedimento e estado explícito) e da
   capacidade/fila do executor, sem mínimo, teto de hardware ou quota de agentes.
 - Matriz requisito → medidor → job/comando → prova negativa para `fmt`, `clippy -D warnings`,
@@ -97,8 +97,8 @@ Nenhuma decisão é reaberta; a tabela apenas declara compatibilidade.
 - Nenhum comando deste documento foi executado nesta tentativa, exceto os marcados
   **`OBSERVADO`**/`MEDIDO` nas §3.1 e §4. Comandos com **“descoberta pendente”** exigem
   `--help`/`show-config` reais antes de virar gate (ROADMAP §7).
-- Este contrato não afirma o conteúdo de model cards, licenças de terceiros, versões de
-  ferramentas ausentes, MSRV ou hashes. O que veio de documentação é `ALEGAÇÃO` (§2.1).
+- Este contrato não afirma o conteúdo de model cards, licenças de terceiros, resultados de
+  gates Rust não executados, MSRV ou hashes. O que veio de documentação é `ALEGAÇÃO` (§2.1).
 
 ## 2. Epistemologia da evidência: alegação, observação e medição
 
@@ -110,7 +110,10 @@ Nenhuma decisão é reaberta; a tabela apenas declara compatibilidade.
 | `OBSERVADO` | Saída de comando capturada neste ambiente, sem valor numérico de qualidade afirmado. | Comando, stdout/stderr, exit code, host, data. | Inventário, disponibilidade, existência. |
 | `MEDIDO` | Valor numérico produzido por medidor nomeado, com unidade e escopo. | Comando, relatório, unidade, base SHA, host. | Gate numérico apenas se o medidor e o limiar estiverem congelados. |
 | `REPRODUZIDO` | `MEDIDO` repetido em segunda execução ou segundo host, com mesmo resultado dentro da tolerância declarada. | Duas execuções e hashes/comparação. | Gate cross-platform e release. |
-| `AUSENTE` | Ferramenta, ficheiro, artefacto ou relatório não encontrado. | Comando de descoberta, saída e erro de resolução. | Bloqueia o gate correspondente; **nunca** vira `N/A`. |
+| `INSTALADO` | Binário presente e versão obtida por caminho absoluto; não implica gate executado. | `Get-Item` do caminho + `<bin> --version`/`cargo <sub> --version`, com exit code. | Inventário de toolchain e pré-condição de gate. |
+| `NO_PATH` | Instalado e verificável por caminho absoluto, mas o shell padrão não o resolve por nome. | Caminho absoluto + versão + falha de resolução por nome. | Gate fica `BLOQUEADO_POR_PATH`, **nunca** `AUSENTE`. |
+| `AUSENTE` | Ferramenta, ficheiro, artefacto ou relatório não encontrado em nenhum caminho verificado. | Descoberta por nome **e** pelo caminho absoluto de instalação esperado. | Bloqueia o gate correspondente; **nunca** vira `N/A`. |
+| `NAO_MEDIDO` | Ferramenta instalada, mas o gate específico não foi executado/medido. | Versão instalada + gate não executado e motivo. | Impede alegar aprovação; não conta como sucesso. |
 | `NÃO EXECUTADO` | O gate existe no plano, mas não foi executado nesta fase/ambiente. | Referência ao cartão/fase e motivo. | Estado explícito; não conta como sucesso. |
 | `N/A` | Requisito estruturalmente inaplicável, com justificação contratual. | Entrada de `Waiver` nomeada, com dono, motivo, escopo e validade. | Só com `Waiver`; `N/A` automático é violação de política. |
 | `DIFERIDO` | Requisito aplicável, mas fora da fase corrente por desenho aprovado. | Fase, cartão que o ativa e estado no `GateReport`. | Mantém o relatório `INCOMPLETO`; nunca `GO` para release. |
@@ -119,9 +122,11 @@ Nenhuma decisão é reaberta; a tabela apenas declara compatibilidade.
 
 1. **Alegação não vira medição.** Repetir uma fonte, formatar um número ou copiá-lo para um
    relatório não produz medição. `ALEGAÇÃO` só sobe de classe com comando e saída reais.
-2. **Ferramenta ausente é `AUSENTE`.** `rustc`, `cargo`, `nextest`, `llvm-cov`, `mutants`,
-   `deny`, `audit`, `lychee` ou `typos` não encontrados no `PATH` são reportados com o comando
-   de descoberta e o erro. **NÃO DEVE** ser registado `N/A`, “não aplicável” ou “passou”.
+2. **Fora do `PATH` não é ausente.** A descoberta DEVE tentar o nome no `PATH` **e** os caminhos
+   absolutos de instalação conhecidos (`%USERPROFILE%\.cargo\bin`, instalação do rustup). Se o
+   binário existe e responde por caminho absoluto, a classe é `INSTALADO`/`NO_PATH` e o gate é
+   `BLOQUEADO_POR_PATH`; só é `AUSENTE` quando não existe em nenhum caminho verificado. **NÃO
+   DEVE** ser registado `N/A`, “não aplicável” ou “passou” em nenhum dos casos.
 3. **`N/A` só por `Waiver`.** Cada `Waiver` tem `gate`, `scope`, `owner`, `reason`, `expires_at`
    e `approved_by`. Sem isso, `verify_quality` emite `PolicyViolation` e o estado é `NO_GO`.
 4. **Versão/MSRV/pin só depois de evidência.** `rust-toolchain.toml` com canal flutuante, MSRV
@@ -157,30 +162,43 @@ Cada evidência persistida (fora da worktree, em `.work/task-evidence/<ID>/attem
 
 ### 3.1 Inventário observado nesta tentativa
 
-Host: Windows, `attempt-001`, 2026-11-08. Comandos de descoberta: `Get-Command <tool>` e
-`<tool> --version`. O resultado abaixo é `OBSERVADO`/`MEDIDO`/`AUSENTE`; não é uma declaração
-sobre a máquina fora do `PATH`.
+Host: Windows, `attempt-001`, 2026-11-08. Descoberta em dois passos: `Get-Command <tool>`
+(resolução por nome no `PATH`) e o caminho absoluto
+`C:\Users\kluse\.cargo\bin\<tool>.exe`. O shell padrão desta sessão não inclui
+`%USERPROFILE%\.cargo\bin` no `PATH`, embora o `PATH` de utilizador o contenha; por isso os
+binários Rust respondem por caminho absoluto e não por nome. `NO_PATH` é estado de ativação,
+não ausência. `--version` não é gate: nenhum gate Rust foi executado.
 
-| Ferramenta | Resultado em `attempt-001` | Classe |
-| --- | --- | --- |
-| `git` | `2.53.0.windows.3` | `OBSERVADO` |
-| `node` | `v24.18.0` | `OBSERVADO` |
-| `npm` | `11.16.0` | `OBSERVADO` |
-| `npx` + `markdownlint-cli2` | `0.24.0` (markdownlint `0.42.0`); 139 ficheiros, 0 issues, exit `0`, offline | `MEDIDO` (escopo Markdown) |
-| `python` / `python3` | `3.12.10` | `OBSERVADO` |
-| `rustc` | não reconhecido como comando; nenhum processo executado | `AUSENTE` |
-| `cargo` | não reconhecido como comando | `AUSENTE` |
-| `rustup` | não reconhecido como comando | `AUSENTE` |
-| `cargo-nextest` | não encontrado | `AUSENTE` |
-| `cargo-llvm-cov` | não encontrado | `AUSENTE` |
-| `cargo-mutants` | não encontrado | `AUSENTE` |
-| `cargo-deny` | não encontrado localmente (existe ação de CI em `ci.yml`) | `AUSENTE` |
-| `cargo-audit` | não encontrado | `AUSENTE` |
-| `lychee` | não encontrado localmente (existe ação de CI) | `AUSENTE` |
-| `typos` | não encontrado | `AUSENTE` |
+| Ferramenta | Caminho absoluto / descoberta | Versão observada | Classe |
+| --- | --- | --- | --- |
+| `git` | `PATH` | `2.53.0.windows.3` | `OBSERVADO` |
+| `node` | `PATH` | `v24.18.0` | `OBSERVADO` |
+| `npm` | `PATH` | `11.16.0` | `OBSERVADO` |
+| `npx` + `markdownlint-cli2` | `PATH` | `0.24.0` (markdownlint `0.42.0`); 139 ficheiros, 0 issues, exit `0` | `MEDIDO` (escopo Markdown) |
+| `python` / `python3` | `PATH` | `3.12.10` | `OBSERVADO` |
+| `rustc` | `C:\Users\kluse\.cargo\bin\rustc.exe` | `1.99.1 (58cf8f9c3 2026-10-13)` | `INSTALADO`/`NO_PATH` |
+| `cargo` | `C:\Users\kluse\.cargo\bin\cargo.exe` | `1.99.1 (5f94df478 2026-08-27)` | `INSTALADO`/`NO_PATH` |
+| `rustup` | `C:\Users\kluse\.cargo\bin\rustup.exe` | `1.29.3 (edbc831ce 2026-11-02)` | `INSTALADO`/`NO_PATH` |
+| `cargo-nextest` | `C:\Users\kluse\.cargo\bin\cargo-nextest.exe` | `0.9.151 (6b3f99457 2026-11-02)` | `INSTALADO`/`NO_PATH` |
+| `cargo-llvm-cov` | `C:\Users\kluse\.cargo\bin\cargo-llvm-cov.exe` | `0.9.1` | `INSTALADO`/`NO_PATH` |
+| `cargo-mutants` | `C:\Users\kluse\.cargo\bin\cargo-mutants.exe` | `27.1.0` | `INSTALADO`/`NO_PATH` |
+| `cargo-deny` | `C:\Users\kluse\.cargo\bin\cargo-deny.exe` | `0.20.2` | `INSTALADO`/`NO_PATH` |
+| `cargo-audit` | `C:\Users\kluse\.cargo\bin\cargo-audit.exe` | `0.22.2` | `INSTALADO`/`NO_PATH` |
+| `cargo-insta` | `C:\Users\kluse\.cargo\bin\cargo-insta.exe` | `1.49.0` | `INSTALADO`/`NO_PATH` |
+| `rustfmt` | `C:\Users\kluse\.cargo\bin\rustfmt.exe` | `1.10.0-stable (58cf8f9c35 2026-10-13)` | `INSTALADO`/`NO_PATH` |
+| `clippy` | `C:\Users\kluse\.cargo\bin\clippy-driver.exe` | `0.1.99 (58cf8f9c35 2026-10-13)` | `INSTALADO`/`NO_PATH` |
+| `lychee` | não encontrado no `PATH` nem em `.cargo\bin`; existe ação de CI | — | `AUSENTE` |
+| `typos` | não encontrado no `PATH` nem em `.cargo\bin` | — | `AUSENTE` |
 
-Consequência: nenhum gate Rust é executável nesta máquina nesta tentativa. Isso **não** é
-`N/A`: é `AUSENTE`/`BLOQUEADO_POR_TOOLCHAIN`, e a ausência é reportada a `SCI-01`/`SCI-02`.
+Nota: `rustc.exe`, `cargo.exe`, `rustfmt.exe` e `clippy-driver.exe` em `.cargo\bin` são shims do
+rustup com 0 bytes quando lidos diretamente; a versão real é resolvida pelo rustup
+(`stable-x86_64-pc-windows-msvc`). O achado não muda a classe: binário presente e versão
+verificada por caminho absoluto.
+
+Consequência: nenhum gate Rust foi executado nesta tentativa. As ferramentas estão
+`INSTALADO`/`NO_PATH`; os gates correspondentes ficam `BLOQUEADO_POR_PATH`/`NAO_MEDIDO`, nunca
+`AUSENTE`/`N/A`. Ativar o `PATH` ou invocar por caminho absoluto é pré-condição operacional de
+`SCI-01`/`SCI-02`, não prova de gate.
 
 ### 3.2 Toolchain Rust: estado declarado versus estado verificado
 
@@ -195,15 +213,16 @@ components = ["rustfmt", "clippy", "llvm-tools-preview"]
 
 | Aspeto | Estado em `attempt-001` | Regra |
 | --- | --- | --- |
-| Canal | `stable` é **flutuante**, não um pin exato. | `NÃO PINADO`; não afirmar versão. |
-| `rust-version`/MSRV | `Cargo.toml` não existe; MSRV não declarado nem medido. | `NÃO PINADO`; não inventar MSRV. |
-| Componentes | `rustfmt`, `clippy`, `llvm-tools-preview` declarados. | Compatíveis com os gates; resolvidos só com `rustup` real. |
+| Canal | `stable` é **flutuante**, não um pin exato; o toolchain instalado é `stable-x86_64-pc-windows-msvc`, ativo e default, sobreposto pelo `rust-toolchain.toml` da worktree. | `NÃO PINADO`; registar `rustc 1.99.1` como observação, não como pin. |
+| `rust-version`/MSRV | `Cargo.toml` não existe; MSRV não declarado nem derivado. `rustc 1.99.1` foi observado por `--version`. | `NÃO PINADO`; não inventar MSRV. |
+| Componentes | `rustfmt`, `clippy`, `llvm-tools-preview` declarados; `rustfmt 1.10.0-stable` e `clippy 0.1.99` responderam por caminho absoluto; `llvm-tools-preview` não foi exercitado. | Compatíveis com os gates; `llvm-cov` existe, mas não foi executado. |
 | `edition` | `2024` em [`rustfmt.toml`](<../../../rustfmt.toml#L1-L4>). | Restrição de toolchain; o MSRV correspondente **NÃO** é afirmado aqui. |
-| Resolução local | `rustc`/`cargo`/`rustup` ausentes do `PATH`. | `AUSENTE`; nenhuma versão foi resolvida. |
+| Resolução local | `INSTALADO`/`NO_PATH`: binários em `C:\Users\kluse\.cargo\bin`, invocáveis por caminho absoluto; o shell padrão não os resolve por nome. | `BLOQUEADO_POR_PATH`; **não** `AUSENTE`. |
 
 Procedimento de pin (dono `SCI-01`, gate `CP1`):
 
-1. Instalar o canal candidato e registar `rustc -vV`, `cargo -V`, `rustup show`.
+1. Resolver o canal candidato (já instalado: `stable-x86_64-pc-windows-msvc`, `rustc 1.99.1`)
+   e registar `rustc -vV`, `cargo -V`, `rustup show` por caminho absoluto ou com o `PATH` ativo.
 2. Criar `Cargo.toml` com `rust-version` **somente** após build, `nextest` e `clippy` verdes na
    versão candidata; derivar o MSRV do máximo real entre workspace e dependências, não de
    “última estável”.
@@ -214,8 +233,9 @@ Procedimento de pin (dono `SCI-01`, gate `CP1`):
 5. `cargo metadata --locked` e build `--locked` DEVEM passar com o pin; divergência de canal é
    `ToolchainMismatch` e bloqueia.
 
-Nenhuma versão/MSRV é afirmada neste contrato. O valor `stable` da base é uma **configuração
-observada**, não um pin aceite.
+A versão `rustc 1.99.1` é **observada**, não um pin nem um MSRV. O valor `stable` da base é uma
+**configuração observada**, não um pin aceite. Nenhum gate de compilação, teste ou lint foi
+executado com esta toolchain nesta tentativa.
 
 ### 3.3 Artefactos de modelo, runtime, template e projector
 
@@ -230,7 +250,7 @@ modelo ao runtime, template e projector aplicáveis. Fonte de facto: [offline-ai
 | Projector d1-2B | mídia (opcional) | `models/d1-2b/mmproj-d1-2B-Q8_0.gguf` | `sha256`, `bytes`; obrigatório se houver mídia | `ALEGAÇÃO`; não provisionado |
 | Pesos LFM3 | `llm` | `models/lfm3-1.7b/LFM3-1.7B-Q4_0.gguf` | `sha256`, `bytes`, licença, origem | `ALEGAÇÃO`; não provisionado |
 | Template de chat | prompt | `models/lfm3-1.7b/chat_template.jinja` | `sha256`, `template_version` | `ALEGAÇÃO`; não provisionado |
-| Runtime llama.cpp | executor | binário/`llama-server` | nome, versão exata, `sha256` do binário | `AUSENTE`; versão não fixada |
+| Runtime llama.cpp | executor | binário/`llama-server` | nome, versão exata, `sha256` do binário | `NÃO PROVISIONADO`; versão não fixada |
 | Model card d1-2B | proveniência | URL/revisão | URL, revisão, data | `ALEGAÇÃO`; não revalidado |
 | Model card LFM3 | proveniência | URL/revisão | URL, revisão, data | `ALEGAÇÃO`; não revalidado |
 
@@ -303,7 +323,7 @@ usada pelo runtime. Placeholders (`<...>`, `0`) são **estrutura**, não evidên
 | --- | --- | --- | --- | --- |
 | Código do repositório | MIT | [ADR 0007](<../../architecture/adr/0007-license-and-model-distribution.md#L14-L24>) | `LICENSE`, README, `cargo deny` | `ALEGAÇÃO` (não revalidada) |
 | Pesos LFM3/d1-2B | LFM Open License v1.0; uso comercial gratuito < US$ 10 mi | [model license](<https://docs.liquid.ai/lfm/help/model-license>) | Leitura do texto + registo no manifesto | `ALEGAÇÃO` (não revalidada) |
-| Dependências Rust | Allowlist: MIT, Apache-2.0, Apache-2.0 WITH LLVM-exception, BSD-2/3, ISC, Zlib, Unicode-3.0, MPL-2.0 | [`deny.toml`](<../../../deny.toml#L8-L19>) | `cargo deny check licenses` | `OBSERVADO` (config); gate `AUSENTE` |
+| Dependências Rust | Allowlist: MIT, Apache-2.0, Apache-2.0 WITH LLVM-exception, BSD-2/3, ISC, Zlib, Unicode-3.0, MPL-2.0 | [`deny.toml`](<../../../deny.toml#L8-L19>) | `cargo deny check licenses` | `OBSERVADO` (config); gate `NAO_MEDIDO` (deny 0.20.2 instalado) |
 | Dependências proibidas | GPL/AGPL/SSPL/BUSL, `openssl`/`openssl-sys` | [`deny.toml`](<../../../deny.toml#L22-L28>) | `cargo deny check bans` | `OBSERVADO` (config) |
 | Assets | Nenhum asset de terceiros | [ADR 0007](<../../architecture/adr/0007-license-and-model-distribution.md#L36-L40>) | `docs/legal/assets.md` quando existir | `NÃO EXECUTADO` (sem assets) |
 | Ferramentas de desenvolvimento | Não distribuídas com o produto | — | Registar proveniência quando empacotadas | `ALEGAÇÃO` |
@@ -327,6 +347,7 @@ Snapshot datado; é evidência, não gate. Comandos: `Get-CimInstance` (`Win32_O
 | --- | --- | --- | --- |
 | Host | `ONDOKAI` | `OBSERVADO` | Nome local; sem PII adicional. |
 | SO | Windows 11 Home Single Language, `10.0.26200`, 64 bits | `OBSERVADO` | Build 26200. |
+| Toolchain Rust | `C:\Users\kluse\.cargo\bin`; rustc 1.99.1, cargo 1.99.1, rustup 1.29.3 | `INSTALADO`/`NO_PATH` | Shell padrão sem `.cargo\bin` no `PATH`; gates não executados. |
 | CPU | Intel Core i9-14900HX; 24 núcleos, 32 lógicos; `MaxClockSpeed` 2200 MHz | `OBSERVADO` | `MaxClockSpeed` do WMI é base, não turbo. |
 | RAM total | `34.049.417.216` bytes (31,71 GiB) | `OBSERVADO` | `Win32_ComputerSystem.TotalPhysicalMemory`. |
 | Módulo de RAM | `34.359.738.368` bytes (32 GiB), 5600 MT/s, Kingston KF556S40-32 | `OBSERVADO` | Divergência com o total do SO; não reconciliar por inferência. |
@@ -404,21 +425,21 @@ diagnóstico e fica fora dos gates de correção.
 
 | # | Requisito | Medidor (unidade) | Job | Comando proposto | Fase | Estado 001 | Prova negativa | Dono |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| Q-01 | Toolchain resolvido e pinado | `rustc -vV` vs `rust-toolchain.toml` | `rust` | `rustc -vV`, `cargo -V`, `rustup show` | S | `AUSENTE` (sem `rustc`) | Canal flutuante ou `rustc` divergente → `ToolchainMismatch` | `SCI-01` |
-| Q-02 | Formatação | `rustfmt` | `rust` | `cargo fmt --all -- --check` | S | `NÃO EXECUTADO` | Ficheiro não formatado → exit ≠ 0 | `SCI-02` |
-| Q-03 | Lint sem warnings | `clippy` | `rust` | `cargo clippy --workspace --all-targets --all-features -- -D warnings` | S | `NÃO EXECUTADO` | `unwrap`/warning → `-D warnings` falha | `SCI-02`/`SCI-03` |
-| Q-04 | Suíte executada | `nextest` (testes) | `rust` | `cargo nextest run --workspace --profile ci --no-fail-fast` | S | `NÃO EXECUTADO` | Zero testes selecionados/perfil ausente → falha | `SCI-02` |
-| Q-05 | Cobertura de linha | `cargo-llvm-cov` (bp) | `rust` | `cargo llvm-cov nextest --workspace --fail-under-lines 90` | C | `SEM_CODIGO_MENSURAVEL` | Linha global `8999` bp → `NO_GO` | `SCI-03` |
-| Q-06 | Cobertura de ramo | `cargo-llvm-cov` (bp) | `rust`/`coverage` | `cargo llvm-cov report --branch --fail-under-branches 85` (descoberta pendente) | C | `SEM_CODIGO_MENSURAVEL` | Ramo global `8400` bp → `NO_GO` | `SCI-03` |
-| Q-07 | Cobertura de diff | `cargo-llvm-cov`/lcov (bp) | `coverage` | Interseção lcov do diff contra `DIFF_BASE_SHA`; `--fail-under-lines 95` (descoberta pendente) | C | `SEM_CODIGO_MENSURAVEL` | Diff `9400` bp → `NO_GO` | `SCI-03` |
-| Q-08 | Mutação | `cargo-mutants` + `xtask` (bp) | `mutants` | `cargo mutants --workspace --in-place --timeout 300`; score de `outcomes.json` no `xtask` | C | `AUSENTE` (ferramenta) | Global `7900` bp, core/rules `8900` bp → `NO_GO` | `SCI-03` |
-| Q-09 | Complexidade configurada | `clippy` (limites) | `rust` | `clippy` com [`clippy.toml`](<../../../clippy.toml#L1-L7>) | S | `OBSERVADO` (config), `NÃO EXECUTADO` | Cognitiva `11`, 6 parâmetros ou 41 linhas lógicas → falha | `SCI-03` |
-| Q-10 | Complexidade ciclomática/aninhamento | Medidor AST dedicado | `complexity` (proposto) | `cargo xtask complexity` (descoberta pendente; `rust-code-analysis` ou AST próprio) | C | `AUSENTE` (lacuna) | Ciclomática `11` ou aninhamento `4` → `NO_GO` | `SCI-03` |
-| Q-11 | Licenças/bans/fontes | `cargo-deny` | `rust` | `cargo deny check` | S | `OBSERVADO` (config), `NÃO EXECUTADO` | GPL, `openssl`, yanked ou registry desconhecido → falha | `SCI-02` |
-| Q-12 | Advisories | `cargo-audit` | `audit` (proposto) | `cargo audit` | S | `AUSENTE` (job e ferramenta) | Advisory semeado → falha | `SCI-02`/`SCI-03` |
-| Q-13 | Rustdoc sem warnings | `rustdoc` | `rust` | `RUSTDOCFLAGS=-D warnings cargo doc --workspace --no-deps` | S | `NÃO EXECUTADO` | `missing_docs`/link quebrado → falha | `SCI-02` |
-| Q-14 | Doc-tests | `cargo test --doc` | `rust` | `cargo test --workspace --doc` | S | `NÃO EXECUTADO` (job ausente) | Exemplo que não compila → falha | `SCI-03` |
-| Q-15 | Markdown e links | `markdownlint-cli2` + `lychee` | `docs` | `npx --offline --no-install markdownlint-cli2 "**/*.md"`; `lychee --offline` | B/S/C | `MEDIDO` (0 issues, 139 files) | Link/heading quebrado ou MD0xx → falha | `CTR-05`/`SCI-02` |
+| Q-01 | Toolchain resolvido e pinado | `rustc -vV` vs `rust-toolchain.toml` | `rust` | `rustc -vV`, `cargo -V`, `rustup show` | S | `INSTALADO`/`NO_PATH` (rustc 1.99.1); `BLOQUEADO_POR_PATH` | Canal flutuante ou `rustc` divergente → `ToolchainMismatch` | `SCI-01` |
+| Q-02 | Formatação | `rustfmt` | `rust` | `cargo fmt --all -- --check` | S | `INSTALADO`/`NO_PATH` (rustfmt 1.10.0); `NAO_MEDIDO` | Ficheiro não formatado → exit ≠ 0 | `SCI-02` |
+| Q-03 | Lint sem warnings | `clippy` | `rust` | `cargo clippy --workspace --all-targets --all-features -- -D warnings` | S | `INSTALADO`/`NO_PATH` (clippy 0.1.99); `NAO_MEDIDO` | `unwrap`/warning → `-D warnings` falha | `SCI-02`/`SCI-03` |
+| Q-04 | Suíte executada | `nextest` (testes) | `rust` | `cargo nextest run --workspace --profile ci --no-fail-fast` | S | `INSTALADO`/`NO_PATH` (nextest 0.9.151); `NAO_MEDIDO` | Zero testes selecionados/perfil ausente → falha | `SCI-02` |
+| Q-05 | Cobertura de linha | `cargo-llvm-cov` (bp) | `rust` | `cargo llvm-cov nextest --workspace --fail-under-lines 90` | C | `INSTALADO`/`NO_PATH` (llvm-cov 0.9.1); `NAO_MEDIDO` | Linha global `8999` bp → `NO_GO` | `SCI-03` |
+| Q-06 | Cobertura de ramo | `cargo-llvm-cov` (bp) | `rust`/`coverage` | `cargo llvm-cov report --branch --fail-under-branches 85` (descoberta pendente) | C | `INSTALADO`/`NO_PATH` (llvm-cov 0.9.1); `NAO_MEDIDO` | Ramo global `8400` bp → `NO_GO` | `SCI-03` |
+| Q-07 | Cobertura de diff | `cargo-llvm-cov`/lcov (bp) | `coverage` | Interseção lcov do diff contra `DIFF_BASE_SHA`; `--fail-under-lines 95` (descoberta pendente) | C | `INSTALADO`/`NO_PATH` (llvm-cov 0.9.1); `NAO_MEDIDO` | Diff `9400` bp → `NO_GO` | `SCI-03` |
+| Q-08 | Mutação | `cargo-mutants` + `xtask` (bp) | `mutants` | `cargo mutants --workspace --in-place --timeout 300`; score de `outcomes.json` no `xtask` | C | `INSTALADO`/`NO_PATH` (mutants 27.1.0); `NAO_MEDIDO` | Global `7900` bp, core/rules `8900` bp → `NO_GO` | `SCI-03` |
+| Q-09 | Complexidade configurada | `clippy` (limites) | `rust` | `clippy` com [`clippy.toml`](<../../../clippy.toml#L1-L7>) | S | `INSTALADO`/`NO_PATH` (clippy 0.1.99) + config; `NAO_MEDIDO` | Cognitiva `11`, 6 parâmetros ou 41 linhas lógicas → falha | `SCI-03` |
+| Q-10 | Complexidade ciclomática/aninhamento | Medidor AST dedicado | `complexity` (proposto) | `cargo xtask complexity` (descoberta pendente; `rust-code-analysis` ou AST próprio) | C | `AUSENTE` (medidor dedicado não implementado) | Ciclomática `11` ou aninhamento `4` → `NO_GO` | `SCI-03` |
+| Q-11 | Licenças/bans/fontes | `cargo-deny` | `rust` | `cargo deny check` | S | `INSTALADO`/`NO_PATH` (deny 0.20.2) + config; `NAO_MEDIDO` | GPL, `openssl`, yanked ou registry desconhecido → falha | `SCI-02` |
+| Q-12 | Advisories | `cargo-audit` | `audit` (proposto) | `cargo audit` | S | `INSTALADO`/`NO_PATH` (audit 0.22.2); `NAO_MEDIDO` (job ausente) | Advisory semeado → falha | `SCI-02`/`SCI-03` |
+| Q-13 | Rustdoc sem warnings | `rustdoc` | `rust` | `RUSTDOCFLAGS=-D warnings cargo doc --workspace --no-deps` | S | `INSTALADO`/`NO_PATH` (rustdoc do toolchain); `NAO_MEDIDO` | `missing_docs`/link quebrado → falha | `SCI-02` |
+| Q-14 | Doc-tests | `cargo test --doc` | `rust` | `cargo test --workspace --doc` | S | `INSTALADO`/`NO_PATH` (cargo 1.99.1); `NAO_MEDIDO` (job ausente) | Exemplo que não compila → falha | `SCI-03` |
+| Q-15 | Markdown e links | `markdownlint-cli2` + `lychee` | `docs` | `npx --offline --no-install markdownlint-cli2 "**/*.md"`; `lychee --offline` | B/S/C | `MEDIDO` (0 issues, 139 files); `lychee` `AUSENTE` local | Link/heading quebrado ou MD0xx → falha | `CTR-05`/`SCI-02` |
 
 ### 5.3 Gates de fronteira, artefactos e release
 
@@ -442,7 +463,7 @@ DEVE ser inferior à fase derivada do repositório: se `Cargo.toml` existe, a fa
 | --- | --- | --- | --- |
 | Markdown/link/`planning-check` | OBRIGATÓRIO | OBRIGATÓRIO | OBRIGATÓRIO |
 | CoALA local (where/recall/sync/doctor/search/get) | OBRIGATÓRIO | OBRIGATÓRIO | OBRIGATÓRIO |
-| Toolchain resolvido/pin | `AUSENTE`/`BLOQUEADO` | OBRIGATÓRIO | OBRIGATÓRIO |
+| Toolchain resolvido/pin | `BLOQUEADO_POR_PATH` (instalado, fora do `PATH` padrão) | OBRIGATÓRIO | OBRIGATÓRIO |
 | `fmt`/`clippy`/`nextest` | `NÃO EXECUTÁVEL` (sem workspace) | OBRIGATÓRIO | OBRIGATÓRIO |
 | Cobertura linha/ramo/diff | `SEM_CODIGO_MENSURAVEL` | `SEM_CODIGO_MENSURAVEL` (declarações) | OBRIGATÓRIO |
 | Pisos `af-core`/`af-rules` | `DIFERIDO_POR_AUSENCIA_DE_CRATE` | `DIFERIDO_POR_AUSENCIA_DE_CODIGO_MENSURAVEL` | OBRIGATÓRIO |
@@ -505,6 +526,7 @@ esperado” é o contrato do medidor, não uma execução.
 | `NP-26` | SBOM ausente no release | `NO_GO` (`SbomMissing`) |
 | `NP-27` | Link/heading quebrado | `NO_GO` (docs/links) |
 | `NP-28` | Busca CoALA vazia/expirada | Bloqueia `DELIVERED_TO_REVIEW` |
+| `NP-29` | Ferramenta instalada fora do `PATH` classificada como `AUSENTE` | `NO_GO` (misclassificação `NO_PATH`→`AUSENTE`) |
 
 ### 5.6 Limiares congelados (não reduzidos)
 
@@ -640,8 +662,9 @@ EvidenceFailure {
   phase: Phase,                   // B | S | C
   command: String,
   exit_code: i32,
-  classification: FailureClass,   // REAL_FAILURE | TOOL_ABSENT | REPORT_MISSING |
-                                  // NOT_MEASURABLE | NOT_EXECUTED | POLICY_VIOLATION | FLAKY
+  classification: FailureClass,   // REAL_FAILURE | TOOL_ABSENT | TOOL_NO_PATH | REPORT_MISSING |
+                                  // NOT_MEASURABLE | NOT_MEASURED | NOT_EXECUTED |
+                                  // POLICY_VIOLATION | FLAKY
   observed: String,               // valor + unidade
   expected: String,               // limiar + unidade
   evidence_path: RelativePath,
@@ -656,8 +679,10 @@ EvidenceFailure {
 
 Regras: registo append-only; a primeira falha não é apagada por um retry verde; `FLAKY` abre
 issue e não é silenciado com `retry`/`#[ignore]`; `TOOL_ABSENT` não é `REAL_FAILURE` nem
-`N/A`; `REPORT_MISSING`/`NOT_MEASURABLE` bloqueiam o gate; `POLICY_VIOLATION` exige correção de
-política, não de número. A falha e a correção são preservadas na evidência da tentativa.
+`N/A`; `TOOL_NO_PATH` é distinto de `TOOL_ABSENT` e bloqueia só até o `PATH`/caminho absoluto
+ser ativado; `NOT_MEASURED` é ferramenta instalada sem gate executado; `REPORT_MISSING`/
+`NOT_MEASURABLE` bloqueiam o gate; `POLICY_VIOLATION` exige correção de política, não de número.
+A falha e a correção são preservadas na evidência da tentativa.
 
 ## 7. Interfaces INT-11, INT-18 e INT-20
 
@@ -849,8 +874,9 @@ literal verificada pelo juiz; nenhum consumidor improvisa tipo compatível.
 
 ### 8.1 `AC-CTR-05-01` — Versões, licenças, máquina e matriz
 
-O contrato DEVE: distinguir `ALEGAÇÃO`/`OBSERVADO`/`MEDIDO`/`AUSENTE`/`NÃO EXECUTADO`; registar
-toolchain declarado versus verificado (sem inventar versão/MSRV); identificar pesos, runtime,
+O contrato DEVE: distinguir `ALEGAÇÃO`/`OBSERVADO`/`MEDIDO`/`INSTALADO`/`NO_PATH`/`AUSENTE`/
+`NAO_MEDIDO`/`NÃO EXECUTADO`; registar toolchain declarado versus verificado (versão instalada
+observada, sem inventar pin/MSRV); identificar pesos, runtime,
 template e projector com identidade/hash/licença/origem; registar a máquina real observada e o
 procedimento Linux sem afirmar paridade; apresentar a matriz requisito → medidor → job →
 prova negativa para todos os gates exigidos; declarar o escopo de bootstrap sem `N/A`
@@ -859,9 +885,10 @@ automático e sem alegar pisos de `af-core`/`af-rules` antes de código mensurá
 
 ### 8.2 `AC-CTR-05-02` — Erros, limites e fail-closed
 
-O contrato DEVE definir: ferramenta/artefacto ausente como `AUSENTE` (nunca `N/A`); `N/A` só
-por `Waiver`; relatório ausente/truncado/suíte pulada/`NotMeasurable` como `NO_GO` ou
-`INCOMPLETO`, nunca `GO`; provas negativas para cada limiar; erros tipados de `INT-11`
+O contrato DEVE definir: ferramenta instalada fora do `PATH` como `NO_PATH`
+(`BLOQUEADO_POR_PATH`), ferramenta não instalada em caminho verificado como `AUSENTE` (nunca
+`N/A`); `N/A` só por `Waiver`; relatório ausente/truncado/suíte pulada/`NotMeasurable` como
+`NO_GO` ou `INCOMPLETO`, nunca `GO`; provas negativas para cada limiar; erros tipados de `INT-11`
 (host externo, redirect, proxy, timeout, oversize, hash), `INT-18` (spec inválida, no-tests,
 sandbox, timeout, artefacto) e `INT-20` (`GateNotGo`, pesos, segredo, SBOM, licença,
 autorização). Prova: §5.5, §6.7, §7.1–§7.3.
@@ -889,7 +916,7 @@ consumidores e o que não podem improvisar; integrar com CTR-01…CTR-04 por sec
 | Critério | Exigência do cartão | Onde fecha | Prova documental | Implementação futura |
 | --- | --- | --- | --- | --- |
 | `AC-CTR-05-01` | Versões/licenças, máquina Windows/Linux, matriz | §2–§5 | Tabelas de classes, inventário, host, matriz e limiares | `SCI-01`/`SCI-03`/`AI-01` |
-| `AC-CTR-05-02` | Alegação ≠ medição; falhas e ausências reportadas | §2.2, §5.4, §5.5, §6.7, §7 | Provas `NP-01`…`NP-28`; erros tipados | `SCI-02`/`SCI-03`/`SCI-04` |
+| `AC-CTR-05-02` | Alegação ≠ medição; falhas, ausências e `NO_PATH` reportados | §2.2, §5.4, §5.5, §6.7, §7 | Provas `NP-01`…`NP-29`; erros tipados | `SCI-02`/`SCI-03`/`SCI-04` |
 | `AC-CTR-05-03` | Sem escrita fora da allowlist; sem execução indevida | §1.2, §8.3 | Diff/status e evidência externa | Revisor |
 | `AC-CTR-05-04` | INT-11/18/20 e integração CTR-01…04 | §7 | Assinaturas, tabelas de consumo e linhas citadas | `AI-01`, `E2E-01`, `SCI-03`, `REL-01` |
 
@@ -899,7 +926,7 @@ Nomes no padrão do projeto; nenhum foi executado. São especificação de teste
 
 1. `given_rust_toolchain_file_when_read_then_channel_is_exact_or_marked_unpinned`
 2. `given_floating_stable_channel_when_verify_toolchain_then_not_a_pin`
-3. `given_rustc_missing_when_probe_tools_then_reports_absent_not_na`
+3. `given_missing_tool_after_absolute_probe_when_probe_tools_then_reports_absent_not_na`
 4. `given_model_manifest_when_verify_then_hash_bytes_license_runtime_template_required`
 5. `given_tampered_weight_when_verify_then_hash_mismatch`
 6. `given_wrong_bytes_when_verify_then_size_mismatch`
@@ -942,6 +969,9 @@ Nomes no padrão do projeto; nenhum foi executado. São especificação de teste
 43. `given_second_host_when_reproduce_coverage_then_same_classification`
 44. `given_stale_coala_result_when_search_then_blocks_delivery`
 45. `given_contract_path_when_search_coala_then_active_result_required`
+46. `given_tool_installed_outside_path_when_probe_then_no_path_not_absent`
+47. `given_absolute_cargo_bin_when_version_then_installed_with_version`
+48. `given_installed_tool_when_gate_not_run_then_not_measured`
 
 ## 10. Decisões para freeze
 
@@ -950,7 +980,7 @@ independente e ratificação do maintainer. Este documento não se autoaprova.
 
 | # | Decisão | Recomendação | Justificativa | Impacto se rejeitada |
 | --- | --- | --- | --- | --- |
-| `F-01` | Classes de evidência e proibição de `N/A` automático | Aceitar §2.1–§2.2 | Impede “verde por ausência” e alegação virando medição. | Gates passariam a mentir em bootstrap e em ferramenta ausente. |
+| `F-01` | Classes de evidência e proibição de `N/A` automático | Aceitar §2.1–§2.2 | Impede “verde por ausência” e alegação virando medição. | Gates passariam a mentir em bootstrap, ferramenta ausente ou fora do `PATH`. |
 | `F-02` | Pin de toolchain só após evidência; `stable` não é pin | Aceitar §3.2 | Reprodutibilidade e MSRV reais; evita pin inventado. | Builds divergem entre hosts e releases não reproduzem. |
 | `F-03` | Manifesto de modelos com runtime/template/projector/hash/licença | Aceitar §3.3–§3.4 | Fecha `INT-11` e `AI-01` sem pesos no repo. | Modelo não verificável; release ambíguo. |
 | `F-04` | Licenças: MIT no código, LFM no peso, allowlist `deny.toml` | Aceitar §3.5 | Alinha ADR 0007 e obrigações comerciais. | Risco jurídico e release bloqueado. |
@@ -966,6 +996,7 @@ independente e ratificação do maintainer. Este documento não se autoaprova.
 | `F-14` | `BOOTSTRAP_GO` nunca autoriza release | Aceitar §5.4/§7.3 | Separa fundação de produção. | Release de bootstrap sem gates de código. |
 | `F-15` | Evidência append-only, primeira falha preservada | Aceitar §6.7 | Auditoria e *flaky* visível. | Retry apaga histórico e esconde bug. |
 | `F-16` | Linux é `NÃO MEDIDO` até execução real | Aceitar §4.2 | D-05 não autoriza fingir paridade. | Alegação cross-platform falsa. |
+| `F-17` | `INSTALADO`/`NO_PATH` ≠ `AUSENTE`; `--version` ≠ gate | Aceitar §2.1–§2.2/§3.1 | Evita falso bloqueio por `PATH` e falso verde por versão. | Gates Rust tratados como ausentes ou aprovados sem execução. |
 
 ## 11. Como este contrato será consumido
 
@@ -989,8 +1020,13 @@ independente e ratificação do maintainer. Este documento não se autoaprova.
 
 - **Documento normativo, sem código.** Nenhum crate, `Cargo.toml`, `xtask`, sidecar, runner,
   pacote, peso ou teste foi criado; nenhum gate Rust foi executado.
-- **Toolchain local ausente.** `rustc`/`cargo`/`rustup` e todas as ferramentas Rust não foram
-  encontrados no `PATH` desta sessão (`AUSENTE`, §3.1). Nenhuma versão/MSRV foi resolvida.
+- **Toolchain instalado, mas fora do `PATH` padrão.** `rustc 1.99.1`, `cargo 1.99.1`,
+  `rustup 1.29.3`, `cargo-nextest 0.9.151`, `cargo-llvm-cov 0.9.1`, `cargo-mutants 27.1.0`,
+  `cargo-deny 0.20.2`, `cargo-audit 0.22.2`, `cargo-insta 1.49.0`, `rustfmt 1.10.0-stable` e
+  `clippy 0.1.99` estão em `C:\Users\kluse\.cargo\bin` e respondem por caminho absoluto; o shell
+  padrão desta sessão não os resolve por nome (`INSTALADO`/`NO_PATH`, não `AUSENTE`). Nenhum gate
+  Rust foi executado (`BLOQUEADO_POR_PATH`/`NAO_MEDIDO`); o canal em `rust-toolchain.toml`
+  continua `stable` flutuante e o MSRV não foi derivado.
 - **`rust-toolchain.toml` flutua.** `channel = "stable"` é configuração observada, não pin; o
   pin exato é pendência de `SCI-01` (§3.2).
 - **CI parcialmente fail-open.** O job `rust` é pulado sem `Cargo.toml` e o agregador `build`
