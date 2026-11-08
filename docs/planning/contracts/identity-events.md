@@ -34,7 +34,7 @@ arquivos existentes.
 - Projeção compacta como leitura derivada, sem substituir o log factual autoritativo.
 - `ConversationFact` e o contrato de `encode_events`/`decode_events` com ida e volta exata.
 - Canonicalização INT-01: envelope, ordem, coleções ordenadas, exclusões voláteis e hash BLAKE3.
-- Erros tipados, vetores de bytes escritos à mão e rastreabilidade dos critérios de aceite.
+- Erros tipados, vetores de bytes compostos campo a campo e rastreabilidade dos critérios de aceite.
 - [ADR 0010](<../../architecture/adr/0010-identity-event-layout.md>) com a decisão estrutural, status **Proposto**.
 
 ### 1.2 Não-escopo
@@ -84,8 +84,8 @@ contrato resolve as quatro por decisão explícita, não por ajuste aritmético 
   nova versão.
 - Tipos em code spans são propostas de domínio, não código existente. Nomes de erros são propostas
   de variantes tipadas.
-- Os vetores da §7 foram escritos à mão e conferidos por aritmética; nenhum teste de aplicação foi
-  executado e nenhum valor de hash é afirmado.
+- Os vetores da §7 foram compostos campo a campo e conferidos por aritmética e por um script scratch
+  local; nenhum teste de aplicação foi executado e nenhum valor de hash é afirmado.
 
 ## 2. Identidade geracional
 
@@ -105,16 +105,17 @@ ambiguidade entre localidades e não permite detetar um ID obsoleto apenas pelos
 escolhido mantém a identidade autossuficiente no wire e no save.
 
 A largura do índice é justificada pela escala regional de D-07. O orçamento de referência é de
-1.024 localidades com até 2.097.152 entidades por localidade — `2^31` identidades por tipo —, metade
-do espaço utilizável de `2^32 - 1` índices. O allocator é **único por região e por tipo**, não por
-localidade: uma entidade que se move entre localidades conserva o mesmo ID. Se cada localidade
-tivesse o seu próprio contador, duas localidades poderiam emitir o mesmo `(kind, index, generation)`
-e a colisão seria silenciosa; o allocator regional elimina essa possibilidade.
+1.024 localidades com até 2.097.152 entidades por localidade — `2^31` identidades por tipo —,
+aproximadamente metade de `2^32` e abaixo do espaço utilizável de `2^32 - 1` índices. O allocator é
+**único por região e por tipo**, não por localidade: uma entidade que se move entre localidades
+conserva o mesmo ID. Se cada localidade tivesse o seu próprio contador, duas localidades poderiam
+emitir o mesmo `(kind, index, generation)` e a colisão seria silenciosa; o allocator regional elimina
+essa possibilidade.
 
-A geração de 16 bits permite 65.535 reciclagens por slot. Ao esgotar, o slot é aposentado, nunca
-reutilizado com geração `0`; isso evita o clássico ABA, em que um ID antigo passaria a apontar para
-uma entidade nova. A tag de 16 bits cobre os cinco tipos de v1 e deixa espaço reservado para tipos
-futuros; valores não atribuídos são rejeitados em v1.
+A geração de 16 bits permite 65.535 gerações válidas por slot (65.534 reciclagens após a primeira
+colocação). Ao esgotar, o slot é aposentado, nunca reutilizado com geração `0`; isso evita o clássico
+ABA, em que um ID antigo passaria a apontar para uma entidade nova. A tag de 16 bits cobre os cinco
+tipos de v1 e deixa espaço reservado para tipos futuros; valores não atribuídos são rejeitados em v1.
 
 ### 2.2 Empacotamento e exemplos
 
@@ -313,7 +314,12 @@ autoriza deltas fora dessa faixa.
 ### 3.6 Deltas de relação: faixa, clamp autorizado e rejeição
 
 Seja `old` o valor atual da relação em `UnitBp` (`0..=10_000`) e `delta` o `BasisPoints` do efeito.
-A aplicação calcula `raw = old as i32 + delta as i32` e decide:
+A relação alterada é sempre a tripla `(source, target, axis)`: `source` é o ator cujo valor muda,
+`target` é o outro ator e `axis` é o eixo. `source` e `target` MUST ser `ActorId` não nulos e
+distintos; `source` MUST ser o `speaker` ou o `listener` do fato; `target` MUST existir e estar vivo
+no momento da aplicação. O mesmo fato pode conter dois efeitos, `(speaker, listener, axis)` e
+`(listener, speaker, axis)`, para alterar as duas direções. A aplicação calcula
+`raw = old as i32 + delta as i32` e decide:
 
 | Condição | Resultado |
 | --- | --- |
@@ -466,7 +472,7 @@ Tipos de efeito:
 | `kind` | Nome | `selector` | `subject` | `source` | `target` | `amount` |
 | --- | --- | --- | --- | --- | --- | --- |
 | 1 | `TRANSFER_ITEM` | 0 | `ItemId` | `HolderRef` de origem | `HolderRef` de destino | `Quantity` `1..=2^31-1`; `source != target`. |
-| 2 | `DELTA_RELATIONSHIP` | eixo 1..5 | 0 | 0 | `ActorId` | `BasisPoints` `-10_000..=10_000`, `!= 0`; flag de saturação permitida. |
+| 2 | `DELTA_RELATIONSHIP` | eixo 1..5 | 0 | `ActorId` (quem muda) | `ActorId` (alvo) | `BasisPoints` `-10_000..=10_000`, `!= 0`; `source != target`; flag de saturação permitida. |
 | 3 | `ATTACH_LABEL` | label 1..5 | 0 | 0 | `ActorId` | 0; máximo 3 labels distintos por fato. |
 | 4 | `APPLY_STATUS` | status 1..32 | 0 | 0 | `ActorId` | `DurationTicks` `1..=2^31-1`. |
 | 5 | `PROPAGATE_RUMOR` | 0 | `RumorId` | `ActorId` | `ActorId` | `UnitBp` `1..=10_000`; `source != target`. |
@@ -477,6 +483,14 @@ ID valida a origem/destino; um item pode ser transferido entre atores ou entre u
 localidade/estrutura, e a localidade histórica do fato continua no campo `location` do registo. Um
 `HolderRef` com outro kind é `InvalidHolderKind`. Itens não são contentores de outros itens em v1;
 essa extensão exigiria contrato/versão novos.
+
+`DELTA_RELATIONSHIP` altera uma relação `(source, target, axis)` e exige `source` e `target`
+`ActorId` não nulos, `source != target`, `source` igual ao `speaker` ou ao `listener` do fato, e
+`target` existente/vivo. O alvo pode ser o outro participante ou um terceiro ator; a identidade do
+par fica explícita no efeito e não é inferida implicitamente. `source == target` é sempre rejeitado;
+`target == speaker` só é válido quando `source == listener`, e `target == listener` só quando
+`source == speaker`. As duas direções exigem dois efeitos distintos. `source`/`target` inválidos,
+ausentes, stale ou fora do fato são `InvalidRelationshipActor`.
 
 Eixos de relação (`selector` do `kind` 2):
 
@@ -492,9 +506,9 @@ Labels (`selector` do `kind` 3): `1` = `FRIENDSHIP`, `2` = `MARRIAGE`, `3` = `EN
 `4` = `FAMILY`, `5` = `ALLIANCE`. Um label é um fato anexado; a remoção de label não é representada
 em v1 e exige contrato/versão novos.
 
-Status (`selector` do `kind` 4): código `1..32` do catálogo congelado no schema de regras. Este
-contrato fixa o limite e a representação; o catálogo semântico pertence a `CTR-04`. Código `0`,
-`> 32` ou não presente no schema é rejeitado.
+Status (`selector` do `kind` 4): código `1..32` do catálogo a fixar em `CTR-04` (ainda não
+congelado). Este contrato fixa o limite e a representação; o catálogo semântico pertence a `CTR-04`.
+Código `0`, `> 32` ou não presente no schema futuro é rejeitado.
 
 Limites e rejeições dos efeitos:
 
@@ -504,7 +518,9 @@ Limites e rejeições dos efeitos:
 - `TRANSFER_ITEM` com quantidade zero é `TransferQuantityZero`; overflow de quantidade é
   `QuantityOverflow`; `source == target` é `SourceEqualsTarget`.
 - `DELTA_RELATIONSHIP` com `amount = 0` é `ZeroDelta`; fora da faixa é `DeltaOutOfRange`; eixo
-  desconhecido é `UnknownSelector`.
+  desconhecido é `UnknownSelector`. `source`/`target` não `ActorId`, iguais, `source` fora de
+  `{speaker, listener}`, ou alvo inexistente/stale é `InvalidRelationshipActor`; a relação alterada é
+  a tripla `(source, target, axis)`, nunca inferida de um `source` implícito.
 - `AUTHORIZED_SATURATION` em `kind` diferente de 2 ou 6 é `NonZeroFlags`.
 - `subject`/`source`/`target` não usados e não nulos são `NonZeroUnusedField`; isso impede esconder
   dados em campos "livres".
@@ -614,7 +630,7 @@ Regras de `decode_events`:
    `UnexpectedProjection` (a leitura de projeção tem função própria).
 5. `decode_log` valida o log completo: primeiro `fact_seq = 1`, contiguidade, ticks não decrescentes
    e existência/coerência de `source_fact_seq`/`origin_tick`; devolve `FactGap`,
-   `NonMonotonicFactSeq` ou `OriginMismatch` quando aplicável.
+   `NonMonotonicTick` ou `OriginMismatch` quando aplicável.
 
 Ida e volta:
 
@@ -661,7 +677,8 @@ Regras da projeção:
   divergência é `ProjectionMismatch`/`DanglingProjection`, e o registo completo prevalece.
 - A projeção pode ser apagada e reconstruída a partir do log a qualquer momento; reconstruir não
   altera fatos. Nunca se reconstrói o log a partir da projeção.
-- `encode_events` MUST NOT aceitar projeções; `state_hash` MUST NOT incluir a projeção.
+- `encode_events` MUST NOT aceitar projeções; `state_hash` MUST NOT incluir a projeção nem o log
+  factual, que é autoridade externa ao estado canónico.
 
 Prova de que a projeção não perde fatos:
 
@@ -719,12 +736,18 @@ de "48 bytes" a cumprir.
 
 ```rust
 canonical_state(state: &WorldState) -> Result<CanonicalBytes, DomainError>
+decode_canonical(bytes: &CanonicalBytes) -> Result<WorldState, DomainError>
 state_hash(bytes: &CanonicalBytes) -> StateHash
 ```
 
 `CanonicalBytes` é uma sequência opaca de bytes; `StateHash` é `[u8; 32]` produzido por BLAKE3-256.
 `canonical_state` é puro: não lê ficheiros, ambiente, relógio, rede ou modelo. `state_hash` não
 recanonicaliza nem valida semanticamente o estado; exige bytes produzidos por `canonical_state`.
+`decode_canonical` é o inverso estrito: valida `AFCS`, versão, `body_len`, ordem/tags, chaves únicas,
+booleanos e os payloads de `ITEMS`/`RELATIONSHIPS`; rejeita `UnsupportedVersion`, `LengthMismatch`,
+`CanonicalOrderViolation`, `DuplicateCanonicalKey`, `InvalidBoolean`, `InvalidCanonicalItem` e
+`InvalidRelationship` com `DomainError`, sem devolver estado parcial. O log factual não é aceito por
+`decode_canonical`: ele é autoridade externa ao `WorldState` (§5.2/§5.5).
 
 ### 5.2 Envelope canônico
 
@@ -748,7 +771,9 @@ section[section_count]
 
 Cada secção é `tag u16`, `payload_len u32`, `payload[payload_len]`. Em v1, `section_count = 10` e as
 tags aparecem exatamente uma vez, em ordem ascendente; uma secção ausente, duplicada ou fora de
-ordem é `CanonicalOrderViolation`. Não há padding entre secções.
+ordem é `CanonicalOrderViolation`. Não há padding entre secções. **Não existe secção `FACTS` em v1:**
+o log de `ConversationFact` é autoridade externa ao `WorldState` e é serializado por `encode_events`,
+não por `canonical_state`; o `state_hash` cobre o estado canónico, não o log factual (§5.5/§5.6).
 
 | Tag | Secção | Dono do payload | Fixado aqui |
 | --- | --- | --- | --- |
@@ -756,7 +781,7 @@ ordem é `CanonicalOrderViolation`. Não há padding entre secções.
 | 2 | `LOCALITIES` | `CTR-03` | IDs ordenados; ordem e primitivas. |
 | 3 | `STRUCTURES` | `CTR-03` | IDs ordenados; ordem e primitivas. |
 | 4 | `BLOCKS` | `CTR-03` | Ordem por localidade/z/y/x; primitivas. |
-| 5 | `ACTORS` | `CTR-02` | IDs ordenados; ordem e primitivas. |
+| 5 | `ACTORS` | `CTR-02` | IDs ordenados; prefixo `count u32` + `ActorId` ordenados; restante em `CTR-02`. |
 | 6 | `ITEMS` | `CTR-01` | Layout exato abaixo. |
 | 7 | `RELATIONSHIPS` | `CTR-01` | Layout exato abaixo. |
 | 8 | `RUMORS` | `CTR-03` | IDs ordenados; ordem e primitivas. |
@@ -764,7 +789,7 @@ ordem é `CanonicalOrderViolation`. Não há padding entre secções.
 | 10 | `RNG` | `CTR-02` | Streams ordenadas por código; primitivas. |
 
 Os payloads das secções cujo dono é outro contrato só podem ser preenchidos depois de esse contrato
-estar congelado; este contrato fixa o envelope, as tags, a ordem, as primitivas e os payloads de
+estar fixado; este contrato fixa o envelope, as tags, a ordem, as primitivas e os payloads de
 `ITEMS`/`RELATIONSHIPS`. Nenhum consumidor pode trocar a ordem ou inventar uma secção nova.
 
 Payload de `ITEMS` (tag 6):
@@ -778,8 +803,20 @@ repeat count:
   quantity u32
 ```
 
-`item_id` é único; a lista é ordenada por `item_id` ascendente. `quantity` é `1..=2^31-1`. Um
-`holder_id` com `kind` errado ou `0` quando `holder_kind != 0` é `InvalidCanonicalItem`.
+Validação de `ITEMS`:
+
+- `item_id` MUST ser um `EntityId` não nulo de kind `ITEM`; outro kind ou zero é
+  `InvalidCanonicalItem`.
+- `holder_kind = 0` exige `holder_id = 0`; `holder_kind` em `1..=3` exige `holder_id` não nulo do
+  kind correspondente (`ACTOR`, `LOCATION`, `STRUCTURE`). Qualquer combinação inconsistente, ou
+  `holder_kind > 3`, é `InvalidCanonicalItem`.
+- `quantity` MUST estar em `1..=2^31-1`; zero, valor acima do máximo ou overflow é
+  `InvalidCanonicalItem`.
+- `item_id` é único e a lista é ordenada por `item_id` ascendente. Duplicata é
+  `DuplicateCanonicalKey`; ordem errada é `CanonicalOrderViolation`.
+- A lista `ITEMS` é ordenada por ID para o hash. A ordem de inventário/aquisição, se for
+  autoritativa, pertence ao componente de ator de `CTR-02` e não é reconstruída a partir desta
+  lista.
 
 Payload de `RELATIONSHIPS` (tag 7):
 
@@ -792,9 +829,16 @@ repeat count:
   value_bp u16     (0..=10_000)
 ```
 
-A lista é ordenada por `(source, target, axis)` ascendente; o par `(source, target, axis)` é único.
-Uma relação com `source == target` é `InvalidRelationship`; uma relação ausente não é preenchida com
-zero "por conveniência" — o estado deve conter apenas relações existentes.
+Validação de `RELATIONSHIPS`:
+
+- `source` e `target` MUST ser `ActorId` não nulos, distintos e presentes na lista de `ACTORS`;
+  zero, kind errado, `source == target` ou ator ausente é `InvalidRelationship`.
+- `axis` MUST estar em `1..=5`; `value_bp` MUST estar em `0..=10_000`; fora da faixa é
+  `InvalidRelationship`.
+- A lista é ordenada por `(source, target, axis)` ascendente e a tripla é única. Duplicata é
+  `DuplicateCanonicalKey`; ordem errada é `CanonicalOrderViolation`.
+- Uma relação ausente não é preenchida com zero "por conveniência" — o estado deve conter apenas
+  relações existentes.
 
 ### 5.3 Primitivas de codificação
 
@@ -818,8 +862,9 @@ zero "por conveniência" — o estado deve conter apenas relações existentes.
 2. Localidades por `LocationId` ascendente; estruturas por `StructureId`; atores por `ActorId`;
    itens por `ItemId`; rumores por `RumorId`.
 3. Blocos por `(LocationId, z, y, x)` ascendente; a chave é explícita, nunca a ordem de um `HashMap`.
-4. Relações por `(source, target, axis)`; inventário por ordem semântica (a ordem de aquisição é
-   preservada, não ordenada por ID); efeitos de um fato pela ordem do array.
+4. Relações por `(source, target, axis)`; itens por `ItemId` no payload `ITEMS`; a ordem de
+   inventário/aquisição, quando autoritativa, pertence ao componente de ator de `CTR-02`; efeitos de
+   um fato pela ordem do array.
 5. Agenda por `(due_tick, sequence)`; RNG por código de stream; streams de domínio separadas.
 6. Duplicar uma chave única é `DuplicateCanonicalKey`; não se escolhe a última ocorrência.
 7. O canonicalizador pode ordenar uma cópia; não muta o estado de entrada.
@@ -837,8 +882,10 @@ zero "por conveniência" — o estado deve conter apenas relações existentes.
 | Caminho/permissões do save | Armazenamento, não simulação. |
 
 Incluídos no hash: `Tick`, seed, estado de RNG, agenda, IDs, posições, componentes que afetam
-decisões, relações, itens, rumores, fatos e configuração congelada que altere a simulação. A
-exclusão é por contrato explícito, não por "o campo não parece importante".
+decisões, relações, itens, rumores e configuração fixada que altere a simulação. O log factual
+(`ConversationFact`) é autoridade externa ao `WorldState`; não é uma secção do envelope, não entra no
+`state_hash` e tem a sua própria integridade por `record_hash`/golden de `SOC-02`. A exclusão é por
+contrato explícito, não por "o campo não parece importante".
 
 ### 5.6 Idempotência, ida e volta e hash regional
 
@@ -847,7 +894,9 @@ exclusão é por contrato explícito, não por "o campo não parece importante".
 - `decode_canonical(canonical_state(state))` devolve um estado equivalente; re-canonicalizar os
   mesmos dados produz os mesmos bytes.
 - `state_hash` é BLAKE3-256 dos bytes exatos, incluindo `magic`, `version`, `body_len` e todo o
-  corpo; não é hash de um `Debug`, de JSON ou de uma estrutura em memória.
+  corpo; não é hash de um `Debug`, de JSON ou de uma estrutura em memória. O log factual não é
+  incluído: `canonical_state`/`state_hash` e `encode_events` são contratos distintos, com autoridades
+  distintas.
 - O hash é regional: inclui todas as localidades e entidades, mesmo fora do foco. Câmera, viewport e
   UI não são entradas; duas execuções com o mesmo estado e a mesma versão produzem o mesmo hash em
   Windows e Linux.
@@ -886,6 +935,7 @@ registar o erro, mas não publicar metade.
 | `Tick` overflow | soma | `TickOverflow`; sem avanço parcial. |
 | Quantidade zero/overflow | efeito | `TransferQuantityZero`/`QuantityOverflow`. |
 | Delta de relação zero/fora da faixa | efeito | `ZeroDelta`/`DeltaOutOfRange`. |
+| Relação com `source`/`target` inválido, igual ou fora do fato | efeito | `InvalidRelationshipActor`; sem delta aplicado. |
 | Saturação sem autorização | aplicação | `ClampNotAuthorized`; rejeita o fato. |
 | Coordenada fora dos limites | construção | `CoordinateOutOfBounds`; sem clamp. |
 | Registo truncado | decoder | `TruncatedRecord`; sem fatos parciais. |
@@ -903,21 +953,24 @@ registar o erro, mas não publicar metade.
 | `TRANSFER_ITEM` com holder de kind inválido | encoder | `InvalidHolderKind`. |
 | `fact_seq` não contíguo | `decode_log` | `FactGap`; rejeita o log. |
 | `fact_seq` no máximo | append | `FactSeqExhausted`; sem wrap. |
-| `tick` decrescente | `decode_log` | `NonMonotonicFactSeq`. |
+| `tick` decrescente | `decode_log` | `NonMonotonicTick`. |
 | `source_fact_seq` inexistente/`origin_tick` errado | `decode_log` | `OriginMismatch`. |
 | `DIRECT=0` e `RETOLD=0` | encoder | `InvalidFactFlags`. |
 | Projeção com hash/offset errado | leitura | `ProjectionMismatch`/`DanglingProjection`; log prevalece. |
 | Projeção passada a `decode_events` | decoder | `UnexpectedProjection`. |
 | Secção canónica ausente/duplicada/fora de ordem | canonicalizador | `CanonicalOrderViolation`. |
 | Chave canónica duplicada | canonicalizador | `DuplicateCanonicalKey`. |
+| `ITEMS` com ID/holder/kind/quantidade inválidos | canonicalizador | `InvalidCanonicalItem`; `decode_canonical` rejeita. |
+| `RELATIONSHIPS` com ator/eixo/valor inválidos | canonicalizador | `InvalidRelationship`; `decode_canonical` rejeita. |
 | `bool` fora de `0`/`1` | canonicalizador | `InvalidBoolean`. |
 | `String`/`f32`/`HashMap` em estado autoritativo | revisão/xtask | `NonCanonicalState`; não entra no hash. |
 
 ## 7. Vetores de teste da especificação
 
-Os vetores abaixo são **exemplos de bytes escritos à mão**. Não foram produzidos por um teste de
-aplicação, não foram medidos e não afirmam um golden de estado. A aritmética é conferível pelas
-tabelas; o objetivo é fixar o wire para `CORE-01`/`SOC-02`.
+Os vetores abaixo são **exemplos de bytes compostos campo a campo e conferidos por aritmética e por
+um script scratch local**. Não foram produzidos por um teste de aplicação, não foram medidos e não
+afirmam um golden de estado. A aritmética é conferível pelas tabelas; o objetivo é fixar o wire para
+`CORE-01`/`SOC-02`.
 
 ### 7.1 Empacotamento de IDs
 
@@ -947,12 +1000,16 @@ Efeitos, na ordem:
 | --- | --- | --- | --- | --- | --- | --- |
 | 1 | `TRANSFER_ITEM` = 1 | 0 | item `0x0002_0000_002A_0001` | speaker | listener | `1` |
 | 2 | `TRANSFER_ITEM` = 1 | 0 | item `0x0002_0000_002B_0001` | listener | speaker | `3` |
-| 3 | `DELTA_RELATIONSHIP` = 2 | `TRUST` = 1 | 0 | 0 | listener | `-1` |
-| 4 | `DELTA_RELATIONSHIP` = 2 | `FEAR` = 2 | 0 | 0 | listener | `3500` (`0x0DAC`) |
+| 3 | `DELTA_RELATIONSHIP` = 2 | `TRUST` = 1 | 0 | speaker | listener | `-1` |
+| 4 | `DELTA_RELATIONSHIP` = 2 | `FEAR` = 2 | 0 | listener | speaker | `3500` (`0x0DAC`) |
 | 5 | `ATTACH_LABEL` = 3 | `ENMITY` = 3 | 0 | 0 | listener | `0` |
 | 6 | `APPLY_STATUS` = 4 | status 7 | 0 | 0 | listener | `600` (`0x0258`) |
 | 7 | `PROPAGATE_RUMOR` = 5 | 0 | rumor `0x0005_0000_0007_0001` | speaker | listener | `9000` (`0x2328`) |
 | 8 | `DELTA_HP` = 6 | 0 | 0 | 0 | listener | `-12` (`0xFFFFFFF4`) |
+
+Os efeitos 3 e 4 exercitam as duas direções explícitas da relação:
+`(speaker, listener, TRUST)` e `(listener, speaker, FEAR)`. O alvo não é inferido do speaker; o par
+viaja no efeito e é validado contra o fato.
 
 Hexdump do registo completo, 350 bytes:
 
@@ -967,10 +1024,10 @@ Hexdump do registo completo, 350 bytes:
 0070  00 01 00 01 00 00 00 01 00 02 00 00 00 01 01 00
 0080  00 00 00 02 00 00 00 2B 00 01 00 01 00 00 00 01
 0090  00 02 00 01 00 00 00 01 00 01 00 00 00 03 02 01
-00A0  00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
-00B0  00 00 00 01 00 00 00 01 00 02 FF FF FF FF 02 02
-00C0  00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
-00D0  00 00 00 01 00 00 00 01 00 02 00 00 0D AC 03 03
+00A0  00 00 00 00 00 00 00 00 00 00 00 01 00 00 00 01
+00B0  00 01 00 01 00 00 00 01 00 02 FF FF FF FF 02 02
+00C0  00 00 00 00 00 00 00 00 00 00 00 01 00 00 00 01
+00D0  00 02 00 01 00 00 00 01 00 01 00 00 0D AC 03 03
 00E0  00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
 00F0  00 00 00 01 00 00 00 01 00 02 00 00 00 00 04 07
 0100  00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
@@ -996,7 +1053,7 @@ Fato mínimo com um único `DELTA_RELATIONSHIP` de `+1` bp: `fact_seq = 2`, `tic
 (`0x03E9`), mesmos speaker/listener/localidade/célula, `intent = APPEASE = 7`, `outcome_bp = 0`,
 `valence_bp = 0`, `fact_flags = DIRECT`, `effects_count = 1`, `labels_count = 0`,
 `source_fact_seq = 0`, `origin_tick = 1001`. Efeito: `kind = 2`, `selector = TRUST = 1`,
-`amount = +1`.
+`source = speaker`, `target = listener`, `amount = +1`.
 
 Hexdump do registo, 126 bytes:
 
@@ -1007,8 +1064,8 @@ Hexdump do registo, 126 bytes:
 0030  00 03 00 00 12 34 00 02 00 00 00 68 00 00 00 58
 0040  00 00 00 07 00 00 00 00 00 01 01 00 00 00 00 00
 0050  00 00 00 00 00 00 00 00 00 00 00 00 03 E9 02 01
-0060  00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
-0070  00 00 00 01 00 00 00 01 00 02 00 00 00 01
+0060  00 00 00 00 00 00 00 00 00 00 00 01 00 00 00 01
+0070  00 01 00 01 00 00 00 01 00 02 00 00 00 01
 ```
 
 Conferência aritmética:
@@ -1016,15 +1073,15 @@ Conferência aritmética:
 - `body_len` `0x006E` = 110; `110 = 78 + 1 * 32`.
 - Total: `16 + 110 = 126`; último offset `0x7D`.
 - O efeito começa em `94 = 0x5E`: `02 01 00 00` (kind 2, selector 1, flags 0), `subject = 0`,
-  `source = 0`, `target = listener`, `amount = 00 00 00 01`.
+  `source = speaker`, `target = listener`, `amount = 00 00 00 01`.
 - O valor `1` no `amount` é exatamente 1 bp; não há multiplicação por 100 nem passagem por `i8`.
 
 ### 7.4 Nota sobre os vetores
 
-Os bytes acima foram compostos campo a campo e conferidos pela soma de offsets; não houve execução
-de `cargo`, teste de integração, medição de desempenho ou captura de hash. Qualquer divergência
-entre este documento e uma implementação futura é erro de um dos dois e deve ser resolvida por
-revisão e golden de `CORE-01`, não por "ajustar o teste ao código".
+Os bytes acima foram compostos campo a campo e conferidos pela soma de offsets e por script scratch
+local; não houve execução de `cargo`, teste de integração, medição de desempenho ou captura de hash.
+Qualquer divergência entre este documento e uma implementação futura é erro de um dos dois e deve
+ser resolvida por revisão e golden de `CORE-01`, não por "ajustar o teste ao código".
 
 ## 8. Rastreabilidade dos critérios de aceite
 
@@ -1043,7 +1100,7 @@ maintainer e revisão independente. Este documento não se autoaprova.
 | # | Decisão | Recomendação | Justificativa | Impacto se rejeitada |
 | --- | --- | --- | --- | --- |
 | 1 | Largura do ID | `u64` com `kind`/`index`/`generation` | Identidade autossuficiente, geração detetável e escala regional. | Voltar a `u32` exigiria tabela lateral e não detetaria ID obsoleto. |
-| 2 | Repartição de bits | 16/32/16 | 4,29 mil milhões de índices, 65.535 gerações e 65.535 tipos. | Outra repartição muda todos os bytes e o golden. |
+| 2 | Repartição de bits | 16/32/16 | 4,29 mil milhões de índices, 65.535 gerações válidas por slot (65.534 reciclagens) e 65.535 tipos. | Outra repartição muda todos os bytes e o golden. |
 | 3 | Allocator | Um por região e por tipo | Evita colisão entre localidades e preserva ID ao mover. | Allocators por localidade podem duplicar IDs. |
 | 4 | Geração esgotada | Aposentar o slot | Evita ABA e reutilização com geração `0`. | Reutilizar em wrap tornaria IDs antigos perigosos. |
 | 5 | Endianness | Big-endian em todo o wire | Igual em Windows/Linux e independente do host. | Little-endian quebraria o golden e a portabilidade. |
@@ -1055,8 +1112,9 @@ maintainer e revisão independente. Este documento não se autoaprova.
 | 11 | Efeitos | Array tipado, tag explícita, 8 no máximo | Cobre transferências, relações, labels, status, rumor e HP. | Um campo único por fato não representa o domínio. |
 | 12 | Labels | 3 no máximo, distintos, por fato | Limite de produto e validação barata. | Sem limite, o fato cresce sem orçamento e a UI não fecha. |
 | 13 | Versão | v1 estrita; desconhecida rejeitada | Evita leitura parcial e corrupção silenciosa. | Ignorar versão/ reserva esconde incompatibilidade. |
-| 14 | Hash | BLAKE3-256 do estado canónico; sem valores inventados | Determinismo e golden capturado por `CORE-01`. | Outro algoritmo/ordem muda o hash e o replay. |
+| 14 | Hash | BLAKE3-256 do estado canónico; log factual externo ao `state_hash`; sem valores inventados | Determinismo do estado e autoridade separada do log; golden capturado por `CORE-01`. | Incluir fatos sem secção tornaria o hash ambíguo; outro algoritmo/ordem muda o replay. |
 | 15 | Texto no tick | Proibido; NLG lazy fora do estado | Zero-string e separação modelo/núcleo. | Texto no tick torna o hash dependente de locale/modelo. |
+| 16 | Semântica da relação | `(source, target, axis)` explícito; `source` = speaker/listener; `target` = ActorId existente; `source != target` | O delta é aplicável deterministicamente e preserva a identidade do par. | Alvo/source implícito torna o delta inaplicável e não reproduzível. |
 
 Pendências de freeze, explicitamente em aberto até aceite:
 

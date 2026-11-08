@@ -23,16 +23,19 @@ improvisaria um packing incompatível.
 Vamos fixar a identidade como `EntityId(u64)` com três campos explícitos: 16 bits de `kind`, 32 bits
 de `index` e 16 bits de `generation`. `kind`, `index` zero e `generation` zero são reservados; o
 allocator é único por região e por tipo, escolhe o menor índice livre e aposenta o slot quando a
-geração de 16 bits se esgota, em vez de fazer wrap. Um ID antigo é detetado pela geração divergente
-e nunca é reescrito para o novo ocupante. A largura é justificada pela escala regional de D-07 e
-pela rejeição de colisões entre localidades; a localidade não entra nos bits do ID, para que uma
-entidade conserve a identidade ao mover-se.
+geração de 16 bits se esgota, em vez de fazer wrap. Cada slot admite 65.535 gerações válidas
+(65.534 reciclagens após a primeira colocação). Um ID antigo é detetado pela geração divergente e
+nunca é reescrito para o novo ocupante. A largura é justificada pela escala regional de D-07 e pela
+rejeição de colisões entre localidades; a localidade não entra nos bits do ID, para que uma entidade
+conserve a identidade ao mover-se.
 
 Vamos adotar basis points inteiros (`i16`/`i32`, faixa `-10.000..10.000`) para deltas de relação e
 Q16.16 apenas para valores fracionários de atributos. `i8` percentual é rejeitado porque 20.001
-valores não cabem em 256 e 1 bp não é representável. Saturação só existe quando a regra ou o schema
-a declara explicitamente; o log guarda o delta efetivo com flag, e qualquer outro excesso rejeita o
-fato inteiro, sem clamp silencioso.
+valores não cabem em 256 e 1 bp não é representável. Um delta de relação identifica explicitamente a
+tripla `(source, target, axis)`: `source` é o ator cujo valor muda, `target` é o alvo, ambos são
+`ActorId` distintos, `source` é o speaker ou o listener do fato e `target` existe/vive no momento da
+aplicação. Saturação só existe quando a regra ou o schema a declara explicitamente; o log guarda o
+delta efetivo com flag, e qualquer outro excesso rejeita o fato inteiro, sem clamp silencioso.
 
 Vamos usar um wire big-endian, byte-packed, com cabeçalho de 16 bytes (`AFEV`, versão, tipo,
 flags, comprimento e reserva), registo completo de `94 + 32n` bytes para até oito efeitos e uma
@@ -44,8 +47,10 @@ versão, tipo, flags ou reserva desconhecidos, em vez de ignorar bytes.
 Vamos canonicalizar o estado com envelope `AFCS`, primitivas big-endian, secções em ordem fixa,
 coleções ordenadas por chave, nenhum `String`, `f32`, `HashMap`, relógio ou layout de compilador, e
 hash BLAKE3-256 dos bytes exatos. O hash é regional, inclui todas as localidades e exclui câmera,
-UI, caches e métricas por contrato explícito. O golden será capturado por `CORE-01`; este ADR não
-afirma valores de hash.
+UI, caches e métricas por contrato explícito. O log factual é autoridade externa ao `WorldState` e
+não entra no `state_hash`: `canonical_state`/`state_hash` e `encode_events` são contratos e
+autoridades distintas. Os payloads canónicos de itens/relações validam kind, faixas, consistência,
+unicidade e ordenação. O golden será capturado por `CORE-01`; este ADR não afirma valores de hash.
 
 A especificação completa, os offsets, os erros, os vetores e a rastreabilidade estão no
 [contrato CTR-01](<../../planning/contracts/identity-events.md>).
@@ -99,11 +104,12 @@ A especificação completa, os offsets, os erros, os vetores e a rastreabilidade
 ## Critérios de verificação
 
 - Golden de offsets/tamanho: `n = 0..8` produz exatamente `94 + 32n` bytes e `body_len` correto.
-- `decode_events(encode_events(fatos))` preserva ordem, flags, proveniência e valores exatos.
+- `decode_events(encode_events(fatos))` e `decode_canonical(canonical_state(state))` preservam
+  ordem, flags, proveniência, valores exatos e idempotência.
 - IDs obsoletos, `kind` errado, overflow de índice/geração, truncamento, versão/reserva/flag não
   nula e `kind`/seletor desconhecido são rejeitados sem efeito parcial.
 - Delta de 1 bp, oito transferências, múltiplas localidades e labels no limite sobrevivem ao
-  round-trip e ao golden.
+  round-trip e ao golden; deltas de relação usam `(source, target, axis)` explícito.
 - Projeção com hash/offset/comprimento errado é rejeitada; reconstruí-la a partir do log não altera
   fatos.
 - `canonical_state` é idempotente e produz o mesmo hash em Windows e Linux para o mesmo estado;
