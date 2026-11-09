@@ -8,6 +8,7 @@ e o planejamento do AI Fantasy. O [README raiz](<../README.md>) apresenta o proj
 
 | Se você… | Leia |
 | --- | --- |
+| quer a visão completa, para apresentar ao time | [apresentação do projeto](<team-briefing.md>) |
 | é novo no projeto | [produto](<product.md>) → [glossário](<glossary.md>) |
 | vai mexer no motor | [modelo de simulação](<architecture/simulation-model.md>) → [atos de conversa](<architecture/dialogue-acts.md>) → [presets](<architecture/presets.md>) |
 | vai mexer com IA | [integração de IA](<architecture/ai-integration.md>) |
@@ -22,6 +23,7 @@ e o planejamento do AI Fantasy. O [README raiz](<../README.md>) apresenta o proj
 ```text
 docs/
 ├── README.md                     ← este índice
+├── team-briefing.md              ← apresentação completa do projeto para o time
 ├── product.md                    ← definição canônica do produto
 ├── glossary.md                   ← vocabulário
 ├── architecture/
