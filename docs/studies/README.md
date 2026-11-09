@@ -5,6 +5,7 @@
 > DOC-02/CTR-01…CTR-05 continuam a ser a fonte técnica até uma decisão explícita.
 >
 > **Estudos de origem:**
+>
 > - [Avaliação e Arquitetura AI Fantasy](<Avaliação e Arquitetura AI Fantasy.md>)
 > - [Expansão Sistêmica Do AI Fantasy](<Expansão Sistêmica Do AI Fantasy.md>)
 
