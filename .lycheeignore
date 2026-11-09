@@ -1,7 +1,4 @@
 .agents/
 node_modules/
-target/
 .work/
 coverage/
-mutants.out/
-docs/architecture/assets/

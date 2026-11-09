@@ -1,126 +1,96 @@
 # Glossário
 
-Vocabulário canónico do AI Fantasy. Se um termo não estiver aqui, não invente outro: abra
-uma issue para o adicionar. A documentação em português usa estes termos; o código usa os
-equivalentes em inglês indicados entre parênteses.
+Vocabulário do AI Fantasy. Entre parênteses, o id usado no código quando existe.
 
-## Produto e motor
+## Produto
 
-| Termo | Definição |
+| Termo | Significado |
 | --- | --- |
-| **AI Fantasy** | RPG procedural inspirado no Adventure Mode de Dwarf Fortress, com região de várias localidades desde a base e visualização final 2D isométrica, nunca 3D real. TUI/ASCII é depuração e validação do motor. |
-| **Hermeneutic Core** | O motor determinístico do jogo: ECS, tick, regras, conversação, persistência. |
-| **Offline-first** | O runtime não usa rede. Só é permitido *loopback* para os *sidecars* locais de modelo. |
-| **Tick** | Passo lógico do mundo, avançado pelo custo determinístico de ações como movimentar-se e falar. Relógio real, texto NLG, espera de inferência, UI e câmera não acrescentam ticks por si só. Custos e ordem de agenda ainda a contratar. |
-| **Seed** (`Seed`) | `u64` que determina todas as sequências pseudoaleatórias. Mesmo seed + mesmas entradas ⇒ mesmo estado. |
-| **Replay** | Reprodução de uma sessão sem inferência ou relógio real, usando seed e entradas autoritativas normalizadas. Formato do log, RNG e autoridade do save permanecem em CTR-01/CTR-02 do plano de execução. |
-| **Estado autoritativo** (`authoritative state`) | Região, entidades, agendas, genomas, percepção/memória e fatos relevantes às decisões. Câmera, overlay privilegiado e métricas não o alteram; protocolo durável e campos completos ainda a contratar. |
-| **Estado canónico** (`canonical state`) | Serialização determinística do estado, com chaves ordenadas e formatação fixa, usada para hashes e golden tests. |
-| **Hash de estado** (`state hash`) | BLAKE3 do estado canónico num tick; prova de determinismo. |
+| AI Fantasy | o produto: simulador web de conversas com NPCs que simulam pessoas |
+| Hermeneutic Core | o motor de diálogo interpretativo; é o produto |
+| Playground | um cenário criado pelo usuário a partir de uma premissa |
+| Premissa | texto livre com o cenário e o enredo; só o SOM (para mapear) e o modelo de texto (para dar sabor) a leem |
+| Preset | item de um catálogo fechado (lugar, clima, arquétipo, laço, acontecimento…); o motor só conhece presets |
+| Ficha | o playground montado (lugar, horário, clima, elenco, laços, história) para revisar antes de começar |
+| Fatia | uma conversa num lugar e num intervalo de tempo; a unidade simulada |
+| Campanha | o conjunto de personagens e sua história ao longo de várias fatias |
+| Inspetor | painel que mostra o estado oculto e o porquê de cada fala |
 
-## Simulação
+## Motor
 
-| Termo | Definição |
+| Termo | Significado |
 | --- | --- |
-| **ECS** | *Entity Component System*: entidades são IDs; componentes são dados; sistemas são funções sobre queries. |
-| **Entidade** (`Entity`) | Ator, item, local, rumor ou evento. ID estável e geracional. |
-| **Componente** (`Component`) | Bloco de dados puro (atributos, fisiologia, traços, inventário). Sem lógica. |
-| **Sistema** (`System`) | Função determinística que lê/escreve componentes numa ordem fixa. |
-| **Relação** (`Relationship`) | Par de entidades com semântica (amizade, inimizade, casamento). No Flecs, é uma *pair*. |
-| **Ator** (`Actor`) | Entidade jogável ou NPC com atributos, fisiologia, traços e memória. |
-| **NPC** | *Non-player character*; ator controlado pela simulação. |
-| **Traço** (`Trait`) | Valor em ponto fixo `[0, 1]` que modula comportamento (combatividade, empatia, medo). |
-| **Utilidade** (`Utility AI`) | Seleção de ação por pontuação ponderada, determinística e testável. |
-| **FSM** | *Finite State Machine*; máquina de estados comportamental local. |
-| **Rumor** | Informação com fidelidade, alcance, meia-vida e portadores vivos; degrada no espaço-tempo. |
-| **Evento de conversa** (`ConversationEvent`) | Registo simbólico compacto de uma interação: ator, alvo, ação, deltas, labels, status. Sem strings de diálogo. |
-| **Zero-string log** | Princípio de que o *game loop* não gera nem guarda palavras; guarda enums, IDs e números. |
-| **NLG** | *Natural Language Generation*: tradução de tuplos em diálogo, feita sob procura. |
-| **NLU** | *Natural Language Understanding*: interpretação de intenção em texto livre. |
-| **Lazy NLG** | O diálogo só é gerado quando o jogador o abre; nunca por tick. |
-| **Hermenêutica** | Reconstrução interpretativa de uma sequência de eventos simbólicos, com âncoras factuais. |
-| **Tempo por ação** (`action-driven time`) | Tempo avança por ações autoritativas do personagem, não pela duração da apresentação. Agenda regional processa o intervalo lógico contratado. |
-| **Região procedural** (`procedural region`) | Conjunto de várias localidades geradas desde a primeira base simulável, com interações entre áreas; foco/câmera não congela outras áreas nem as remove do hash. |
-| **Memória de ambientes** (`last-seen memory`) | Snapshot da última percepção autoritativa; permanece congelado fora do FOV. Desenhar uma silhueta não o atualiza. |
-| **Percepção autoritativa** (`authoritative perception`) | Informação percebida pelo personagem que pode alimentar conhecimento e decisões de NPC/MLP; distinta de privilégio visual do jogador. |
-| **Overlay de silhuetas** (`privileged silhouette overlay`) | Apresentação privilegiada de todos os personagens atrás de construções, inclusive não percebidos. Alcance/Z ainda em revisão; não atualiza memória ambiental, rumores ou conhecimento/MLP dos NPCs. |
-| **Mini-MLP individual** (`individual behavior MLP`) | Rede pequena em ponto fixo que modula FSM/Utility AI a partir de percepção autoritativa; experiência/herança/evolução na trilha posterior. Sem LLM/sidecar no tick. |
+| bp (*basis points*) | escala inteira: `0..=10000` (unipolar) ou `-10000..=10000` (bipolar) |
+| Tick | 5 segundos de ficção; o tempo só anda pelos atos |
+| Ponto de decisão | momento, depois de um ato ou de um tick de silêncio, em que o motor decide quem age |
+| Passo do motor | o que `step` faz até o próximo ponto de decisão ou até precisar do jogador |
+| Grade | o lugar da cena dividido em células, com paredes, portas e saídas |
+| Ameaça | nível de perigo que cada personagem sente; alimenta a segurança física |
+| Presença | efeito de quem está por perto, conforme o laço e a distância |
+| Camadas | corpo, emoções, vontades, laços, percepção do momento e traços |
+| Vontade | necessidade da pirâmide de Maslow, com déficit e peso por personagem |
+| Vontade dominante | vontade com peso ≥ 7000; cada personagem tem 2 ou 3 |
+| Vontade dirigida | vontade com alvo: desejo por alguém, vingança contra alguém, saudade de alguém |
+| Precedência de Maslow | necessidades de baixo não atendidas abafam as de cima |
+| Laço | o que A sente por B: oito eixos (confiança, afeto, respeito, atração, medo de, ressentimento, dependência, proximidade) e rótulos |
+| Percepção do momento | como A vê B agora (ameaça, hostilidade, interesse, sinceridade, emoção aparente); pode estar errada |
+| Traço | personalidade estável e bipolar (coragem, temperamento, humor…) |
+| Aptidão | perspicácia, eloquência e memória |
+| Tendência | o comportamento recente de um traço; pesa mais o imediato |
+| Cristalização | quando uma tendência mantida muda o traço de vez |
+| Associação | medo ou apego a uma tag de lugar, a uma coisa ou a uma pessoa ausente |
+| Estado do dia | como o personagem chega à cena (cansado, com fome, de ressaca…) |
+| Sinal | marca visível ou audível do estado (tremor, rubor, voz alta…); é o "transparecer" |
+| Vontade de agir | o quanto cada um quer agir agora; decide quem fala |
+| Interrupção | agir quando outro devia responder |
+| Fato | registro simbólico de um ato |
+| Cópia | o que cada personagem sabe de um fato, com perspectiva (`DIRECT`, `FRAGMENT`, `SEEN`, `TOLD`) |
+| Memória marcante | fato importante que persiste entre fatias |
 
-## IA offline
+## Conversa
 
-| Termo | Definição |
+| Termo | Significado |
 | --- | --- |
-| **System One** | Classe de modelos que devolvem decisões tipadas e probabilidades, sem gerar texto. |
-| **JEV** | Rótulo histórico usado em rascunhos para o papel de System One. **Não é runtime, motor, processo ou dependência.** No código, usar `system_one`. |
-| **d1-2B** | Modelo de decisão local da Liquid AI (1,92B, base LFM3-VL-2B) que materializa o papel de System One. |
-| **LFM3-1.7B** | Modelo de texto local (1,73B, 256K de contexto) usado para NLU/NLG e proposta de regras. |
-| **Primitiva** | Tipo de pergunta do System One: `noul` (sim/não), `choice` (escolha), `score` (nota). |
-| **noul** | Pergunta binária; devolve probabilidade de “sim” em `[0, 1]`. |
-| **choice** | Escolha entre opções nomeadas; devolve distribuição de probabilidade. |
-| **score** | Nota numa rubrica ordenada; devolve valor e confiança. |
-| **Forward pass** | Uma passagem do modelo; o d1-2B responde sem gerar tokens (`output_tokens = 0`). |
-| **Sidecar** | Processo local `llama-server` que serve o modelo via HTTP em `127.0.0.1`. |
-| **Model supervisor** | Componente que arranca, verifica, reinicia e encerra os *sidecars*. |
-| **Fallback determinístico** | Comportamento do jogo quando o modelo não está disponível: heurísticas nativas, sem quebrar o save. |
-| **Cassette** | Resposta de modelo gravada e sanitizada, usada para testes herméticos. |
-| **Modelo propõe, núcleo dispõe** | Princípio: a saída do modelo é dado não confiável; só o materializador determinístico altera estado. |
+| Ato (`act`) | o que se faz: cumprimentar, provocar, pedir, ameaçar, aproximar-se… (20 atos) |
+| Tom (`tone`) | como se faz: caloroso, neutro, brincalhão, sedutor, irônico, agressivo |
+| Tópico (`topic`) | sobre o quê: pessoa, coisa, lugar, acontecimento, segredo, rumor, sentimento, amenidades |
+| Pedido | ato com faixa de resultado sorteada: pedir, oferecer, desculpar-se, ameaçar |
+| Obrigação de resposta | o que o alvo deve depois de uma pergunta, uma acusação ou um pedido; vence em 12 ticks, e ignorar tem custo |
+| Faixa de resultado | entusiasmo, aceita, parcial, recusa ou recusa firme |
+| Leitura errada | interpretar o tom de um ato diferente do que foi dito |
 
-## Regras
+## IA
 
-| Termo | Definição |
+| Termo | Significado |
 | --- | --- |
-| **Ação nativa** (`native action`) | Ação com handler determinístico no core. Não passa pelo LFM3. |
-| **Ação emergente** (`emergent action`) | Combinação de intenções sem handler nativo; exige proposta de regra. |
-| **Proposta de regra** (`RuleProposal`) | JSON estruturado gerado pelo LFM3, ainda não validado. |
-| **Regra** (`Rule`) | Proposta validada, versionada, com efeitos tipados e proveniência. |
-| **Materializador** (`RuleMaterializer`) | Função pura que transforma `Rule + Context` num `EffectSet` determinístico. |
-| **Efeito** (`Effect`) | Mudança tipada de estado: dano, delta de relação, transferência de item, status, rumor. |
-| **Clamp** | Limite numérico aplicado por código (DC, deltas, durações) para impedir valores absurdos. |
-| **Validação semântica** | Verificação de que IDs existem, efeitos são permitidos e o alvo é válido. |
-| **Dry-run** | Aplicação da regra numa cópia do estado para verificar invariantes antes de a cometer. |
-| **Proveniência** (`provenance`) | Modelo, versão, hash do *prompt*, tick e cassette que originaram a regra; serve para auditoria, não para lógica. |
-| **Quarentena** | Estado de uma regra proposta que ainda não passou em validação/dry-run. |
-| **DC** | *Difficulty Class*, na escala D20 (5–25 no AI Fantasy), calculada por código a partir do tier. |
+| SOM (*System One Model*) | decisor tipado que converte texto livre em labels, presets e valores, com probabilidades (`systemOne`) |
+| Modelo de texto | LLM que encena um ato já decidido como fala e gesto (`textModel`) |
+| Pacote de encenação | o que o modelo de texto recebe: premissa, cena, falante, ouvintes, ato, fatos conhecidos, últimas falas |
+| Confiança da leitura | a maior probabilidade do SOM para o ato e o alvo; abaixo de 7000 bp, pede confirmação |
+| Etiqueta "entendido como" | o ato lido pelo SOM, mostrado para o jogador confirmar ou corrigir |
+| Fala pronta | fala de modelo por ato e tom, usada quando a IA falha, recusa ou demora |
+| OpenRouter | provedor de API que dá acesso ao SOM e ao modelo de texto |
+| Servidor local | o processo em `127.0.0.1` que guarda a chave e fala com o OpenRouter |
 
-## Testes e qualidade
+## Controle e reprodução
 
-| Termo | Definição |
+| Termo | Significado |
 | --- | --- |
-| **TDD** | *Test-Driven Development*: Red → Green → Refactor. Teste primeiro, sempre. |
-| **Testável a 100%** | Todo o comportamento tem observabilidade e controlabilidade por uma porta pública; não significa 100% de cobertura de linhas. |
-| **Test list** | Lista de comportamentos a implementar, escrita antes do primeiro teste. |
-| **Unit test** | Teste de uma função/módulo sem I/O, rede, relógio real ou processo. |
-| **Property test** | Teste que verifica uma invariante para entradas geradas (proptest). |
-| **Contract test** | Teste que valida a mesma interface contra fake e adaptador real. |
-| **Golden test** | Comparação com uma saída canónica aprovada (insta). |
-| **E2E** | Teste ponta a ponta do binário, com cenário, seed e modelos falsos. |
-| **Fixture** | Dado de teste versionado, pequeno e determinístico. |
-| **Fake** | Implementação de teste de uma porta, controlável e determinística. |
-| **Cassette** | Ver acima; usada para replay de modelo. |
-| **Mutation testing** | Introduz mutações no código e verifica se os testes as matam (cargo-mutants). |
-| **Cobertura de diff** | Percentagem de linhas novas cobertas por testes; gate de PR. |
-| **Complexidade ciclomática** | Número de caminhos independentes numa função (McCabe). Limite: 10. |
-| **Complexidade cognitiva** | Custo mental de ler uma função (aninhamento, quebras de fluxo). Limite: 10. |
-| **ADR** | *Architecture Decision Record*: decisão, contexto, consequências. |
-| **RFC** | Proposta de mudança grande, discutida em issue antes de ADR. |
+| Modo de controle | `MANUAL` (o jogador escolhe os atos) ou `AUTO` (o motor escolhe, como no The Sims) |
+| Modo automático | a conversa entre NPCs avança sozinha, ponto a ponto |
+| Observar | rodar uma fatia sem personagem do jogador |
+| Seed | número que fixa todos os sorteios; seed do elenco e seed da cena são separadas |
+| Stream | sequência de sorteios de uma finalidade (`turn`, `choice`, `signal`…) |
+| Registro da sessão | JSONL com versões, seeds, entradas, sorteios, eventos e chamadas de IA |
+| Replay | reconstruir uma sessão a partir do registro, sem chamar os modelos |
+| Forçar caminho | fixar o resultado de um sorteio, ou usar o modo "mais provável", para testar |
 
-## Governança
+## Avaliação
 
-| Termo | Definição |
+| Termo | Significado |
 | --- | --- |
-| **Conventional Commits** | Formato `tipo(escopo)!: descrição`; alimenta changelog e SemVer. |
-| **SemVer** | `MAJOR.MINOR.PATCH`; a versão é calculada dos commits, não digitada. |
-| **Ruleset** | Regra do GitHub que impõe PR, reviews, checks, nomes de branch e tags imutáveis. |
-| **Squash merge** | Integração que colapsa os commits do PR num só; é merge, não rebase. |
-| **Merge** | Única estratégia de sincronização/integração permitida. Rebase é proibido. |
-| **CoALA** | Memória local do projeto (`.agents/ai-fantasy-coala-agent-skill/`) com notas e catálogo de código. |
-| **Gate** | Verificação obrigatória (commit, push, PR, release, segurança) que não se contorna. |
-| **Subagent de desenvolvimento** | Agente delegado de uma tarefa planejada e independente, com worktree/arquivos isolados; não é componente do runtime. A decisão D-08 não impõe cap artificial. |
-| **Juiz de integração** | Papel independente que fecha a barreira, integra, resolve conflitos, valida/corrige e prepara a próxima onda; não substitui responsabilidade humana nem autoriza execução pelo planejamento. |
-
-**Revisão documental: 2026-11-08.** [Definições](<architecture/roadmap.md>) e
-[respostas do maintainer](<planning/decisions.md>) são as fontes semânticas; atividades,
-dependências, contratos CTR e critérios ficam no [ROADMAP de execução](<../ROADMAP.md>).
-[ADR 0008](<architecture/adr/0008-action-driven-simulation-time.md>) e
-[ADR 0009](<architecture/adr/0009-privileged-silhouette-overlay.md>) são propostas de contratos,
-não implementações aceitas.
+| Pacote B | o conjunto de métricas e metas de validação |
+| Rubrica | as perguntas de nota por fala e por cena |
+| Avaliação cega | dar as notas antes de abrir o inspetor |
+| Cenas douradas | 20 cenas fixas em 5 cenários usadas para comparar versões |
+| Teste cego | 3 a 5 pessoas que não conhecem o sistema jogam e dizem se os NPCs parecem pessoas |

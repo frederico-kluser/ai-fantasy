@@ -1,6 +1,6 @@
 # ADR 0007 — Licença do código e distribuição dos modelos
 
-- **Status:** Aceite
+- **Status:** Superseded by ADR 0019 (2026-11-09; era Aceite)
 - **Data:** 2026-11-08
 - **Decisores:** @frederico-kluser
 - **Relacionado:** ADR 0001, `docs/engineering/offline-ai.md`

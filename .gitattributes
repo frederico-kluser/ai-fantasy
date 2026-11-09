@@ -3,6 +3,7 @@
 
 # Documentos e código
 *.md        text eol=lf
+# Rust só volta se a PERF-01 levar o motor para WebAssembly.
 *.rs        text eol=lf
 *.toml      text eol=lf
 *.yml       text eol=lf

@@ -41,17 +41,16 @@ assignees: ''
 
 - Versão/commit do AI Fantasy:
 - SO e versão:
-- Rust (`rustc -V`):
-- Modelo (d1-2B/LFM3) e quantização, se aplicável:
-- `AF_OFFLINE`:
-- Hardware (CPU/GPU/RAM), se for performance:
+- Node (`node -v`) e navegador:
+- Modelos configurados (`AI_SOM_MODEL`, `AI_TEXT_MODEL`), se aplicável:
+- Hardware (CPU/RAM), se for desempenho:
 
 ## Determinismo
 
-- Seed:
-- `state_hash` (se disponível):
+- Seeds (elenco e cena):
+- Hash de estado (se disponível):
 - O bug reproduz em 100% das execuções? [ ] sim [ ] não [ ] não sei
-- Save/cenário anexado? [ ] sim [ ] não
+- Registro da sessão anexado (sem dados pessoais)? [ ] sim [ ] não
 
 ## Contexto adicional
 

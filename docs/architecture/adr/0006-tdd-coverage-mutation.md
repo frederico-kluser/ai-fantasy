@@ -1,6 +1,6 @@
 # ADR 0006 — TDD, cobertura, mutação e “100% testável”
 
-- **Status:** Aceite
+- **Status:** Superseded by ADR 0018 (2026-11-09; era Aceite)
 - **Data:** 2026-11-08
 - **Decisores:** @frederico-kluser
 - **Relacionado:** ADR 0005, `docs/engineering/testing-strategy.md`

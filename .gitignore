@@ -1,15 +1,24 @@
 # ---------------------------------------------------------------------------
-# ai-fantasy — artefactos locais que NUNCA entram no repositório
-# Regra: o repositório é código + documentos. Modelos, saves e dados de
-# execução ficam na máquina de cada pessoa (ver docs/engineering/offline-ai.md).
+# ai-fantasy — artefatos locais que NUNCA entram no repositório
+# Regra: o repositório é código + documentos. Chaves, sessões gravadas e dados
+# de execução ficam na máquina de cada pessoa (ver docs/architecture/ai-integration.md).
 # ---------------------------------------------------------------------------
 
-# Rust
-/target/
-**/*.rs.bk
-*.pdb
+# Build e ferramentas do monorepo TypeScript
+node_modules/
+dist/
+build/
+.vite/
+*.tsbuildinfo
+/reports/
+.stryker-tmp/
+/playwright-report/
+/blob-report/
 
-# Modelos de IA (ficheiros grandes, licenças próprias — nunca versionar)
+# Rust/WebAssembly (só se a tarefa PERF-01 for ativada)
+/target/
+
+# Modelos de IA (arquivos grandes, licenças próprias — nunca versionar)
 /models/
 **/*.gguf
 **/*.safetensors
@@ -18,7 +27,7 @@
 **/*.bin
 **/mmproj-*
 
-# Dados de execução, saves e telemetria local
+# Campanhas, sessões gravadas e telemetria local
 /data/
 /saves/
 *.sqlite
@@ -44,12 +53,9 @@
 # Cobertura, mutação e relatórios
 /coverage/
 /lcov.info
-/mutants.out/
 /test-results/
-/target/llvm-cov/
 
 # Ferramentas e sistemas
-node_modules/
 __pycache__/
 *.py[cod]
 .venv/

@@ -1,5 +1,5 @@
 <!-- O título do PR vira a mensagem do squash merge e DEVE seguir
-     Conventional Commits (ex.: `feat(rules): add DC clamp`). -->
+     Conventional Commits (ex.: `feat(engine): add urge-based turn taking`). -->
 
 ## O que
 
@@ -28,25 +28,30 @@ Closes #
 - [ ] `chore` — manutenção
 - [ ] **Breaking change** (descreva a migração abaixo)
 
-## Checklist de arquitetura e offline
+## Checklist de arquitetura
 
-- [ ] Não adiciona rede no runtime (exceto loopback para sidecars locais).
-- [ ] Não introduz “JEV” como motor/processo/rota/tabela; usa `system_one`.
-- [ ] Saída de modelo é validada antes de alterar estado (schema + materializador).
-- [ ] Mantém determinismo (sem `Instant::now`, `thread_rng`, `HashMap`, `f32` no estado).
-- [ ] Dependências novas justificadas, licenciadas e `cargo deny` verdes.
-- [ ] Sem segredos, pesos de modelos, dados pessoais ou binários grandes.
+- [ ] O motor continua decidindo tudo; nenhuma saída de modelo altera estado sem virar ato ou preset validado.
+- [ ] Motor determinístico (sem `Math.random`, `Date`, números quebrados no estado); replay e ouro verdes.
+- [ ] A chave do OpenRouter não aparece no navegador, em logs, em respostas ou no git.
+- [ ] Nomes de papel no código (`systemOne`, `textModel`), nunca de fornecedor.
+- [ ] Dentro do produto (`docs/product.md`); dependências novas justificadas e com licença compatível.
+- [ ] Sem segredos, dados pessoais, sessões gravadas reais ou binários grandes.
+
+## Tarefa do ROADMAP
+
+<!-- Id e prompt da tarefa (ex.: CORE-02, docs/planning/prompts/CORE-02.md) e o estado atualizado no ROADMAP. -->
 
 ## Test plan (TDD)
 
-<!-- Cole a test list: given/when/then, casos de erro e limites. -->
+<!-- Cole a lista de testes: given/when/then, casos de erro e limites. -->
 
 - [ ] Teste escrito antes da implementação (ou justificativa explícita).
-- [ ] Unit:
-- [ ] Property:
-- [ ] Contract:
-- [ ] E2E: `af-scenario run ... --seed ...`
-- [ ] Live (modelos/hardware, se aplicável):
+- [ ] Unidade:
+- [ ] Propriedade:
+- [ ] Ouro / replay:
+- [ ] Contrato (IA falsa e gravações):
+- [ ] E2E (Playwright):
+- [ ] Ao vivo (manual, se aplicável):
 - [ ] Não testado (e por quê):
 
 ```text
@@ -55,13 +60,12 @@ Closes #
 
 ## Qualidade
 
-- [ ] `cargo fmt --check`
-- [ ] `cargo clippy -- -D warnings`
-- [ ] `cargo nextest run --workspace --profile ci`
-- [ ] Cobertura/mutação dentro dos gates (quando aplicável)
+- [ ] `npm run lint` e `npm run typecheck`
+- [ ] `npm run coverage` (linhas ≥ 90%, ramos ≥ 85%; motor 95/90)
+- [ ] `npm run mutation` (≥ 80%; motor ≥ 90%), quando aplicável
+- [ ] `npm run e2e`
 - [ ] Complexidade dentro dos limites (ciclomática/cognitiva ≤ 10, função ≤ 40 linhas)
-- [ ] Sem `unwrap`/`expect`/`panic!` em bibliotecas
-- [ ] Rustdoc/`docs/` atualizados; ADR se a decisão for estrutural
+- [ ] TSDoc e especificações em `docs/` atualizados; ADR se a decisão for estrutural
 
 ## Breaking changes
 
@@ -71,4 +75,4 @@ Closes #
 
 ## Evidência
 
-<!-- Logs, screenshots de TUI, output canónico, benchmark antes/depois. -->
+<!-- Logs, capturas de tela, transcrição simbólica, benchmark antes/depois. -->

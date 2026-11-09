@@ -1,6 +1,6 @@
 # ADR 0001 — Runtime offline-first e hermético
 
-- **Status:** Aceite
+- **Status:** Superseded by ADR 0015 (2026-11-09; era Aceite)
 - **Data:** 2026-11-08
 - **Decisores:** @frederico-kluser
 - **Relacionado:** ADR 0004, ADR 0007
