@@ -10,8 +10,10 @@ projeto passa de single-maintainer para uma governança aberta sem perder o rumo
 3. **Uma voz, um voto** — quando há votação, cada maintainer ativo tem um voto.
 4. **Código acima de hierarquia** — uma objeção técnica precisa de evidência (teste,
    benchmark, falha reproduzível), não de cargo.
-5. **Segurança e offline-first não são negociáveis** — nenhuma votação pode remover a
-   regra zero ou a fronteira “modelo propõe / núcleo dispõe”.
+5. **Segurança e "o motor decide" não são negociáveis** — nenhuma votação pode remover a
+   regra zero (o motor decide; os modelos só traduzem) nem permitir que a chave de API saia do
+   servidor local. Até 2026-11-09 este princípio protegia o runtime offline; a mudança está
+   registrada em D-29 e no ADR 0015.
 
 ## Papéis
 
@@ -70,6 +72,11 @@ Linguagem/stack, modelo de IA, licença, governança, ruptura de compatibilidade
 **RFC** numa issue com prazo mínimo de **14 dias** para comentários, seguida de ADR e
 votação de maintainers. Em empate, decide o BDFL.
 
+**Fase inicial (um único maintainer):** enquanto houver só um maintainer, o BDFL pode decidir
+mudanças grandes diretamente, registrando-as em `docs/planning/decisions.md` e em ADR. A RFC de
+14 dias passa a valer quando houver um segundo maintainer. Foi assim que o produto foi
+redefinido em 2026-11-09 (D-09 a D-29, ADRs 0013 a 0018).
+
 ### Votação
 
 - Quórum: maioria dos maintainers ativos.
@@ -107,4 +114,5 @@ fornecedor). Em conflito, abstém-se da decisão; outro maintainer assume.
 ## Alterações a este documento
 
 Mudanças de governança exigem RFC de 14 dias e aprovação de **dois terços** dos
-maintainers ativos. O BDFL não pode alterar unilateralmente os princípios 1–5.
+maintainers ativos. O BDFL não pode alterar unilateralmente os princípios 1–5, exceto na fase
+inicial com um único maintainer, sempre com decisão registrada (como em D-29).

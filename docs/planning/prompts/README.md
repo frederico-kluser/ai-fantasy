@@ -1,88 +1,123 @@
-# Prompts dos subagents — plano aprovado, execução futura
+# Guia dos agentes e prompts das tarefas
 
-> **EXECUÇÃO PAUSADA.** 46 prompts de trabalhadores e 46 etapas individuais de revisão.
-> Os contratos DOC/CTR estão concluídos; o scaffold SCI-01 foi interrompido sem commit.
-> Retomar exige autorização explícita e os gates do projeto.
+> Como um agente de IA (ou uma pessoa) executa uma tarefa do [ROADMAP](<../../../ROADMAP.md>).
+> Cada tarefa tem um prompt nesta pasta, com objetivo, leituras, escopo, lista de testes e
+> critérios de aceite. Este guia vale para todas. Processo definido em D-27.
 
-O [ROADMAP](<../../../ROADMAP.md>) define as atividades; o [manifesto e interfaces](<../wave-spec.md>)
-continuam fonte dos contratos. A orientação aprovada no Plannotator foi incorporada: skill CoALA,
-update/sync, teste de recuperação antes de entregar, revisor por trabalhador e cleanup seguro pelo revisor.
+## 1. Como iniciar um agente
 
-- [Orquestrador](<orchestrator.md>) prepara base/worktrees/snapshots e controla a barreira.
-- [Juiz](<judge.md>) integra todas as entregas, resolve problemas, valida e prepara a próxima fronteira.
-- [Protocolo](<../subagent-protocol.md>) explica R1/R2, memória isolada/canônica e quando remover.
-- Cada prompt incorpora seu cartão, interfaces aplicáveis e protocolo completo; não depende da conversa.
-- Caminhos de worktree são relativos à raiz ORIGINAL e serão resolvidos/verificados antes da ativação futura.
-- O worker entrega ao revisor; revisor fecha após integração/CoALA/cleanup. Aprovação do plano não autoriza implementação.
+Cole isto na sessão do agente, trocando `<ID>`:
 
-## Estado de execução em 2026-11-08
+```text
+Você é um agente de desenvolvimento do AI Fantasy. Execute a tarefa <ID> descrita em
+docs/planning/prompts/<ID>.md, seguindo docs/planning/prompts/README.md e o CLAUDE.md.
+Trabalhe só no escopo da tarefa, em TDD, e termine com um PR revisável.
+```
 
-A `main` em `fad0a57` contém os contratos concluídos. O scaffold SCI-01 foi interrompido
-sem commit; não há `Cargo.toml` nem código executável.
+## 2. Antes de começar
 
-| Tarefa | Estado | Evidência |
-| --- | --- | --- |
-| DOC-01 | ✅ Concluída | aceite de planejamento e prompts |
-| DOC-02 | ✅ Concluída | `docs/planning/gameplay-spec.md` |
-| CTR-01…CTR-05 | ✅ Concluídas | contratos + ADRs 0010–0012 integrados |
-| SCI-01 | ⏸️ Interrompida | worktree/branch removidas; sem commit |
-| SCI-02…REL-02 | ⏳ Pendentes | dependem de SCI-01 e do CI/qualidade |
+1. Leia o [`CLAUDE.md`](<../../../CLAUDE.md>) e o [produto](<../../product.md>).
+2. Confira no ROADMAP que todas as dependências da tarefa estão **concluídas** (já na `main`).
+3. Atualize a `main` por merge (`git pull` em `main`; nunca rebase) e crie a branch indicada no
+   prompt. Em paralelo com outros agentes, use uma worktree própria:
 
-A coluna **Estado** da tabela seguinte resume o mesmo; para retomar, comece por SCI-01 com
-autorização explícita de scaffold.
+   ```bash
+   git fetch origin
+   git worktree add ../ai-fantasy-<id> -b <branch-do-prompt> origin/main
+   ```
 
-## 46 trabalhadores e 46 revisores
+4. Recupere o contexto do projeto:
 
-| Tarefa | Fronteira de referência | Worktree / branch propostas | Prompt worker | Etapa de revisão |
-| --- | --- | --- | --- | --- |
-| DOC-01 | 01 | `doc-01` / `docs/doc-01` | [Trabalhador](<doc-01.md>) | [Revisor](<review-doc-01.md>) |
-| DOC-02 | 02 | `doc-02` / `docs/doc-02` | [Trabalhador](<doc-02.md>) | [Revisor](<review-doc-02.md>) |
-| CTR-01 | 02 | `ctr-01` / `docs/ctr-01` | [Trabalhador](<ctr-01.md>) | [Revisor](<review-ctr-01.md>) |
-| CTR-02 | 03 | `ctr-02` / `docs/ctr-02` | [Trabalhador](<ctr-02.md>) | [Revisor](<review-ctr-02.md>) |
-| CTR-03 | 03 | `ctr-03` / `docs/ctr-03` | [Trabalhador](<ctr-03.md>) | [Revisor](<review-ctr-03.md>) |
-| CTR-04 | 04 | `ctr-04` / `docs/ctr-04` | [Trabalhador](<ctr-04.md>) | [Revisor](<review-ctr-04.md>) |
-| CTR-05 | 05 | `ctr-05` / `docs/ctr-05` | [Trabalhador](<ctr-05.md>) | [Revisor](<review-ctr-05.md>) |
-| SCI-01 | 06 | `sci-01` / `build/sci-01` | [Trabalhador](<sci-01.md>) | [Revisor](<review-sci-01.md>) |
-| SCI-02 | 07 | `sci-02` / `ci/sci-02` | [Trabalhador](<sci-02.md>) | [Revisor](<review-sci-02.md>) |
-| SCI-03 | 08 | `sci-03` / `ci/sci-03` | [Trabalhador](<sci-03.md>) | [Revisor](<review-sci-03.md>) |
-| SCI-04 | 08 | `sci-04` / `ci/sci-04` | [Trabalhador](<sci-04.md>) | [Revisor](<review-sci-04.md>) |
-| CORE-01 | 09 | `core-01` / `feat/core-01` | [Trabalhador](<core-01.md>) | [Revisor](<review-core-01.md>) |
-| CORE-02 | 10 | `core-02` / `feat/core-02` | [Trabalhador](<core-02.md>) | [Revisor](<review-core-02.md>) |
-| GRID-01 | 11 | `grid-01` / `feat/grid-01` | [Trabalhador](<grid-01.md>) | [Revisor](<review-grid-01.md>) |
-| GAME-01 | 12 | `game-01` / `feat/game-01` | [Trabalhador](<game-01.md>) | [Revisor](<review-game-01.md>) |
-| REPLAY-01 | 13 | `replay-01` / `feat/replay-01` | [Trabalhador](<replay-01.md>) | [Revisor](<review-replay-01.md>) |
-| SOC-01 | 13 | `soc-01` / `feat/soc-01` | [Trabalhador](<soc-01.md>) | [Revisor](<review-soc-01.md>) |
-| SOC-02 | 14 | `soc-02` / `feat/soc-02` | [Trabalhador](<soc-02.md>) | [Revisor](<review-soc-02.md>) |
-| SOC-03 | 15 | `soc-03` / `feat/soc-03` | [Trabalhador](<soc-03.md>) | [Revisor](<review-soc-03.md>) |
-| STORE-01 | 14 | `store-01` / `feat/store-01` | [Trabalhador](<store-01.md>) | [Revisor](<review-store-01.md>) |
-| STORE-02 | 15 | `store-02` / `feat/store-02` | [Trabalhador](<store-02.md>) | [Revisor](<review-store-02.md>) |
-| RULE-01 | 10 | `rule-01` / `feat/rule-01` | [Trabalhador](<rule-01.md>) | [Revisor](<review-rule-01.md>) |
-| RULE-02 | 15 | `rule-02` / `feat/rule-02` | [Trabalhador](<rule-02.md>) | [Revisor](<review-rule-02.md>) |
-| RULE-03 | 16 | `rule-03` / `test/rule-03` | [Trabalhador](<rule-03.md>) | [Revisor](<review-rule-03.md>) |
-| AI-01 | 10 | `ai-01` / `feat/ai-01` | [Trabalhador](<ai-01.md>) | [Revisor](<review-ai-01.md>) |
-| AI-02 | 14 | `ai-02` / `feat/ai-02` | [Trabalhador](<ai-02.md>) | [Revisor](<review-ai-02.md>) |
-| APP-01 | 17 | `app-01` / `feat/app-01` | [Trabalhador](<app-01.md>) | [Revisor](<review-app-01.md>) |
-| NLG-01 | 15 | `nlg-01` / `feat/nlg-01` | [Trabalhador](<nlg-01.md>) | [Revisor](<review-nlg-01.md>) |
-| NLG-02 | 18 | `nlg-02` / `feat/nlg-02` | [Trabalhador](<nlg-02.md>) | [Revisor](<review-nlg-02.md>) |
-| E2E-01 | 19 | `e2e-01` / `test/e2e-01` | [Trabalhador](<e2e-01.md>) | [Revisor](<review-e2e-01.md>) |
-| CLI-01 | 18 | `cli-01` / `feat/cli-01` | [Trabalhador](<cli-01.md>) | [Revisor](<review-cli-01.md>) |
-| TUI-01 | 20 | `tui-01` / `feat/tui-01` | [Trabalhador](<tui-01.md>) | [Revisor](<review-tui-01.md>) |
-| MOTOR-01 | 21 | `motor-01` / `test/motor-01` | [Trabalhador](<motor-01.md>) | [Revisor](<review-motor-01.md>) |
-| GRID-02 | 16 | `grid-02` / `feat/grid-02` | [Trabalhador](<grid-02.md>) | [Revisor](<review-grid-02.md>) |
-| FOV-01 | 17 | `fov-01` / `feat/fov-01` | [Trabalhador](<fov-01.md>) | [Revisor](<review-fov-01.md>) |
-| VIEW-01 | 18 | `view-01` / `feat/view-01` | [Trabalhador](<view-01.md>) | [Revisor](<review-view-01.md>) |
-| RENDER-01 | 22 | `render-01` / `docs/render-01` | [Trabalhador](<render-01.md>) | [Revisor](<review-render-01.md>) |
-| PLAY-01 | 23 | `play-01` / `docs/play-01` | [Trabalhador](<play-01.md>) | [Revisor](<review-play-01.md>) |
-| BEH-01 | 19 | `beh-01` / `feat/beh-01` | [Trabalhador](<beh-01.md>) | [Revisor](<review-beh-01.md>) |
-| BEH-02 | 20 | `beh-02` / `feat/beh-02` | [Trabalhador](<beh-02.md>) | [Revisor](<review-beh-02.md>) |
-| BEH-03 | 21 | `beh-03` / `feat/beh-03` | [Trabalhador](<beh-03.md>) | [Revisor](<review-beh-03.md>) |
-| BEH-04 | 22 | `beh-04` / `feat/beh-04` | [Trabalhador](<beh-04.md>) | [Revisor](<review-beh-04.md>) |
-| PERF-01 | 22 | `perf-01` / `perf/perf-01` | [Trabalhador](<perf-01.md>) | [Revisor](<review-perf-01.md>) |
-| SOAK-01 | 23 | `soak-01` / `test/soak-01` | [Trabalhador](<soak-01.md>) | [Revisor](<review-soak-01.md>) |
-| REL-01 | 24 | `rel-01` / `build/rel-01` | [Trabalhador](<rel-01.md>) | [Revisor](<review-rel-01.md>) |
-| REL-02 | 25 | `rel-02` / `docs/rel-02` | [Trabalhador](<rel-02.md>) | [Revisor](<review-rel-02.md>) |
+   ```bash
+   python3 .agents/ai-fantasy-coala-agent-skill/scripts/coala.py recall "<ID> <título>" --budget 1500
+   ```
 
-Essas fronteiras vêm do DAG e não limitam a quantidade de agentes. Toda a fronteira pronta
-pode trabalhar em paralelo, mas cada tarefa tem revisão individual e integração/gates da onda.
-Os caminhos de código são futuros; renderer continua gate documental até escolher stack/allowlist.
-Não inventar SHAs, resultados de teste ou worktrees removidas.
+5. Leia os documentos de "Leia antes" do prompt, nas seções indicadas.
+6. Escreva a **lista de testes** (a do prompt é o mínimo) antes do primeiro teste.
+
+## 3. Durante a tarefa
+
+- **TDD:** vermelho → verde → refatorar; um comportamento por teste.
+- **A especificação é contrato.** Números são calibração: se mudar um, atualize a tabela de
+  constantes e os testes. Regras não mudam sem ADR.
+- **Ambiguidade:** escolha a opção mais simples que respeita as regras, registre-a na própria
+  especificação no mesmo PR e destaque na descrição do PR. Se a lacuna exigir mudar uma regra
+  ou uma decisão de produto, **pare e peça decisão ao maintainer**.
+- **Fora do escopo:** anote no PR (ou abra uma issue); não implemente.
+- Rode `npm run check` com frequência (depois que a FND-01 existir).
+- Commits convencionais, conferidos com `oss-gate.sh commit-msg "<mensagem>"`.
+
+## 4. Ao terminar
+
+1. `npm run check` verde; documentação e especificações atualizadas.
+2. Mude o estado da tarefa no ROADMAP para ✅ concluída, com o número do PR, **no mesmo PR**.
+3. `oss-gate.sh push --scan-only`, push da branch e PR com o título do prompt e o modelo de PR
+   (o que, por que, como, lista de testes, evidência).
+4. `gh pr checks --watch`; depois, revisão (seção 5) pelo maintainer ou por um agente revisor.
+5. Com checks verdes e revisão aprovada: `gh pr merge --squash --delete-branch`. Se o maintainer
+   pediu para revisar antes, espere.
+6. Registre na memória CoALA só o que for durável e não estiver no código nem nos documentos
+   (`coala.py add --type … --key …`). Nunca segredos.
+7. Se usou worktree, remova-a depois do merge (`git worktree remove ../ai-fantasy-<id>`).
+
+## 5. Prompt do revisor
+
+```text
+Você revisa o PR <número> da tarefa <ID> do AI Fantasy. Leia docs/planning/prompts/<ID>.md, as
+especificações citadas nele e o diff completo. Não altere código; responda com aprovação ou com
+uma lista de problemas, cada um com arquivo, linha e motivo.
+```
+
+O revisor confere:
+
+- [ ] O diff cumpre o objetivo e fica dentro do escopo.
+- [ ] Os testes da lista existem e falhariam sem a mudança; gates de cobertura e mutação verdes.
+- [ ] O motor continua puro e determinístico (replay e ouro verdes, quando aplicável).
+- [ ] Nenhuma saída de modelo chega ao estado sem virar ato ou preset validado.
+- [ ] A chave do OpenRouter não aparece no navegador, em logs, em respostas ou no git.
+- [ ] Complexidade e tamanho dentro dos limites.
+- [ ] Especificações, ADRs e ROADMAP refletem a mudança.
+- [ ] Nada da lista "fora do produto" entrou.
+
+## 6. Paralelismo
+
+- Toda tarefa cujas dependências estão concluídas pode correr em paralelo, cada uma na sua
+  worktree e na sua branch. A ordem sugerida está no ROADMAP, seção 5.
+- Conflitos (por exemplo, na tabela de estado do ROADMAP) se resolvem por merge da `main` na
+  branch, mantendo as duas mudanças. Nunca rebase nem force-push.
+- Se duas tarefas mexerem no mesmo módulo sem esperar, o PR que entrar depois se adapta.
+
+## 7. Índice das tarefas
+
+| Id | Tarefa | Fase | Depende de |
+| --- | --- | --- | --- |
+| [FND-01](<FND-01.md>) | Monorepo TypeScript, gates e CI | F1 | — |
+| [CORE-01](<CORE-01.md>) | Domínio, aritmética em bp, sorteio e registro | F2 | FND-01 |
+| [CORE-02](<CORE-02.md>) | Tempo, contexto e grade | F2 | CORE-01 |
+| [CORE-03](<CORE-03.md>) | Catálogos de presets v0 | F2 | CORE-01 |
+| [CORE-04](<CORE-04.md>) | Status em camadas, ameaça e presença | F2 | CORE-02, CORE-03 |
+| [CORE-05](<CORE-05.md>) | Geração de elenco e laços | F2 | CORE-03 |
+| [SOC-01](<SOC-01.md>) | Atos: validação, custo, quem ouve e interpretação | F3 | CORE-04 |
+| [SOC-02](<SOC-02.md>) | Sinais e percepção do momento | F3 | SOC-01 |
+| [SOC-03](<SOC-03.md>) | Consequências: avaliação emocional, pedidos e mentiras | F3 | SOC-02 |
+| [SOC-04](<SOC-04.md>) | Decisão e turnos | F3 | SOC-03 |
+| [SOC-05](<SOC-05.md>) | Passo do motor, sessão e replay | F3 | SOC-04 |
+| [SOC-06](<SOC-06.md>) | Personalidade que muda e continuidade entre fatias | F3 | SOC-05 |
+| [SRV-01](<SRV-01.md>) | Servidor local | F4 | FND-01 |
+| [WEB-01](<WEB-01.md>) | Site base e playground manual | F4 | FND-01, CORE-05 |
+| [WEB-02](<WEB-02.md>) | Cena e controles (sem IA) | F4 | WEB-01, SOC-05, AI-01 |
+| [WEB-03](<WEB-03.md>) | Inspetor e sessões | F4 | WEB-02, SRV-01 |
+| [AI-01](<AI-01.md>) | Portas de IA, pacotes e falas prontas | F5 | CORE-03 |
+| [AI-02](<AI-02.md>) | SOM via OpenRouter e fala livre do jogador | F5 | AI-01, SRV-01, WEB-02 |
+| [AI-03](<AI-03.md>) | Modelo de texto via OpenRouter e encenação | F5 | AI-01, SRV-01, WEB-02 |
+| [AI-04](<AI-04.md>) | Playground por premissa | F5 | AI-02, WEB-01 |
+| [EVAL-01](<EVAL-01.md>) | Avaliação no site e painel de métricas | F6 | WEB-03, AI-03 |
+| [EVAL-02](<EVAL-02.md>) | Cenas douradas | F6 | EVAL-01, AI-04, SOC-06 |
+| [EVAL-03](<EVAL-03.md>) | Rodada de validação com o maintainer | F6 | EVAL-02 |
+| [PERF-01](<PERF-01.md>) | Núcleo em WebAssembly (só se a medição pedir) | F7 | EVAL-01 |
+
+## 8. Modelo para uma tarefa nova
+
+Uma tarefa nova entra primeiro no ROADMAP e ganha um prompt com estas seções: cabeçalho (fase,
+dependências, branch, título do PR), Objetivo, Leia antes, Escopo (inclui e não inclui),
+Entregáveis, Lista de testes, Critérios de aceite e Cuidados.

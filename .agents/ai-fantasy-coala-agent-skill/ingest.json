@@ -21,8 +21,7 @@
         "CHANGELOG.md",
         "CONTRIBUTING.md",
         "GOVERNANCE.md",
-        "ROADMAP.md",
-        "Roadmap Jogo Procedural Com LFM3.md"
+        "ROADMAP.md"
       ],
       "mode": "markdown",
       "type": "semantic",

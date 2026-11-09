@@ -1,6 +1,6 @@
 # ADR 0005 — Contrato de determinismo da simulação
 
-- **Status:** Aceite
+- **Status:** Superseded by ADR 0017 (2026-11-09; era Aceite)
 - **Data:** 2026-11-08
 - **Decisores:** @frederico-kluser
 - **Relacionado:** ADR 0002, ADR 0006

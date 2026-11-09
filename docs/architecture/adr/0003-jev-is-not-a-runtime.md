@@ -1,6 +1,6 @@
 # ADR 0003 — JEV não é runtime; o System One é o d1-2B local
 
-- **Status:** Aceite (corrige o roadmap original)
+- **Status:** Superseded by ADR 0015 (2026-11-09; era Aceite)
 - **Data:** 2026-11-08
 - **Decisores:** @frederico-kluser
 - **Relacionado:** ADR 0001, ADR 0004

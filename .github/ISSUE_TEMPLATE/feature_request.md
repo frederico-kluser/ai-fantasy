@@ -27,10 +27,10 @@ assignees: ''
 
 ## Impacto técnico
 
-- [ ] Offline preservado (sem rede no runtime).
+- [ ] O motor continua decidindo tudo (os modelos só traduzem).
 - [ ] Determinismo preservado.
-- [ ] Precisa de novo modelo/primitiva de IA? Qual?
-- [ ] Precisa de mudança de schema de regras/save? (exige ADR/migração)
+- [ ] Está dentro do produto (`docs/product.md`)? Se não, exige decisão nova.
+- [ ] Muda uma regra do motor, o formato de sessão ou os presets? (exige ADR)
 - [ ] Precisa de nova dependência? Licença?
 - [ ] Afeta complexidade/testabilidade? Como será testado?
 

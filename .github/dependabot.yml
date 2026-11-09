@@ -1,9 +1,9 @@
 # Dependabot — atualizações semanais de dependências.
-# Não abre PRs para pesos de modelos (não são dependências de package manager).
+# npm (workspaces na raiz) e GitHub Actions.
 
 version: 2
 updates:
-  - package-ecosystem: "cargo"
+  - package-ecosystem: "npm"
     directory: "/"
     schedule:
       interval: "weekly"
@@ -12,7 +12,7 @@ updates:
       timezone: "America/Sao_Paulo"
     open-pull-requests-limit: 5
     groups:
-      rust-minor:
+      npm-minor:
         patterns: ["*"]
         update-types: ["minor", "patch"]
     commit-message:

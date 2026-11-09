@@ -1,45 +1,52 @@
 # Architecture Decision Records (ADRs)
 
-Uma decisão arquitetural relevante fica registada aqui. O ADR explica **porquê**, não
-apenas **o quê**; o código explica o como.
+Uma decisão arquitetural relevante fica registrada aqui. O ADR explica **por quê**, não apenas
+**o quê**; o código explica o como.
 
-## Índice
+## Vigentes
 
 | ADR | Título | Status |
 | --- | --- | --- |
-| [0001](0001-offline-first-runtime.md) | Runtime offline-first e hermético | Aceite |
-| [0002](0002-rust-flecs-deterministic-core.md) | Rust 2024 + Flecs ECS | Aceite |
-| [0003](0003-jev-is-not-a-runtime.md) | JEV não é runtime; System One é o d1-2B | Aceite |
-| [0004](0004-model-proposes-core-disposes.md) | O modelo propõe, o núcleo dispõe | Aceite |
-| [0005](0005-deterministic-simulation-contract.md) | Contrato de determinismo | Aceite |
-| [0006](0006-tdd-coverage-mutation.md) | TDD, cobertura e mutação | Aceite |
-| [0007](0007-license-and-model-distribution.md) | Licença do código e dos modelos | Aceite |
-| [0008](<0008-action-driven-simulation-time.md>) | Tempo por ações do personagem | Proposto — decisão de produto registrada; contrato técnico em revisão |
-| [0009](<0009-privileged-silhouette-overlay.md>) | Overlay de silhuetas separado da percepção | Proposto — decisão de produto registrada; contrato técnico em revisão |
-| [0010](<0010-identity-event-layout.md>) | Identidade geracional e layout de evento versionado | Proposto — [contrato CTR-01](<../../planning/contracts/identity-events.md>) em revisão |
-| [0011](<0011-time-replay-durability.md>) | Autoridade durável de save e atividade regional explícita | Proposto — [contrato CTR-02](<../../planning/contracts/time-replay-save.md>) em revisão |
-| [0012](<0012-model-schema-grammar.md>) | Gramática de tool call e schema versionado de propostas | Proposto — [contrato CTR-04](<../../planning/contracts/model-schema.md>) em revisão |
+| [0013](<0013-product-is-a-conversation-simulator.md>) | O produto é um simulador de fatias de conversa | Aceite |
+| [0014](<0014-typescript-core-and-local-web.md>) | Núcleo em TypeScript puro, site web local e WebAssembly só sob medição | Aceite |
+| [0015](<0015-ai-via-openrouter-without-local-models.md>) | IA via OpenRouter, sem modelos locais por agora | Aceite |
+| [0016](<0016-engine-decides-models-translate.md>) | O motor decide; os modelos só traduzem | Aceite |
+| [0017](<0017-determinism-replay-and-forced-paths.md>) | Determinismo, replay exato e forçar caminho | Aceite |
+| [0018](<0018-tdd-and-gates-in-typescript.md>) | TDD e gates completos em TypeScript | Aceite |
+| [0019](<0019-licenses-in-the-typescript-project.md>) | Licenças do código, das dependências e dos modelos no projeto TypeScript | Aceite |
 
-**Revisão documental: 2026-11-08.** Os novos registros preservam a devolutiva do
-[maintainer](<../../planning/decisions.md>), mas não aprovam fórmulas, APIs ou implementação.
-Os ADRs 0001–0007 aceitos não foram alterados; atividades e aceite dos contratos ficam no
-[ROADMAP de execução](<../../../ROADMAP.md>).
+## Substituídos (histórico)
+
+| ADR | Título | Substituído por |
+| --- | --- | --- |
+| [0001](<0001-offline-first-runtime.md>) | Runtime offline-first e hermético | 0015 |
+| [0002](<0002-rust-flecs-deterministic-core.md>) | Rust 2024 + Flecs ECS | 0014 |
+| [0003](<0003-jev-is-not-a-runtime.md>) | JEV não é runtime; System One é o d1-2B | 0015 |
+| [0004](<0004-model-proposes-core-disposes.md>) | O modelo propõe, o núcleo dispõe | 0016 |
+| [0005](<0005-deterministic-simulation-contract.md>) | Contrato de determinismo | 0017 |
+| [0006](<0006-tdd-coverage-mutation.md>) | TDD, cobertura e mutação | 0018 |
+| [0007](<0007-license-and-model-distribution.md>) | Licença do código e dos modelos | 0019 |
+
+As propostas 0008 a 0012 (tempo por ações, silhuetas, layout de eventos, durabilidade de save e
+gramática de propostas de regra) pertenciam ao plano antigo, nunca foram aceitas e foram
+removidas em 2026-11-09. Continuam no histórico do git.
 
 ## Como escrever um ADR
 
-1. Copie `template.md` para `NNNN-titulo-em-kebab-case.md` (próximo número livre).
-2. Preencha contexto, decisão, consequências (positivas e negativas), alternativas e
-   critérios de verificação.
+1. Copie `template.md` para `NNNN-titulo-em-kebab-case.md` (próximo número livre: 0020).
+2. Preencha contexto, decisão, consequências (positivas e negativas), alternativas e critérios
+   de verificação.
 3. Abra um PR `docs(adr): ...`; a discussão acontece no PR.
-4. Um ADR aceite **não é editado**: para mudar a decisão, crie um novo ADR e marque o
-   antigo como `Superseded by ADR NNNN`.
-5. Decisões que afetam segurança, licença, offline ou contrato público exigem revisão do
-   code owner e, se possível, de um segundo maintainer.
+4. Um ADR aceito **não é editado**: para mudar a decisão, crie um novo ADR e marque o antigo como
+   `Superseded by ADR NNNN`.
+5. Decisões que afetam segurança, licença, rede ou contrato público exigem revisão do code owner.
 
 ## Quando é obrigatório
 
-- nova dependência estrutural (ECS, runtime, base de dados, modelo);
-- mudança de formato de save, schema de regras ou API pública;
-- mudança de estratégia de testes/qualidade;
-- mudança de licença ou de distribuição de modelos;
-- qualquer coisa que o roadmap não preveja.
+- mudar uma regra do [modelo de simulação](<../simulation-model.md>) (números são calibração, não
+  regra);
+- nova dependência estrutural (framework, runtime, banco, modelo de IA);
+- mudar o formato de sessão, de presets ou a API pública do motor;
+- mudar a estratégia de testes ou de qualidade;
+- mudar licença ou distribuição de modelos;
+- trazer de volta algo da lista "fora do produto" de [`product.md`](<../../product.md>).

@@ -1,6 +1,6 @@
 # ADR 0004 — O modelo propõe, o núcleo dispõe
 
-- **Status:** Aceite
+- **Status:** Superseded by ADR 0016 (2026-11-09; era Aceite)
 - **Data:** 2026-11-08
 - **Decisores:** @frederico-kluser
 - **Relacionado:** ADR 0001, ADR 0003, ADR 0005

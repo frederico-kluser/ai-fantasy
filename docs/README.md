@@ -1,70 +1,60 @@
 # Documentação
 
-Este diretório contém as definições e contratos técnicos do AI Fantasy. O
-[README raiz](<../README.md>) apresenta o produto; o [ROADMAP de execução](<../ROADMAP.md>)
-concentra atividades, dependências, ondas e integração. Não existem duas tabelas operacionais
-concorrentes: decisões e arquitetura explicam o que deve ser preservado, execução explica o
-trabalho planejado e seus critérios de aceite.
+Este diretório contém a definição do produto, as especificações do motor, as regras de engenharia
+e o planejamento do AI Fantasy. O [README raiz](<../README.md>) apresenta o projeto; o
+[ROADMAP](<../ROADMAP.md>) concentra tarefas, dependências e estado.
 
 ## Comece por aqui
 
-| Se você é… | Leia |
+| Se você… | Leia |
 | --- | --- |
-| Novo no projeto | [README](<../README.md>) → [Definições canônicas](<architecture/roadmap.md>) → [Glossário](<glossary.md>) |
-| Vai planejar atividades | [Decisões do maintainer](<planning/decisions.md>) → [ROADMAP](<../ROADMAP.md>) |
-| Vai escrever código futuramente | [Regras](<engineering/development-rules.md>) → [TDD/E2E](<engineering/testing-strategy.md>) → [Qualidade](<engineering/code-quality.md>) |
-| Vai mexer em IA/modelos | [IA offline](<engineering/offline-ai.md>) → [Arquitetura](<architecture/overview.md>) |
-| Vai revisar um PR | [Checklist de review](<engineering/development-rules.md#13-checklist-rápido-de-review>) |
-| Vai decidir arquitetura | [ADRs](<architecture/adr/README.md>) → [Governança](<../GOVERNANCE.md>) |
-| Vai publicar futuramente | [Contribuição](<../CONTRIBUTING.md>) → [Governança](<../GOVERNANCE.md>) |
+| é novo no projeto | [produto](<product.md>) → [glossário](<glossary.md>) |
+| vai mexer no motor | [modelo de simulação](<architecture/simulation-model.md>) → [atos de conversa](<architecture/dialogue-acts.md>) → [presets](<architecture/presets.md>) |
+| vai mexer com IA | [integração de IA](<architecture/ai-integration.md>) |
+| vai escrever código | [arquitetura](<architecture/overview.md>) → [regras](<engineering/development-rules.md>) → [testes](<engineering/testing-strategy.md>) → [qualidade](<engineering/code-quality.md>) |
+| vai executar uma tarefa | [ROADMAP](<../ROADMAP.md>) → [guia dos agentes](<planning/prompts/README.md>) |
+| vai validar o produto | [avaliação](<engineering/evaluation.md>) |
+| quer saber por quê | [decisões](<planning/decisions.md>) → [ADRs](<architecture/adr/README.md>) |
+| vai revisar um PR | [checklist de revisão](<engineering/development-rules.md#14-checklist-rápido-de-revisão>) |
 
 ## Mapa
 
 ```text
 docs/
-├── README.md                    ← índice
-├── glossary.md                  ← vocabulário canônico
+├── README.md                     ← este índice
+├── product.md                    ← definição canônica do produto
+├── glossary.md                   ← vocabulário
 ├── architecture/
-│   ├── overview.md              ← C4, imports, portas e contratos
-│   ├── roadmap.md               ← definições, errata e decisões de produto
-│   ├── adr/                     ← 0001–0007 aceitos; 0008–0009 propostos
-│   └── assets/                  ← fontes históricas/diagramas estáticos
+│   ├── overview.md               ← pacotes, API do motor, servidor, site, fluxo
+│   ├── simulation-model.md       ← regras do motor (camadas, Maslow, turnos, sorteios)
+│   ├── dialogue-acts.md          ← atos, tons, tópicos, consequências, pedidos
+│   ├── presets.md                ← catálogos e premissa → presets
+│   ├── ai-integration.md         ← SOM e modelo de texto via OpenRouter
+│   └── adr/                      ← decisões estruturais (vigentes: 0013–0019)
 ├── engineering/
-│   ├── development-rules.md     ← contrato de engenharia
-│   ├── testing-strategy.md      ← testes e critérios futuros
-│   ├── code-quality.md          ← complexidade, docs e refatoração
-│   └── offline-ai.md            ← modelos locais, licenças e fallback
-└── planning/
-    ├── decisions.md             ← devolutiva humana e consequências
-    └── project-review.md        ← primeira revisão e seu histórico
+│   ├── development-rules.md      ← contrato do dia a dia
+│   ├── testing-strategy.md       ← TDD, suítes, gates
+│   ├── code-quality.md           ← complexidade, padrões, documentação
+│   └── evaluation.md             ← métricas e rodada de validação
+├── planning/
+│   ├── decisions.md              ← decisões do maintainer (D-09 em diante)
+│   └── prompts/                  ← guia dos agentes e um prompt por tarefa
+└── studies/                      ← pesquisas que alimentaram a mudança (histórico)
 ```
 
 ## Regras da documentação
 
-1. Português pt-BR para produto/engenharia; inglês para identificadores, rustdoc e commits.
-2. Links relativos e válidos; declarar honestamente se a validação foi executada.
-3. Diagramas editáveis em Mermaid; distinguir fluxo de execução de imports.
-4. Um fato, um lugar: referenciar fontes, não duplicar planos de execução.
-5. Decisão estrutural → ADR; regra → engenharia; definições → roadmap canônico;
-   atividades/dependências/ondas → roadmap de execução.
-6. Não incluir segredos, dados pessoais ou conteúdo de terceiros sem licença.
-7. Documentação acompanha a mudança aprovada; ADR aceito não é reescrito por conveniência.
+1. Português do Brasil para produto e engenharia; inglês para identificadores, TSDoc e commits.
+2. Links relativos e válidos (`npx markdownlint-cli2 "**/*.md"` e o verificador de links do CI).
+3. Diagramas em Mermaid.
+4. Um fato, um lugar: referencie a fonte em vez de copiar.
+5. Regra do motor → especificação + ADR; número → tabela de constantes; decisão de produto →
+   `planning/decisions.md`; tarefa → ROADMAP e prompt.
+6. Sem segredos, dados pessoais ou conteúdo de terceiros sem licença.
+7. ADR aceito não é reescrito; é substituído por outro.
 
 ## Estado
 
-**Revisão documental 2.2 — 2026-11-08; F0 — Fundação, sem aplicação executável.**
-As [definições canônicas](<architecture/roadmap.md#08-decisões-registadas-nesta-revisão-2026-11-08>)
-foram reconciliadas com a [devolutiva do maintainer](<planning/decisions.md>).
-O [ROADMAP](<../ROADMAP.md>) é a fonte única do planejamento de execução, não autorização
-para iniciar código, scaffold, worktrees, CI ou publicação.
-
-[ADR 0008](<architecture/adr/0008-action-driven-simulation-time.md>) e
-[ADR 0009](<architecture/adr/0009-privileged-silhouette-overlay.md>) estão **Propostos**:
-registram decisões de produto sobre tempo por ação e silhuetas privilegiadas, com contratos
-numéricos/API ainda em revisão. Os ADRs 0001–0007 aceitos permanecem intactos.
-
-## Precisa de ajuda?
-
-- Arquitetura: Discussion ou issue de pergunta conforme a governança.
-- Documentação: contribuição documental com revisão e critérios explícitos.
-- Segurança: [política de segurança](<../SECURITY.md>).
+**Fundação documental refeita em 2026-11-09.** O produto foi redefinido (D-09) e o plano antigo
+foi removido; ele continua no histórico do git. Ainda não há código: a próxima tarefa é a
+[FND-01](<planning/prompts/FND-01.md>).

@@ -1,196 +1,142 @@
-# Regras de Desenvolvimento
+# Regras de desenvolvimento
 
-> **Normativo.** Este documento define o que é aceite num PR. Em caso de conflito:
-> instrução direta do maintainer > `CLAUDE.md`/`AGENTS.md` > ADR > este documento >
-> preferência pessoal. Se uma regra não fizer sentido, abre um ADR — não a ignores.
+> Contrato do dia a dia para quem escreve código no AI Fantasy, pessoa ou agente. Em conflito:
+> instrução direta do maintainer > [`CLAUDE.md`](<../../CLAUDE.md>) > ADR > este documento.
 
 ## 1. Regras de ouro
 
-1. **Offline é invariante.** Nenhuma chamada de rede no runtime; só *loopback* para
-   *sidecars* locais. Uma dependência que abre socket fora de `127.0.0.1` é rejeitada.
-2. **JEV não é runtime.** O termo é histórico; o código usa `system_one`. Nada de
-   processos, tabelas, rotas ou módulos “jev”.
-3. **O modelo propõe, o núcleo dispõe.** Saída de modelo é dado não confiável; só o
-   materializador determinístico altera estado.
-4. **Teste primeiro.** Nenhum código de produção sem um teste que falhou primeiro.
-5. **Determinismo.** Sem relógio de parede, `thread_rng`, `HashMap` ou `f32` no estado
-   autoritativo.
-6. **Complexidade baixa.** Limites da secção 6; `clippy` bloqueia.
-7. **Documentação no mesmo PR.** Comportamento novo sem doc é incompleto.
-8. **Sem segredos, sem pesos, sem dados pessoais.**
-9. **Merge, nunca rebase.** Sincronizar e integrar é merge; squash no PR.
-10. **Nenhum gate se contorna.** `--no-verify`, force-push e histórico reescrito são
-    proibidos.
+1. **O motor decide; os modelos só traduzem** (ADR 0016). Nenhuma saída de IA muda estado sem
+   virar ato ou preset validado.
+2. **Determinismo no motor** (ADR 0017): mesma seed e mesmas entradas ⇒ mesmo hash.
+3. **Teste primeiro** (ADR 0018): nenhum código de produção sem teste que falhou antes.
+4. **A chave do OpenRouter nunca sai do servidor local** e nunca entra no git (ADR 0015).
+5. **Só o que está no produto** ([`product.md`](<../product.md>)). Algo da lista "fora do
+   produto" exige decisão nova.
+6. **Documentação no mesmo PR** que a mudança de comportamento.
 
 ## 2. Idioma e estilo
 
-| Artefacto | Idioma | Convenção |
-| --- | --- | --- |
-| Identificadores, tipos, módulos | Inglês | `snake_case`/`CamelCase`, palavras completas. |
-| Comentários de código e rustdoc | Inglês | Explicam **porquê**, não o óbvio. |
-| Documentação de produto/engenharia | Português (pt-BR) | Termos do [glossário](../glossary.md). |
-| Commits, branches, PRs | Inglês | Conventional Commits. |
-| Mensagens de erro para o jogador | Português | Claras, acionáveis, sem *stack trace*. |
-
-- Formatação: `rustfmt` (largura 100), LF, UTF-8, newline final.
-- Sem abreviações fora do domínio (`hp`, `dc`, `npc`, `bp`, `ticks` são aceites).
-- Nomes de unidades no identificador: `fear_delta_bp`, `timeout_ms`, `half_life_ticks`.
-- Evitar `data`, `info`, `manager`, `util`, `helper`, `misc`: dizem nada.
-- Funções começam por verbo; tipos por substantivo; booleanos por pergunta (`is_`, `has_`).
+- Documentação de produto e engenharia em **português do Brasil**.
+- Identificadores, comentários de código, TSDoc, nomes de arquivo, mensagens de commit e títulos
+  de PR em **inglês**.
+- Termos do domínio no código usam os ids em inglês do
+  [modelo de simulação](<../architecture/simulation-model.md>) (`fatigue`, `trust`, `TEASE`…).
+- Formatação automática (Prettier); nada de discussão de estilo em revisão.
 
 ## 3. Arquitetura
 
-- Respeitar a direção de dependências de [`../architecture/overview.md`](../architecture/overview.md).
-  `af-core` não importa adaptadores.
-- Toda a dependência externa (tempo, RNG, modelo, store, rede, ambiente) entra por
-  **porta** (`af-ports`). O núcleo não tem globais mutáveis.
-- Não introduzir nova crate sem justificar: responsabilidade única, dependências mínimas,
-  licença compatível e ADR se for estrutural.
-- `af-domain` é puro: sem I/O, sem `std::env`, sem `tokio`.
-- `unsafe` é `forbid` em todos os crates, exceto a fronteira FFI explicitamente aprovada;
-  nesse caso, `// SAFETY:`, teste e Miri.
-- `async` não entra no núcleo. Se for necessário em adaptadores, fica confinado e é
-  convertido para síncrono na fronteira.
-- Erros são valores: `thiserror` nas bibliotecas, `anyhow` apenas em `af-app`/binários.
-- Nada de `unwrap`/`expect`/`panic!`/`todo!`/`unimplemented!` em bibliotecas; usa `?` e
-  erros tipados. Em testes, `unwrap` é aceitável com mensagem.
-- Não usar `print!`/`println!` em bibliotecas; usa `tracing`.
-- Não usar `dbg!` em código commitado.
+- Respeite as dependências entre pacotes da [arquitetura](<../architecture/overview.md>), seção 2.
+- `packages/engine` é puro: sem I/O, DOM, APIs do Node, rede, relógio ou aleatoriedade fora do
+  PRNG.
+- Toda dependência externa entra por uma porta (`SystemOnePort`, `TextModelPort`) ou pelo
+  servidor.
+- O navegador nunca importa os adaptadores do OpenRouter.
 
 ### Dependências
 
-- Preferir `std` e crates pequenas, maduras e auditáveis.
-- Toda a dependência nova precisa de: justificativa no PR, licença na allowlist, versão
-  pinada no `Cargo.lock`, `cargo deny` verde e revisão de *features* (evitar `default-features`
-  que puxem rede/TLS).
-- `openssl` é evitado; preferir `rustls` se TLS for indispensável (não é no runtime).
-- `build.rs` só com justificação; nunca executar código de rede no *build*.
-- Dependabot semanal; atualizações de segurança têm prioridade.
+Dependência nova exige, no PR: por que é necessária, licença compatível com MIT, efeito no
+tamanho do pacote do site, lockfile atualizado e `oss-gate.sh push --scan-only` limpo. Dependência
+estrutural (framework, runtime, banco, modelo de IA) exige ADR.
 
-## 4. Código
+## 4. Código TypeScript
 
-- Funções fazem **uma coisa** e dizem-no no nome.
-- Preferir **guard clauses** e `match` exaustivo a `if` aninhado.
-- Sem parâmetros booleanos: usa enums com nomes (`Mode::DryRun`, `Mode::Commit`).
-- Sem `Option<Option<T>>`; modela o estado com enum.
-- Newtypes para IDs, unidades e valores com invariantes (`BasisPoints`, `Tick`, `Dc`).
-- Validar na fronteira; no interior, confiar no tipo (parse, don't validate).
-- Não duplicar antes da terceira ocorrência; aí extrai.
-- Comentários: explicam decisões, invariantes, *trade-offs* e *workarounds*; não repetem
-  o código. `TODO` só com issue: `// TODO(#123): ...`.
-- Testes são código de primeira classe: nomes claros, sem lógica, sem *sleep*, sem
-  dependência de ordem.
-- Não deixar código morto; `#[allow(dead_code)]` exige justificação.
+- `strict: true`, `noUncheckedIndexedAccess: true`, `exactOptionalPropertyTypes: true`.
+- Proibido `any` (use `unknown` e estreite); `as` só com comentário justificando.
+- Ids e escalas com tipos marcados (`CharacterId`, `Bp`) e construtores que validam.
+- Uniões discriminadas no lugar de vários booleanos.
+- **Erros esperados são valores** (`{ ok: true, value } | { ok: false, error }`); `throw` só para
+  erro de programação (invariante violada).
+- Dados de fora (respostas de IA, arquivos de sessão, pedidos HTTP) passam por validação de
+  esquema antes de qualquer uso.
+- Funções puras e dados imutáveis no motor; o estado novo é devolvido, nunca mutado no lugar.
 
-## 5. Testes
+## 5. Determinismo no motor
 
-O contrato completo está em [`testing-strategy.md`](testing-strategy.md). Resumo:
+Proibido em `packages/engine`:
 
-- Red → Green → Refactor; um comportamento por teste.
-- Nome: `given_<contexto>_when_<ação>_then_<resultado>`.
-- Unitários sem I/O; integração com *tempdir*; E2E com modelos falsos.
-- Bug fix = teste de regressão que falha antes.
-- Portas têm testes de contrato contra fake e real.
-- Cobertura/mutação nos limiares do ADR 0006.
-- Nenhum teste depende de rede, ordem, relógio real ou estado global.
+- `Math.random`, `Date.now`, `new Date()`, `performance.now`, `crypto.getRandomValues`;
+- `Math.pow`, `Math.exp`, `Math.log`, trigonometria e qualquer resultado não inteiro guardado no
+  estado;
+- depender da ordem de iteração de objetos ou de `Map`/`Set` quando a ordem afeta o resultado
+  (ordene por id);
+- `JSON.stringify` para hash sem a serialização canônica do módulo `session`.
 
-## 6. Complexidade e tamanho
+O lint bloqueia o que dá para bloquear; o resto é verificado pelos testes de determinismo.
 
-| Métrica | Limite | Falha |
-| --- | --- | --- |
-| Complexidade ciclomática (McCabe) | **10** | > 10 bloqueia; exceção > 12 exige ADR/review. |
-| Complexidade cognitiva (`clippy`) | **10** | > 10 bloqueia. |
-| Linhas lógicas por função | **40** | > 40 bloqueia. |
-| Parâmetros por função | **5** | > 5 bloqueia (usa struct). |
-| Aninhamento | **3** | > 3 bloqueia (extrai/early return). |
-| Ramos de `match` | **12** | > 12 extrai função/entidade. |
-| Ficheiro | **400** linhas (soft) | > 400 justifica no PR. |
-| Módulo | **800** linhas (soft) | > 800 justifica no PR. |
-| Operadores booleanos numa condição | **3** | > 3 extrai predicado nomeado. |
+## 6. Testes
 
-Detalhes, configuração de `clippy.toml` e padrões de refatoração em
-[`code-quality.md`](code-quality.md).
+Resumo; detalhes em [estratégia de testes](<testing-strategy.md>):
 
-## 7. Documentação
+- ciclo vermelho → verde → refatorar, com lista de testes antes do primeiro;
+- um comportamento por teste, nome `given … when … then …`;
+- bug corrigido = teste de regressão que falhava antes;
+- nenhum teste de PR depende de rede, chave, relógio real ou modelo de verdade.
 
-- `#![deny(missing_docs)]` em todos os crates públicos.
-- Cada crate tem `//!` com: propósito, invariantes, exemplo, erros e complexidade.
-- Cada item público tem `///` com `# Examples`; `# Errors` e `# Panics` quando aplicável.
-- Exemplos de rustdoc são compilados (`cargo test --doc`).
-- Decisões arquiteturais: ADR. Regras: este documento. Visão: roadmap.
-- Diagramas em Mermaid; nada de imagens binárias para diagramas editáveis.
-- README de crate quando o crate for publicado; não duplicar o README raiz.
-- Links relativos e válidos; `lychee` no CI.
+## 7. Complexidade e tamanho
 
-## 8. Git, commits e branches
+| Medida | Limite |
+| --- | --- |
+| Complexidade ciclomática | ≤ 10 por função |
+| Complexidade cognitiva | ≤ 10 por função |
+| Tamanho de função | ≤ 40 linhas |
+| Parâmetros | ≤ 5 (use um objeto) |
+| Aninhamento | ≤ 3 níveis |
+| Arquivo | ≤ 400 linhas (sinal para dividir) |
 
-- Branch: `<tipo>/<slug>` (tipos fechados); validado por hook e ruleset.
-- Commit: Conventional Commits, imperativo, ≤ 72 chars, um motivo por commit.
-- Não commitar WIP em `main`; commits atómicos e verdes.
-- Nunca `git rebase`, `git pull --rebase`, `push --force`, `--no-verify`.
-- Sincronizar: `git fetch origin && git merge origin/main`.
-- PR: título = mensagem do squash; descrição com o porquê; test plan; issue linkada.
-- Tamanho alvo: ≤ 400 linhas alteradas (sem testes/docs/lockfile). Maior ⇒ justificar ou
-  dividir.
-- Review: com 3+ maintainers, 2 aprovações + code owner; com 2, 1 aprovação; no
-  bootstrap (1 maintainer), 0 aprovações exigidas pelo ruleset, mas PR e checks
-  continuam obrigatórios. Threads resolvidas; checks verdes; squash merge.
+Como medir e impor: [qualidade de código](<code-quality.md>).
 
-## 9. Definition of Done
+## 8. Documentação
 
-Um PR só está pronto quando:
+- API pública dos pacotes com TSDoc (o quê, parâmetros, erros, exemplo quando ajuda).
+- Comentário explica **por quê**; o código explica o como.
+- Mudou regra do motor: atualize o [modelo de simulação](<../architecture/simulation-model.md>) e
+  escreva ADR. Mudou número: atualize a tabela de constantes e os testes.
+- Concluiu uma tarefa do roadmap: atualize o estado dela no [ROADMAP](<../../ROADMAP.md>).
 
-- [ ] O comportamento foi descrito e testado (TDD), incluindo casos de erro.
-- [ ] Testes unitários/integração/E2E relevantes passam localmente.
-- [ ] `fmt`, `clippy -D warnings`, `nextest`, cobertura e mutação dentro dos gates.
-- [ ] Documentação atualizada (rustdoc, docs, ADR, README se aplicável).
-- [ ] Complexidade dentro dos limites; sem `unwrap`/`panic` em bibliotecas.
-- [ ] Offline preservado; nenhuma dependência de rede nova.
-- [ ] Segurança revista: entradas não confiáveis, limites, *path traversal*, *prompt
-      injection*.
-- [ ] Licenças compatíveis; sem pesos/segredos/dados pessoais.
-- [ ] CHANGELOG não editado à mão (gerado na release); Conventional Commits corretos.
-- [ ] O autor respondeu a todos os comentários e resolveu threads.
+## 9. Git, commits e branches
 
-## 10. Segurança e privacidade
+- Nunca commitar direto em `main`: branch `<tipo>/<slug>` → PR → checks verdes → squash merge →
+  apagar a branch.
+- Tipos de branch: `feat fix docs style refactor perf test build ci revert hotfix release`.
+- Conventional Commits em inglês, imperativo, ≤ 72 caracteres; o título do PR vira a mensagem do
+  squash.
+- Sincronizar é merge (`git merge origin/main`); **nunca** rebase, force-push ou `--no-verify`.
 
-- Toda a entrada externa é não confiável: saves, fixtures, respostas de modelo, caminhos,
-  variáveis de ambiente.
-- Limites explícitos: tamanho de JSON, número de efeitos, entidades, rumores, tempo de
-  modelo, bytes de resposta.
-- Sem `eval`, shell, SQL dinâmico ou desserialização de tipos arbitrários.
-- SQL sempre parametrizado; migrações revistas.
-- Sem logs de dados pessoais ou de *prompts* completos por padrão.
-- Vulnerabilidades seguem [`SECURITY.md`](../../SECURITY.md), nunca issues públicas.
+## 10. Definition of Done
 
-## 11. Código assistido por IA
+- [ ] Teste primeiro, com casos de erro e limite.
+- [ ] Lint, tipos, testes, cobertura e mutação verdes nos limiares.
+- [ ] Complexidade dentro dos limites.
+- [ ] Determinismo preservado (testes de replay verdes quando o motor mudou).
+- [ ] Nenhuma saída de IA aplicada ao estado sem validação.
+- [ ] Chave e dados pessoais fora do código, dos logs e do git.
+- [ ] Documentação e ADR atualizados; links válidos (`npx markdownlint-cli2 "**/*.md"`).
+- [ ] Estado da tarefa atualizado no ROADMAP.
+- [ ] Commits convencionais; PR com plano de testes.
 
-- Divulgar no PR (ferramenta, âmbito, o que foi revisto).
-- O autor humano é responsável por licença, segurança, testes e complexidade.
-- Não colar código de terceiros sem licença/atribuição.
-- Não usar modelo para aprovar o próprio código.
-- Nenhuma saída de modelo entra em runtime sem validação (ver regra 3).
+## 11. Segurança e privacidade
 
-## 12. Exceções
+- `.env` fica fora do git; o repositório tem só `.env.example` sem valores.
+- O servidor escuta só em `127.0.0.1`; nunca em `0.0.0.0`.
+- Nada de chave, cabeçalho `Authorization` ou conteúdo completo de pedidos em logs.
+- Sessões gravadas ficam em `data/` (fora do git). Não versione transcrições reais.
+- Texto vindo de modelo é exibido como texto, nunca como HTML.
 
-Uma exceção a uma regra exige:
+## 12. Código assistido por IA
 
-1. justificação escrita no PR;
-2. aprovação de um maintainer (e do code owner da área);
-3. um `#[allow(...)]` com comentário e issue de follow-up, quando aplicável;
-4. prazo para remover a exceção, se temporária.
+Permitido, com transparência: declare no PR o que foi feito com IA. Quem abre o PR responde pelo
+código, pela licença e pelos testes. Um modelo não aprova o próprio código.
 
-Exceções permanentes exigem ADR. “É mais rápido” não é justificação.
+## 13. Exceções
 
-## 13. Checklist rápido de review
+Uma exceção a estas regras precisa de justificativa no PR, prazo para ser removida e, se for
+permanente, ADR.
 
-- [ ] O PR faz uma coisa e o título diz qual.
-- [ ] O teste falharia sem a mudança?
-- [ ] Há caso de erro e caso limite?
-- [ ] A função cabe na cabeça? Complexidade ≤ 10?
-- [ ] As dependências apontam para dentro? Sem rede?
-- [ ] A saída do modelo é validada antes de tocar no estado?
-- [ ] A documentação explica o porquê?
-- [ ] O save antigo continua a carregar?
-- [ ] O comportamento offline se mantém?
-- [ ] O commit/branch/PR cumprem a convenção?
+## 14. Checklist rápido de revisão
+
+- O teste falharia sem a mudança?
+- O motor continua puro e determinístico?
+- Alguma saída de IA chega ao estado sem validação?
+- A chave ou dados pessoais aparecem em algum lugar?
+- Complexidade e tamanho dentro dos limites?
+- A especificação e o ROADMAP refletem a mudança?

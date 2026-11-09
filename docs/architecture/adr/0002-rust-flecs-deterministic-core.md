@@ -1,6 +1,6 @@
 # ADR 0002 — Rust 2024 + Flecs ECS para o núcleo determinístico
 
-- **Status:** Aceite
+- **Status:** Superseded by ADR 0014 (2026-11-09; era Aceite)
 - **Data:** 2026-11-08
 - **Decisores:** @frederico-kluser
 - **Relacionado:** ADR 0005, ADR 0006
