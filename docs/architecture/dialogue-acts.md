@@ -1,11 +1,12 @@
 # Atos de conversa
 
-> **Especificação v1.1 — 2026-11-09.** Toda fala e toda ação na fatia é um **ato**: ato × tom ×
+> **Especificação v1.2 — 2026-11-09.** Toda fala e toda ação na fatia é um **ato**: ato × tom ×
 > tópico, com valores (D-13). O motor decide e resolve atos; o SOM converte a fala livre do
 > jogador num ato; o modelo de texto encena o ato. As regras gerais estão no
 > [modelo de simulação](<simulation-model.md>), cujas convenções valem aqui (`/` é divisão
 > inteira; `mulBp`; unidade `u`). Números são iniciais e calibráveis. A v1.1 trocou os "+" e "−"
-> da v1 por números, definiu os valores dos atos dos NPCs, as respostas e os vieses da decisão.
+> da v1 por números, definiu os valores dos atos dos NPCs, as respostas e os vieses da decisão;
+> a v1.2 deu valência às respostas e fixou a versão falsa das mentiras e a ordem de cálculo.
 
 ## 1. Estrutura de um ato
 

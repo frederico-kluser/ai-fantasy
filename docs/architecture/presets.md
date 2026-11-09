@@ -1,10 +1,11 @@
 # Presets
 
-> **Especificação v1.1 — 2026-11-09.** O motor só conhece presets: catálogos fechados, com ids
+> **Especificação v1.2 — 2026-11-09.** O motor só conhece presets: catálogos fechados, com ids
 > estáveis, que valem para qualquer cenário (D-21). O SOM escolhe presets a partir da premissa
 > que o usuário digita; o modelo de texto recebe a premissa para dar o sabor do mundo. Os números
 > são iniciais e calibráveis. A v1.1 fixou luz, exposição ao clima, direção dos laços, valores
-> iniciais da geração e o gancho de tensão.
+> iniciais da geração e o gancho de tensão; a v1.2 disse quem sabe de cada acontecimento e
+> separou os sorteios do elenco dos de abertura da cena.
 
 ## 1. Regras dos presets
 

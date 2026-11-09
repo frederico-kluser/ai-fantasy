@@ -1,12 +1,13 @@
 # Modelo de simulação — Hermeneutic Core
 
-> **Especificação v1.1 — 2026-11-09.** As **regras** deste documento são contrato do motor. Os
+> **Especificação v1.2 — 2026-11-09.** As **regras** deste documento são contrato do motor. Os
 > **números** (taxas, limiares, pesos) são valores iniciais e calibráveis: mudar um número exige
 > teste atualizado e nota no PR, não decisão nova. Mudar uma regra exige ADR. Produto em
 > [`docs/product.md`](<../product.md>); atos, tabelas de efeito e vieses em
 > [atos de conversa](<dialogue-acts.md>); catálogos em [presets](<presets.md>). A v1.1 fechou as
 > lacunas apontadas na revisão da v1: números da decisão e da avaliação, ordem do passo,
-> movimento, luz, uso da percepção, obrigações de resposta e regras entre fatias.
+> movimento, luz, uso da percepção, obrigações de resposta e regras entre fatias; a v1.2
+> completou tópicos por ato, respostas, mentiras, saídas e sorteios de abertura.
 
 ## 1. Princípios
 
