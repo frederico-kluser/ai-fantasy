@@ -72,7 +72,7 @@ $COALA add --type episodic   --content "AAAA-MM-DD: …o que aconteceu e o que s
 Fontes em `ingest.json` (é teu: o instalador nunca o reescreve):
 
 - `readme` — `README.md` → markdown · semantic · origem `agent` · tags `docs,readme`
-- `raiz` — `CHANGELOG.md`, `CONTRIBUTING.md`, `GOVERNANCE.md`, `Roadmap Jogo Procedural Com LFM3.md` → markdown · semantic · origem `agent` · tags `docs,{stem}`
+- `raiz` — `CHANGELOG.md`, `CONTRIBUTING.md`, `GOVERNANCE.md`, `ROADMAP.md` → markdown · semantic · origem `agent` · tags `docs,{stem}`
 - `docs` — `docs/**/*.md` → markdown · semantic · origem `agent` · tags `docs,{dir}`
 - chaves de supersessão: `proj/<ficheiro>#<segmento>` (estáveis → re-ingestão idempotente)
 - `código` — automático: todos os ficheiros de código do repositório (respeita o .gitignore) → um cartão por ficheiro + símbolos com linha
