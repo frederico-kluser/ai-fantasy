@@ -66,8 +66,8 @@ importar algo proibido.
 | --- | --- | --- |
 | `domain` | tipos, ids, aritmética em bp, versões | simulação §2 |
 | `rng` | PRNG por stream, sorteio sem viés, registro, forçar caminho | simulação §15 |
-| `time` | ticks, relógio, fases do dia | simulação §2, §3.2 |
-| `space` | grade, distância, linha de visão, audição, caminhos | simulação §3.1, §8.2 |
+| `time` | ticks, relógio, fases do dia, luz e alcance visual | simulação §2, §3.2 |
+| `space` | grade, células cobertas e saídas, distância, linha de visão, audição, caminhos, movimento | simulação §3.1, §8.1, §8.2 |
 | `presets` | catálogos e validação | [presets](<presets.md>) |
 | `character` | camadas de status, traços, aptidões, associações | simulação §4, §5 |
 | `context` | ameaça, presença, clima, horário | simulação §6 |
@@ -75,7 +75,7 @@ importar algo proibido.
 | `acts` | catálogo, quem ouve, interpretação, avaliação, pedidos | [atos de conversa](<dialogue-acts.md>) |
 | `decision` | utilidade, precedência de Maslow, escolha | simulação §10 |
 | `turns` | vontade de agir, silêncio, interrupção, saída, fim | simulação §11 |
-| `memory` | fatos, cópias, perspectiva, memórias marcantes | simulação §12 |
+| `memory` | fatos, cópias, perspectiva, fidelidade, memórias marcantes | simulação §12 |
 | `personality` | tendências e cristalização | simulação §13 |
 | `generation` | elenco e laços a partir de presets | [presets](<presets.md>) |
 | `scene` | o passo do motor e os eventos | simulação §16 |
@@ -85,11 +85,16 @@ importar algo proibido.
 ### 3.2 API pública (esboço)
 
 ```ts
+// primeira fatia: elenco gerado (seed do elenco) e cena (seed da cena)
 createScene(setup: SceneSetup, seeds: { cast: number; scene: number }): SceneState;
+// fatias seguintes: os mesmos personagens, com a história levada adiante
+createSlice(campaign: CampaignState, setup: SliceSetup, sceneSeed: number): SceneState;
 step(state: SceneState, input?: EngineInput): StepResult;
+endSlice(state: SceneState, gap: TimeGap): CampaignState;
 replay(log: SessionLog): ReplayResult;
 hashState(state: SceneState): string;
-endSlice(state: SceneState, gap: TimeGap): CampaignState;
+
+type TimeGap = { hours: number; together: CharacterId[][] }; // horas inteiras; quem passou junto
 
 type EngineInput =
   | { kind: "PLAYER_ACT"; act: ActLabel }          // ato confirmado do jogador
@@ -106,8 +111,10 @@ interface StepResult {
 }
 ```
 
-`step` avança até o próximo ponto de decisão. Se o personagem do jogador em `MANUAL` precisar
-agir, devolve `awaiting` e não avança mais até receber `PLAYER_ACT` (o mundo espera).
+`step` resolve um ponto de decisão por chamada, na ordem da simulação §16. Se o personagem do
+jogador em `MANUAL` precisar agir, devolve `awaiting` e não avança mais até receber `PLAYER_ACT`
+(o mundo espera). `SliceSetup` escolhe lugar, horário, clima, quem participa (entre os personagens
+da campanha), posições e estados do dia.
 
 ## 4. Pacote de IA (`packages/ai`)
 

@@ -13,17 +13,17 @@ Transformar cada ato interpretado em mudanças de emoção, laço, vontade e per
 ## Leia antes
 
 - [atos de conversa](<../../architecture/dialogue-acts.md>) — §5, §7 e §8
-- [modelo de simulação](<../../architecture/simulation-model.md>) — §9
+- [modelo de simulação](<../../architecture/simulation-model.md>) — §9 e §11 (interrupção)
 
 ## Escopo
 
 **Inclui:**
 
-- Tabela de avaliação por ato e tom como dados; unidade de efeito; multiplicadores de tom; fatores de traço.
-- Deltas de laço com teto de 1500 por ato.
-- Efeitos em quem age (culpa ao mentir, alívio de justiça ao se vingar).
-- Probabilidade de aceite, sorteio no stream `resolution`, faixas e obrigação de resposta.
-- Detecção de mentira e suas consequências.
+- Tabela de avaliação (7.1), multiplicadores do tom e regra de `SEDUCTIVE` (7.2), fatores de traço, surpresa, efeitos em quem agiu (7.3) e em testemunhas (7.4), como dados.
+- Deltas de laço em meias unidades, com teto de 1500 por eixo por ato; atualização da percepção pelo ato.
+- Pedidos: probabilidade de aceite com sinceridade percebida e ajustes de vontade, faixas, resposta fixada para alvo em `AUTO`, faixa registrada para alvo em `MANUAL`, efeitos da resposta (8.3).
+- Mentiras: detecção, crença, cópias falsas e mentira descoberta.
+- Efeitos da interrupção.
 
 **Não inclui:**
 
@@ -37,12 +37,14 @@ Transformar cada ato interpretado em mudanças de emoção, laço, vontade e per
 ## Lista de testes (escreva primeiro)
 
 ```text
-- given a PLAYFUL tease between friends with affection 6000 when appraising then negative effects are halved
+- given a PLAYFUL accusation between friends with affection 6000 when appraising then negative effects are halved
 - given a SEDUCTIVE praise to someone with low attraction and negative romanticBoldness when appraising then shame rises instead of desire
 - given a bond delta above 1500 when applying then it is capped
 - given known inputs for every term when computing the acceptance chance then p follows the formula term by term and is clamped to 500..9500
-- given u below 20% of p when drawing a band then the result is ENTHUSIASTIC
-- given an honest liar when lying then guilt rises by one unit
+- given u below mulBp(p, 2000) when drawing a band then the result is ENTHUSIASTIC and the fixed reply is ACCEPT in WARM
+- given a request to the player in MANUAL when resolving then no band is drawn
+- given an honest liar when lying then guilt rises by one unit times the guilt factor
+- given a discovered lie when applying then trust drops by 1500 and not more
 ```
 
 ## Critérios de aceite
@@ -54,4 +56,5 @@ Transformar cada ato interpretado em mudanças de emoção, laço, vontade e per
 
 ## Cuidados
 
-- Toda resposta a pedido vira obrigação para o alvo; quem ignora paga em respeito.
+- Toda tabela é dado, não ramo de código.
+- A resposta de um alvo em `AUTO` a um pedido fica fixada pela faixa; ele só escolhe entre ela e ignorar.

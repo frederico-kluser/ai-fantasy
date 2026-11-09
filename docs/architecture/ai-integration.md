@@ -82,9 +82,11 @@ Ids de modelo só existem na configuração; o código usa nomes de papel (seç�
 
 - `noul` devolve uma probabilidade 0..1; `choice`, a opção escolhida com distribuição e
   `confidence`; `score`, a média ponderada com distribuição.
-- Conversão para o motor: probabilidade × 10000, truncada, em bp. Intensidade:
-  `(score − 2) × 1250`.
-- **Confiança da leitura** = a maior probabilidade da distribuição de `act` e de `target`.
+- Conversão para o motor, feita em `packages/ai` (o motor só recebe inteiros): probabilidade em
+  bp = `clamp(Math.round(p × 10000), 0, 10000)`; intensidade =
+  `clamp(Math.round((score − 2) × 1250), 0, 10000)`; `noul` vira `true` com probabilidade
+  ≥ 5000 bp.
+- **Confiança da leitura** = a menor entre a maior probabilidade de `act` e a maior de `target`.
 - **Validação fechada:** número não finito, distribuição incoerente, opção inexistente ou HTTP 200
   com `error` = falha. Falha nunca vira ato: a interface cai para o menu de atos.
 
@@ -94,8 +96,8 @@ Ids de modelo só existem na configuração; o código usa nomes de papel (seç�
 | --- | --- | --- |
 | Fala do jogador → ato | `act`, `tone`, `target`, `topicType`, `topicRef`, `object`, `intensity`, `volume`, `isFalse` | [atos de conversa](<dialogue-acts.md>), seção 11 |
 | Premissa → cena | lugar, tags naturais, clima, fase do dia, jogador presente, número de personagens | [presets](<presets.md>), seção 10 |
-| Linha de personagem → presets | arquétipo, faixa etária, duas vontades dominantes, estado do dia, associação, registro de fala | idem |
-| Par de personagens → laço | arquétipo de laço, até 2 acontecimentos | idem |
+| Linha de personagem → presets | arquétipo, faixa etária, duas vontades dominantes, estado do dia, associação, registro de fala (7 por personagem; 2 personagens por chamada) | idem |
+| Par de personagens → laço | arquétipo de laço com direção, até 2 acontecimentos com quem fez cada um (5 por par; 3 pares por chamada) | idem |
 
 O `state` leva só o necessário: o texto, os presentes (id e nome), a cena em palavras e, para a
 fala do jogador, os fatos que o personagem do jogador conhece (no máximo 12, os mais salientes).
@@ -188,9 +190,11 @@ o resultado no PR.
 
 ## 9. Nomes no código
 
-- Papéis, não fornecedores: `systemOne` (SOM) e `textModel`.
-- Nunca `jev`, `mimo`, `deepseek` ou outro nome de fornecedor em identificadores, arquivos ou
-  rotas. Ids de modelo só na configuração.
+- Papéis, não modelos: `systemOne` (SOM) e `textModel`.
+- Nomes de modelos e de seus fabricantes (`jev`, `mimo`, `deepseek`, `liquid`…) nunca aparecem em
+  identificadores, arquivos ou rotas; ids de modelo só na configuração.
+- O adaptador do gateway pode se chamar `openrouter` (`packages/ai/src/openrouter/`): ele é a
+  integração de transporte, não um modelo, e trocar de modelo não mexe nele.
 
 ## 10. Futuro: modelos locais
 

@@ -1,6 +1,6 @@
 # ADR NNNN — Título curto e imperativo
 
-- **Status:** Proposto | Aceite | Rejeitado | Superseded by ADR NNNN
+- **Status:** Proposto | Aceito | Rejeitado | Superseded by ADR NNNN
 - **Data:** AAAA-MM-DD
 - **Decisores:** @...
 - **Relacionado:** ADR NNNN, issue #NNN
@@ -36,7 +36,7 @@ formatos, limites, responsabilidades.
 
 ## Critérios de verificação
 
-Como saberemos, objetivamente, que a decisão está a ser cumprida? Testes, lints, revisão,
+Como saberemos, objetivamente, que a decisão está sendo cumprida? Testes, lints, revisão,
 métricas.
 
 ## Referências

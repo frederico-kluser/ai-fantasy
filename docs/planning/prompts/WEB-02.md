@@ -8,7 +8,7 @@
 
 ## Objetivo
 
-Mostrar a cena: a grade com os personagens, a transcrição com falas prontas e gestos, os controles (passo, automático, pausa, tomar a vez, modo de controle) e a entrada do jogador por menu de atos.
+Começar a cena a partir da ficha e mostrá-la: a grade com os personagens, a transcrição com falas prontas e gestos, os controles (passo, automático, pausa, tomar a vez, modo de controle) e a entrada do jogador por menu de atos.
 
 ## Leia antes
 
@@ -21,6 +21,7 @@ Mostrar a cena: a grade com os personagens, a transcrição com falas prontas e 
 
 **Inclui:**
 
+- Começar a cena a partir da ficha de revisão (`createScene` no worker).
 - Grade com personagens e posições, atualizada pelos eventos.
 - Transcrição com falas prontas de `packages/ai` e gestos.
 - Controles de passo, automático com velocidade, pausa, tomar a vez e modo `MANUAL`/`AUTO` por personagem.
@@ -39,6 +40,7 @@ Mostrar a cena: a grade com os personagens, a transcrição com falas prontas e 
 ## Lista de testes (escreva primeiro)
 
 ```text
+- E2E: given a review sheet when starting then the scene opens with the chosen cast
 - given the engine awaiting the player when rendering then the act menu is enabled and autoplay stops
 - given autoplay when a character leaves then the transcript shows the farewell and the grid removes them
 - E2E: given an NPC-only scene in autoplay when it runs then it ends with one person left or by silence
@@ -47,7 +49,7 @@ Mostrar a cena: a grade com os personagens, a transcrição com falas prontas e 
 
 ## Critérios de aceite
 
-- [ ] Fluxo E2E 4 e o fluxo 3 com menu.
+- [ ] Fluxo E2E 2 até começar a cena, fluxo 4 e fluxo 3 com menu.
 - [ ] Funciona sem chave do OpenRouter.
 - [ ] Definition of Done das [regras de desenvolvimento](<../../engineering/development-rules.md>) cumprida.
 - [ ] Estado da tarefa atualizado no [ROADMAP](<../../../ROADMAP.md>).

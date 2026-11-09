@@ -32,7 +32,7 @@ Vocabulário do AI Fantasy. Entre parênteses, o id usado no código quando exis
 | Vontade dominante | vontade com peso ≥ 7000; cada personagem tem 2 ou 3 |
 | Vontade dirigida | vontade com alvo: desejo por alguém, vingança contra alguém, saudade de alguém |
 | Precedência de Maslow | necessidades de baixo não atendidas abafam as de cima |
-| Laço | o que A sente por B: oito eixos (confiança, afeto, respeito, atração, medo, ressentimento, dependência, intimidade) e rótulos |
+| Laço | o que A sente por B: oito eixos (confiança, afeto, respeito, atração, medo de, ressentimento, dependência, proximidade) e rótulos |
 | Percepção do momento | como A vê B agora (ameaça, hostilidade, interesse, sinceridade, emoção aparente); pode estar errada |
 | Traço | personalidade estável e bipolar (coragem, temperamento, humor…) |
 | Aptidão | perspicácia, eloquência e memória |
@@ -54,7 +54,8 @@ Vocabulário do AI Fantasy. Entre parênteses, o id usado no código quando exis
 | Ato (`act`) | o que se faz: cumprimentar, provocar, pedir, ameaçar, aproximar-se… (20 atos) |
 | Tom (`tone`) | como se faz: caloroso, neutro, brincalhão, sedutor, irônico, agressivo |
 | Tópico (`topic`) | sobre o quê: pessoa, coisa, lugar, acontecimento, segredo, rumor, sentimento, amenidades |
-| Pedido | ato que exige resposta: pedir, oferecer, desculpar-se, ameaçar |
+| Pedido | ato com faixa de resultado sorteada: pedir, oferecer, desculpar-se, ameaçar |
+| Obrigação de resposta | o que o alvo deve depois de uma pergunta, uma acusação ou um pedido; vence em 12 ticks, e ignorar tem custo |
 | Faixa de resultado | entusiasmo, aceita, parcial, recusa ou recusa firme |
 | Leitura errada | interpretar o tom de um ato diferente do que foi dito |
 

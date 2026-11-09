@@ -1,6 +1,6 @@
 # ADR 0014 — Núcleo em TypeScript puro, site web local e WebAssembly só sob medição
 
-- **Status:** Aceite
+- **Status:** Aceito
 - **Data:** 2026-11-09
 - **Decisores:** @frederico-kluser
 - **Relacionado:** D-18, D-19; substitui o ADR 0002

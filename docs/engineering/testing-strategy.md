@@ -61,7 +61,8 @@ propriedades com fast-check (seed fixa no CI para reproduzir falhas):
 
 - valores sempre dentro das faixas após qualquer passo;
 - mesma seed e entradas ⇒ mesmo hash;
-- ameaça com protetor confiável perto ≤ ameaça com ele longe;
+- ameaça com protetor confiável (sem medo, ressentimento nem ameaça percebida dele) perto ≤
+  ameaça com ele longe;
 - sussurro não chega como `DIRECT` a mais de 1 célula;
 - precedência de Maslow monotônica;
 - o personagem do jogador em `MANUAL` nunca recebe ato do motor.
@@ -112,6 +113,8 @@ O servidor roda em modo de teste com as portas falsas. Fluxos mínimos:
 5. Inspetor: ver sorteios, forçar um sorteio, conferir o efeito.
 6. Salvar, carregar, reproduzir e ramificar uma sessão.
 7. Avaliar falas e ver o painel de métricas.
+8. Continuar a campanha: encerrar a fatia, escolher o intervalo e abrir a fatia seguinte com os
+   mesmos personagens.
 
 Selecione elementos por papel e texto acessível, nunca por classe CSS.
 

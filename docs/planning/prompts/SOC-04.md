@@ -13,24 +13,23 @@ Fazer os personagens em `AUTO` escolherem atos pela utilidade com Maslow e decid
 ## Leia antes
 
 - [modelo de simulação](<../../architecture/simulation-model.md>) — §10 e §11
-- [atos de conversa](<../../architecture/dialogue-acts.md>) — §9
+- [atos de conversa](<../../architecture/dialogue-acts.md>) — §5 e §9
 
 ## Escopo
 
 **Inclui:**
 
-- Geração de até 64 candidatos; utilidade com satisfação, vieses, objetivos e penalidade de repetição.
-- Escolha entre os 5 melhores com pesos ajustados por `selfControl`.
-- Obrigação de resposta com bônus.
-- Vontade de agir, limiar, sorteio de quem age, ticks de silêncio e seus efeitos.
-- Interrupção marcada e seus efeitos.
-- Vontade de sair contra vontade de ficar; saída forçada por necessidade crítica (só NPC); `FAREWELL` e `LEAVE`.
+- Candidatos: atos permitidos, pré-condições (9.1), alvos, 3 tons por viés, até 4 tópicos salientes por alvo e valores (intensidade, volume, mentira, objeto).
+- Utilidade com satisfação (9.2), vieses (9.3), bônus de objetivo e penalidade de repetição; escolha entre os 5 melhores com pesos limitados.
+- Respostas devidas: só as respostas possíveis e `STAY_SILENT`, com bônus de 4000.
+- Vontade de agir com pressão social, sorteio de quem age, ticks de silêncio e seus efeitos, interrupção.
+- Saída: vontade de sair contra vontade de ficar, saída forçada por necessidade crítica (só NPC), `FAREWELL` ou `LEAVE` imediatos.
 - Fim por uma pessoa restante ou 60 ticks de silêncio.
-- Jogador em `MANUAL`: pausa com `awaiting`; `TAKE_TURN` a qualquer ponto de decisão.
+- Jogador em `MANUAL`: a escolha de quem age devolve o pedido de entrada; `TAKE_TURN`.
 
 **Não inclui:**
 
-- API pública de cena e registro (SOC-05).
+- O laço do passo, os eventos e o registro (SOC-05).
 
 ## Entregáveis
 
@@ -41,18 +40,19 @@ Fazer os personagens em `AUTO` escolherem atos pela utilidade com Maslow e decid
 
 ```text
 - given known drives, satisfaction and biases when scoring a candidate then U follows the formula term by term
-- given physical relief at 10000 when choosing then no level 4 or 5 drive contributes
-- given nobody above the urge threshold when deciding then a silence tick happens
-- given a pending response when another character acts then the act is marked as an interruption
-- given an NPC with bladder at 9500 and a path to an exit when stepping then the NPC leaves within a finite number of decision points
-- given the player in MANUAL drawn to act when stepping then the engine returns awaiting and chooses nothing
-- given 60 silent ticks when deciding then the slice ends
+- given physical relief at 10000 when scoring then no level 3 to 5 drive contributes
+- given a character owing an answer to a REQUEST with band REFUSE when generating candidates then only REFUSE and STAY_SILENT are offered
+- given selfControl 5000 and five candidates when weighting then each weight is the capped difference squared
+- given nobody above the urge threshold when picking the actor then the result is a silence tick
+- given a pending obligation when a third character is picked then the act is marked as an interruption
+- given an NPC with bladder 9500 when deciding departures then the NPC leaves without a draw
+- given the player in MANUAL picked when picking the actor then the result asks for player input and no act is chosen
+- given 60 silent ticks when checking the end then the slice ends
 ```
 
 ## Critérios de aceite
 
-- [ ] Invariantes 7 e 9 como testes.
-- [ ] Transcrição simbólica de ouro de uma cena com 3 personagens e seed fixa.
+- [ ] Invariante 9 testada nas funções de turno.
 - [ ] Gates do motor verdes.
 - [ ] Definition of Done das [regras de desenvolvimento](<../../engineering/development-rules.md>) cumprida.
 - [ ] Estado da tarefa atualizado no [ROADMAP](<../../../ROADMAP.md>).

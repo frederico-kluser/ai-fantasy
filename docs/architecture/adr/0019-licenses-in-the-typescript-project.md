@@ -1,6 +1,6 @@
 # ADR 0019 — Licenças do código, das dependências e dos modelos no projeto TypeScript
 
-- **Status:** Aceite
+- **Status:** Aceito
 - **Data:** 2026-11-09
 - **Decisores:** @frederico-kluser
 - **Relacionado:** D-19; substitui o ADR 0007

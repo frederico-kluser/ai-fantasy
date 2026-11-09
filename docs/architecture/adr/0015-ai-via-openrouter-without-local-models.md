@@ -1,6 +1,6 @@
 # ADR 0015 — IA via OpenRouter, sem modelos locais por agora
 
-- **Status:** Aceite
+- **Status:** Aceito
 - **Data:** 2026-11-09
 - **Decisores:** @frederico-kluser
 - **Relacionado:** D-19, D-22; substitui os ADRs 0001 e 0003

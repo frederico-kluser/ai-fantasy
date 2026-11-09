@@ -1,6 +1,6 @@
 # ADR 0016 — O motor decide; os modelos só traduzem
 
-- **Status:** Aceite
+- **Status:** Aceito
 - **Data:** 2026-11-09
 - **Decisores:** @frederico-kluser
 - **Relacionado:** D-19, D-20; substitui o ADR 0004 e encerra a proposta 0012 (nunca aceita; removida)

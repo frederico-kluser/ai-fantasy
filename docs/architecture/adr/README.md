@@ -7,13 +7,13 @@ Uma decisão arquitetural relevante fica registrada aqui. O ADR explica **por qu
 
 | ADR | Título | Status |
 | --- | --- | --- |
-| [0013](<0013-product-is-a-conversation-simulator.md>) | O produto é um simulador de fatias de conversa | Aceite |
-| [0014](<0014-typescript-core-and-local-web.md>) | Núcleo em TypeScript puro, site web local e WebAssembly só sob medição | Aceite |
-| [0015](<0015-ai-via-openrouter-without-local-models.md>) | IA via OpenRouter, sem modelos locais por agora | Aceite |
-| [0016](<0016-engine-decides-models-translate.md>) | O motor decide; os modelos só traduzem | Aceite |
-| [0017](<0017-determinism-replay-and-forced-paths.md>) | Determinismo, replay exato e forçar caminho | Aceite |
-| [0018](<0018-tdd-and-gates-in-typescript.md>) | TDD e gates completos em TypeScript | Aceite |
-| [0019](<0019-licenses-in-the-typescript-project.md>) | Licenças do código, das dependências e dos modelos no projeto TypeScript | Aceite |
+| [0013](<0013-product-is-a-conversation-simulator.md>) | O produto é um simulador de fatias de conversa | Aceito |
+| [0014](<0014-typescript-core-and-local-web.md>) | Núcleo em TypeScript puro, site web local e WebAssembly só sob medição | Aceito |
+| [0015](<0015-ai-via-openrouter-without-local-models.md>) | IA via OpenRouter, sem modelos locais por agora | Aceito |
+| [0016](<0016-engine-decides-models-translate.md>) | O motor decide; os modelos só traduzem | Aceito |
+| [0017](<0017-determinism-replay-and-forced-paths.md>) | Determinismo, replay exato e forçar caminho | Aceito |
+| [0018](<0018-tdd-and-gates-in-typescript.md>) | TDD e gates completos em TypeScript | Aceito |
+| [0019](<0019-licenses-in-the-typescript-project.md>) | Licenças do código, das dependências e dos modelos no projeto TypeScript | Aceito |
 
 ## Substituídos (histórico)
 

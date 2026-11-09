@@ -46,10 +46,10 @@ flowchart TD
     FND01 --> SRV01["SRV-01 servidor local"]
     CORE01 --> CORE02["CORE-02 tempo e grade"]
     CORE01 --> CORE03["CORE-03 presets"]
-    CORE02 --> CORE04["CORE-04 status e presença"]
+    CORE02 --> CORE04["CORE-04 status, presença e memória"]
     CORE03 --> CORE04
-    CORE03 --> CORE05["CORE-05 elenco e laços"]
-    CORE03 --> AI01["AI-01 portas e falas prontas"]
+    CORE04 --> CORE05["CORE-05 elenco e laços"]
+    CORE04 --> AI01["AI-01 portas, perguntas e falas prontas"]
     CORE04 --> SOC01["SOC-01 atos e audição"]
     SOC01 --> SOC02["SOC-02 sinais e percepção"]
     SOC02 --> SOC03["SOC-03 consequências"]
@@ -63,6 +63,7 @@ flowchart TD
     AI01 --> WEB02
     WEB02 --> WEB03["WEB-03 inspetor e sessões"]
     SRV01 --> WEB03
+    SOC06 --> WEB03
     AI01 --> AI02["AI-02 SOM e fala livre"]
     SRV01 --> AI02
     WEB02 --> AI02
@@ -90,9 +91,9 @@ sua worktree e branch (D-27).
 | 1 | FND-01 |
 | 2 | CORE-01 · SRV-01 |
 | 3 | CORE-02 · CORE-03 |
-| 4 | CORE-04 · CORE-05 · AI-01 |
-| 5 | SOC-01 · WEB-01 |
-| 6 | SOC-02 |
+| 4 | CORE-04 |
+| 5 | CORE-05 · SOC-01 · AI-01 |
+| 6 | SOC-02 · WEB-01 |
 | 7 | SOC-03 |
 | 8 | SOC-04 |
 | 9 | SOC-05 |
@@ -113,8 +114,8 @@ uma tarefa atualiza esta tabela no próprio PR.
 | [CORE-01](<docs/planning/prompts/CORE-01.md>) | Domínio, aritmética em bp, sorteio e registro | F2 | FND-01 | ⏳ pendente |
 | [CORE-02](<docs/planning/prompts/CORE-02.md>) | Tempo, contexto e grade | F2 | CORE-01 | ⏳ pendente |
 | [CORE-03](<docs/planning/prompts/CORE-03.md>) | Catálogos de presets v0 | F2 | CORE-01 | ⏳ pendente |
-| [CORE-04](<docs/planning/prompts/CORE-04.md>) | Status em camadas, ameaça e presença | F2 | CORE-02, CORE-03 | ⏳ pendente |
-| [CORE-05](<docs/planning/prompts/CORE-05.md>) | Geração de elenco e laços | F2 | CORE-03 | ⏳ pendente |
+| [CORE-04](<docs/planning/prompts/CORE-04.md>) | Status em camadas, ameaça, presença e modelo de memória | F2 | CORE-02, CORE-03 | ⏳ pendente |
+| [CORE-05](<docs/planning/prompts/CORE-05.md>) | Geração de elenco e laços | F2 | CORE-04 | ⏳ pendente |
 | [SOC-01](<docs/planning/prompts/SOC-01.md>) | Atos: validação, custo, quem ouve e interpretação | F3 | CORE-04 | ⏳ pendente |
 | [SOC-02](<docs/planning/prompts/SOC-02.md>) | Sinais e percepção do momento | F3 | SOC-01 | ⏳ pendente |
 | [SOC-03](<docs/planning/prompts/SOC-03.md>) | Consequências: avaliação emocional, pedidos e mentiras | F3 | SOC-02 | ⏳ pendente |
@@ -124,8 +125,8 @@ uma tarefa atualiza esta tabela no próprio PR.
 | [SRV-01](<docs/planning/prompts/SRV-01.md>) | Servidor local | F4 | FND-01 | ⏳ pendente |
 | [WEB-01](<docs/planning/prompts/WEB-01.md>) | Site base e playground manual | F4 | FND-01, CORE-05 | ⏳ pendente |
 | [WEB-02](<docs/planning/prompts/WEB-02.md>) | Cena e controles (sem IA) | F4 | WEB-01, SOC-05, AI-01 | ⏳ pendente |
-| [WEB-03](<docs/planning/prompts/WEB-03.md>) | Inspetor e sessões | F4 | WEB-02, SRV-01 | ⏳ pendente |
-| [AI-01](<docs/planning/prompts/AI-01.md>) | Portas de IA, pacotes e falas prontas | F5 | CORE-03 | ⏳ pendente |
+| [WEB-03](<docs/planning/prompts/WEB-03.md>) | Inspetor e sessões | F4 | WEB-02, SRV-01, SOC-06 | ⏳ pendente |
+| [AI-01](<docs/planning/prompts/AI-01.md>) | Portas de IA, perguntas do SOM e falas prontas | F5 | CORE-04 | ⏳ pendente |
 | [AI-02](<docs/planning/prompts/AI-02.md>) | SOM via OpenRouter e fala livre do jogador | F5 | AI-01, SRV-01, WEB-02 | ⏳ pendente |
 | [AI-03](<docs/planning/prompts/AI-03.md>) | Modelo de texto via OpenRouter e encenação | F5 | AI-01, SRV-01, WEB-02 | ⏳ pendente |
 | [AI-04](<docs/planning/prompts/AI-04.md>) | Playground por premissa | F5 | AI-02, WEB-01 | ⏳ pendente |

@@ -1,6 +1,6 @@
 # ADR 0013 — O produto é um simulador de fatias de conversa
 
-- **Status:** Aceite
+- **Status:** Aceito
 - **Data:** 2026-11-09
 - **Decisores:** @frederico-kluser
 - **Relacionado:** D-09, D-10, D-11, D-21, D-24; encerra as propostas 0008, 0009 e 0010 (nunca aceitas; removidas, ficam no histórico do git)

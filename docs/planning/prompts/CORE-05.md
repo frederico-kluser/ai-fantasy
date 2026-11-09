@@ -1,6 +1,6 @@
 # CORE-05 — Geração de elenco e laços
 
-> **Fase:** F2 — Núcleo determinístico · **Depende de:** [CORE-03](<CORE-03.md>) · **Branch:** `feat/core-05-cast-generation`
+> **Fase:** F2 — Núcleo determinístico · **Depende de:** [CORE-04](<CORE-04.md>) · **Branch:** `feat/core-05-cast-generation`
 > **Título do PR:** `feat(engine): generate casts, bonds and history from presets`
 >
 > Siga o [guia dos agentes](<README.md>) do começo ao fim. A tarefa não autoriza nada além
@@ -13,17 +13,17 @@ Gerar personagens, laços e história a partir dos arquétipos, com a seed do el
 ## Leia antes
 
 - [presets](<../../architecture/presets.md>) — §5 a §10
-- [modelo de simulação](<../../architecture/simulation-model.md>) — §5.3 a §5.7, §12 e §15
+- [modelo de simulação](<../../architecture/simulation-model.md>) — §5, §12 e §15
 
 ## Escopo
 
 **Inclui:**
 
-- Personagem a partir do arquétipo: traços nas faixas, pesos de vontades e dominantes, aptidões, associações e estado do dia.
-- Laços a partir do arquétipo de laço, com variação, reciprocidade de rótulos e coerência do grafo (um só cônjuge, família transitiva).
-- Acontecimentos de história aplicados como fatos anteriores, com efeitos e memórias marcantes.
-- Regra do gancho de tensão (presets §10, passo 5).
-- Posições iniciais na grade.
+- Personagem a partir do arquétipo: traços nas faixas, pesos e déficits iniciais, dominantes (escolhas do SOM primeiro, até 3), aptidões, linhas de base, associações e estado do dia.
+- Laços pelo arquétipo (com direção), variação, reciprocidade de rótulos e coerência do grafo (um cônjuge e um parceiro, sem ciclo de parentesco, família transitiva).
+- Acontecimentos de história como fatos anteriores, com efeitos, deslocamentos de base, ofensor, segredo e memórias marcantes.
+- Gancho de tensão com a definição de tensão (presets §10, passo 6).
+- Posições iniciais distintas (as sugeridas do gabarito; depois a célula livre de menor índice).
 - API de criação manual que valida as mesmas peças.
 
 **Não inclui:**
@@ -38,11 +38,13 @@ Gerar personagens, laços e história a partir dos arquétipos, com a seed do el
 
 ```text
 - given the same cast seed when generating twice then the casts are identical
-- given a parent_child bond when generating then the child has the CHILD label toward the parent
+- given a parent_child bond with the second as parent when generating then the first holds the CHILD label
 - given two spouse bonds for one character when validating then generation rejects the graph
-- given acquaintances without tension when generating then a tension event is added
+- given two children of the same parent when generating then they become siblings
+- given SOM picks for two dominant drives when generating then the dominants are those picks followed by the archetype's, up to 3
+- given acquaintances without tension when generating then a tension event is added to the pair with the lowest ids
+- given a secret event when generating then only its author holds a copy of the fact
 - given a manual character with an unknown archetype when validating then it is rejected
-- given a history event when generating then both characters hold a copy of the fact with the right perspective
 ```
 
 ## Critérios de aceite

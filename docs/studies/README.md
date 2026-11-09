@@ -12,9 +12,11 @@
 | [Expansão Sistêmica Do AI Fantasy](<Expansão Sistêmica Do AI Fantasy.md>) | calendário lógico, fisiologia, sanidade, necessidades psicológicas e utilidade, comércio, segredos e ganchos, tavernas, velhice |
 | [Original — Roadmap Jogo Procedural Com LFM3](<Original - Roadmap Jogo Procedural Com LFM3.md>) | o roadmap original: registro simbólico de conversas, leitura sob demanda, família LFM3, texto livre com triagem por System One |
 
-A análise de onde o projeto estava, as nove notas do maintainer e o formulário de 46 decisões
-que levaram à mudança estão no primeiro commit do PR da refundação (`44f3e0a`), no histórico do
-git.
+O [formulário de 46 decisões](<decisoes-mvp-conversa.html>) (abra no navegador), com as opções e
+os tradeoffs de cada item, é a origem dos ids Q-xx e S-xx citados em
+[decisões](<../planning/decisions.md>). A análise de onde o projeto estava ficou no primeiro
+commit do PR da refundação ([#11](https://github.com/frederico-kluser/ai-fantasy/pull/11), commit
+`44f3e0a`); as nove notas do maintainer estão no fim deste documento.
 
 ## O que foi aproveitado
 

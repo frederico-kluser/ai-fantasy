@@ -20,9 +20,9 @@ Transformar todos os catálogos das especificações em dados tipados, validados
 
 **Inclui:**
 
-- Lugares (10, com gabaritos de grade), climas (8), luz por fase, arquétipos de personagem (16), arquétipos de laço (17), acontecimentos de história (21), tags de associação (10) e estados do dia (7).
-- Listas do modelo de simulação como dados: necessidades do corpo, emoções, vontades com nível de Maslow, eixos e rótulos de laço, traços, aptidões e sinais com causas.
-- Atos (20), tons (6) com ambiguidade e confusões típicas, tipos de tópico (8) e objetos de pedido.
+- Lugares (10, com gabaritos de grade, marcas `exit` e `roofed` e a marca de iluminado), climas (8, com ruído extra), arquétipos de personagem (16), arquétipos de laço (17, com a marca de direcional), acontecimentos de história (21, com ofensor e deslocamentos de base), tags de associação (10) e estados do dia (7).
+- Listas do modelo de simulação como dados: necessidades do corpo, emoções, vontades com nível de Maslow e se são dirigidas, eixos (`fearOf`, `closeness`…) e rótulos de laço, traços, aptidões, causas e sinais.
+- Atos (20) com ticks e obrigação, tons (6) com ambiguidade e confusões pior/melhor, tipos de tópico (9) com os aceitos por ato, e objetos de pedido com as vontades de quem recebe e de quem dá.
 - Validação de esquema na carga, com erro claro apontando o preset inválido.
 
 **Não inclui:**
@@ -41,6 +41,7 @@ Transformar todos os catálogos das especificações em dados tipados, validados
 - given the bond archetypes when loading then every family and role label has its reciprocal
 - given every grid template when validating then it has at least one EXIT and only known cell types
 - given the catalogs when counting then they match the counts in the specification
+- given the directional bond archetypes when loading then each of the six is flagged as directional
 ```
 
 ## Critérios de aceite

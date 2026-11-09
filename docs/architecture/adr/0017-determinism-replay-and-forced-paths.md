@@ -1,6 +1,6 @@
 # ADR 0017 — Determinismo, replay exato e forçar caminho
 
-- **Status:** Aceite
+- **Status:** Aceito
 - **Data:** 2026-11-09
 - **Decisores:** @frederico-kluser
 - **Relacionado:** D-26; substitui o ADR 0005 e encerra a proposta 0011 (nunca aceita; removida)

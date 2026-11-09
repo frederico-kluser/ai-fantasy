@@ -47,8 +47,10 @@ type Control = { mode: "MANUAL" } | { mode: "AUTO" };
 ### Tipos marcados para invariantes
 
 ```ts
-type Bp = number & { readonly __brand: "Bp" };
+type Bp = number & { readonly __brand: "Bp" };               // 0..10000
+type BipolarBp = number & { readonly __brand: "BipolarBp" }; // -10000..10000
 const bp = (n: number): Bp => clampInt(n, 0, 10000) as Bp;
+const bipolarBp = (n: number): BipolarBp => clampInt(n, -10000, 10000) as BipolarBp;
 ```
 
 ### Tabelas em vez de `switch` gigante

@@ -73,7 +73,7 @@ Ainda não há código. Depois da FND-01, o projeto vai rodar com Node 24:
 ```bash
 npm ci
 cp .env.example .env   # e preencha OPENROUTER_API_KEY para usar a IA
-npm run check          # lint, tipos, testes, cobertura e E2E
+npm run check          # tudo o que o CI roda
 ```
 
 Hoje, a única verificação é a da documentação:

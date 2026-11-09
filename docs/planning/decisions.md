@@ -22,7 +22,7 @@
 | D-12 | **Status em camadas:** corpo, emoções, vontades (15, pela pirâmide de Maslow), laços, percepção do momento e traços. | P4, Q-13, Q-14 | simulação §5 |
 | D-13 | **Cada fala é ato × tom × tópico, com valores.** Paquera e provocação são combinações. | P5 | `dialogue-acts.md` |
 | D-14 | **O jogador é um personagem simulado:** decide os atos, mas sente tudo e transparece; pode largar o controle, como no The Sims. Decisões e interações passadas formam tendências (as recentes pesam mais) e um padrão mantido vira traço fixo, para todos. | P6 | simulação §7 e §13 |
-| D-15 | **Turnos pela vontade de agir:** interrupções, silêncios e saídas surgem sozinhos; a fatia termina quando sobra uma pessoa. | P7 | simulação §11 |
+| D-15 | **Turnos pela vontade de agir:** interrupções, silêncios e saídas surgem sozinhos; a fatia termina quando sobra uma pessoa (a especificação acrescentou o fim por 60 ticks de silêncio, "a conversa morreu"). | P7 | simulação §11 |
 | D-16 | **A cena é uma grade com paredes;** distância e audição saem da geometria; a grade cobre só o lugar da cena. | P8 | simulação §3.1 e §8.2 |
 | D-17 | **Personagens e laços nascem de arquétipos com história gerada;** a criação à mão usa as mesmas peças. | P9 | `presets.md` |
 | D-18 | **Núcleo em TypeScript puro e determinístico;** WebAssembly só se o passo do motor passar de 16 ms com 8 personagens. | P10, Q-10 | ADR 0014 |
@@ -40,7 +40,8 @@
 
 ## O que aconteceu com cada item do formulário
 
-O formulário (versão de 2026-11-09, no histórico do git) teve 14 itens respondidos. Os demais
+O [formulário](<../studies/decisoes-mvp-conversa.html>) (versão de 2026-11-09, com os itens Q-xx e
+S-xx, opções e tradeoffs) teve 14 itens respondidos. Os demais
 foram resolvidos pela conversa ou pela especificação, conforme abaixo.
 
 | Itens | Destino |

@@ -18,10 +18,10 @@ Fazer o estado de cada personagem transparecer em sinais, que os outros notam e 
 
 **Inclui:**
 
-- Emissão por causa e intensidade, reduzida por `selfControl`.
+- Causas com sua intensidade (emoções, atração, mentira, frio, cansaço, dor, alteração) e emissão por tick, reduzida por `selfControl`.
 - Notar por canal (visão ou audição), perspicácia, cansaço, alteração e distância.
-- Interpretação por causas ponderadas pelo contexto, pelo laço e por `trustInOthers`.
-- Percepção do momento atualizada e relaxando 2% por tick para a prévia do laço.
+- Interpretação pelos pesos da seção 7 (base, causa verdadeira, contexto, causas ameaçadoras, laço).
+- Efeitos na percepção do momento, `apparentEmotion` e `apparentState`.
 - Vale também para o personagem do jogador.
 
 **Não inclui:**
@@ -37,9 +37,10 @@ Fazer o estado de cada personagem transparecer em sinais, que os outros notam e 
 ```text
 - given fear at 9000 and selfControl 10000 when emitting then the tremor chance is half of the base
 - given an observer tired above the urgent band when noticing then the chance drops by 2000
-- given cold weather when interpreting a tremor then cold is weighed above fear
-- given a distrustful observer when interpreting an ambiguous signal then threatening causes weigh more
-- given no new signals when ticking then perceived threat relaxes toward the fear axis
+- given cold weather and an observer with perceptiveness 0 when interpreting a tremor then cold weighs 20000 and fear 10000
+- given a blush caused by shame and an observer with trustInOthers -10000 and perceptiveness 0 when interpreting then shame and attraction weigh 10000 and anger 15000
+- given an interpreted anger signal when updating perception then perceived hostility rises by 1500 and the apparent emotion is anger at 6000
+- given a character telling a lie when emitting then the lying cause has intensity 7000 only during that act
 ```
 
 ## Critérios de aceite

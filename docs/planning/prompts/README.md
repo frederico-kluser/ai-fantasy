@@ -40,9 +40,14 @@ Trabalhe só no escopo da tarefa, em TDD, e termine com um PR revisável.
 - **TDD:** vermelho → verde → refatorar; um comportamento por teste.
 - **A especificação é contrato.** Números são calibração: se mudar um, atualize a tabela de
   constantes e os testes. Regras não mudam sem ADR.
-- **Ambiguidade:** escolha a opção mais simples que respeita as regras, registre-a na própria
-  especificação no mesmo PR e destaque na descrição do PR. Se a lacuna exigir mudar uma regra
-  ou uma decisão de produto, **pare e peça decisão ao maintainer**.
+- **Ambiguidade:** procure primeiro a regra no [modelo de simulação](<../../architecture/simulation-model.md>),
+  em [atos de conversa](<../../architecture/dialogue-acts.md>), em [presets](<../../architecture/presets.md>)
+  e no [glossário](<../../glossary.md>): as tabelas de lá são a resposta, não ponto de partida.
+  Se ainda faltar um número ou detalhe, escolha a opção mais simples que respeita as regras,
+  escreva-a **primeiro na especificação** (com o teste) no mesmo PR e destaque na descrição do
+  PR. Antes de abrir o PR, faça merge da `main` para ver se outra tarefa mexeu na mesma seção.
+  Se a lacuna exigir mudar uma regra ou uma decisão de produto, **pare e peça decisão ao
+  maintainer**.
 - **Fora do escopo:** anote no PR (ou abra uma issue); não implemente.
 - Rode `npm run check` com frequência (depois que a FND-01 existir).
 - Commits convencionais, conferidos com `oss-gate.sh commit-msg "<mensagem>"`.
@@ -95,8 +100,8 @@ O revisor confere:
 | [CORE-01](<CORE-01.md>) | Domínio, aritmética em bp, sorteio e registro | F2 | FND-01 |
 | [CORE-02](<CORE-02.md>) | Tempo, contexto e grade | F2 | CORE-01 |
 | [CORE-03](<CORE-03.md>) | Catálogos de presets v0 | F2 | CORE-01 |
-| [CORE-04](<CORE-04.md>) | Status em camadas, ameaça e presença | F2 | CORE-02, CORE-03 |
-| [CORE-05](<CORE-05.md>) | Geração de elenco e laços | F2 | CORE-03 |
+| [CORE-04](<CORE-04.md>) | Status em camadas, ameaça, presença e modelo de memória | F2 | CORE-02, CORE-03 |
+| [CORE-05](<CORE-05.md>) | Geração de elenco e laços | F2 | CORE-04 |
 | [SOC-01](<SOC-01.md>) | Atos: validação, custo, quem ouve e interpretação | F3 | CORE-04 |
 | [SOC-02](<SOC-02.md>) | Sinais e percepção do momento | F3 | SOC-01 |
 | [SOC-03](<SOC-03.md>) | Consequências: avaliação emocional, pedidos e mentiras | F3 | SOC-02 |
@@ -106,8 +111,8 @@ O revisor confere:
 | [SRV-01](<SRV-01.md>) | Servidor local | F4 | FND-01 |
 | [WEB-01](<WEB-01.md>) | Site base e playground manual | F4 | FND-01, CORE-05 |
 | [WEB-02](<WEB-02.md>) | Cena e controles (sem IA) | F4 | WEB-01, SOC-05, AI-01 |
-| [WEB-03](<WEB-03.md>) | Inspetor e sessões | F4 | WEB-02, SRV-01 |
-| [AI-01](<AI-01.md>) | Portas de IA, pacotes e falas prontas | F5 | CORE-03 |
+| [WEB-03](<WEB-03.md>) | Inspetor e sessões | F4 | WEB-02, SRV-01, SOC-06 |
+| [AI-01](<AI-01.md>) | Portas de IA, perguntas do SOM e falas prontas | F5 | CORE-04 |
 | [AI-02](<AI-02.md>) | SOM via OpenRouter e fala livre do jogador | F5 | AI-01, SRV-01, WEB-02 |
 | [AI-03](<AI-03.md>) | Modelo de texto via OpenRouter e encenação | F5 | AI-01, SRV-01, WEB-02 |
 | [AI-04](<AI-04.md>) | Playground por premissa | F5 | AI-02, WEB-01 |

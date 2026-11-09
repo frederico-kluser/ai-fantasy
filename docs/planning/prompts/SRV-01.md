@@ -8,7 +8,7 @@
 
 ## Objetivo
 
-Criar o servidor local em `127.0.0.1` com configuração, saúde, armazenamento de campanhas e fatias, limites de pedido e o modo de teste com portas de IA falsas.
+Criar o servidor local em `127.0.0.1` com configuração, saúde, armazenamento de campanhas e fatias, limites de pedido e entrega do site.
 
 ## Leia antes
 
@@ -26,11 +26,11 @@ Criar o servidor local em `127.0.0.1` com configuração, saúde, armazenamento 
 - Rotas de campanhas e fatias em `data/`, com ids validados.
 - Limite de tamanho dos pedidos.
 - Entrega do site compilado; encaminhamento do Vite em desenvolvimento.
-- Modo de teste que injeta as portas falsas de IA.
+- Ponto de extensão para novas rotas (as rotas de IA e o modo de teste com portas falsas chegam na AI-02 e na AI-03).
 
 **Não inclui:**
 
-- Adaptadores do OpenRouter (AI-02, AI-03).
+- Adaptadores do OpenRouter, rotas de IA e modo de teste com portas falsas (AI-02, AI-03).
 
 ## Entregáveis
 

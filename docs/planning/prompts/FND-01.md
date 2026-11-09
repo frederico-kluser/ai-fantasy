@@ -16,10 +16,10 @@ Criar o monorepo TypeScript com os quatro pacotes compilando, todas as ferrament
 - [ADR 0014](<../../architecture/adr/0014-typescript-core-and-local-web.md>) — inteiro
 - [ADR 0018](<../../architecture/adr/0018-tdd-and-gates-in-typescript.md>) — inteiro
 - [ADR 0019](<../../architecture/adr/0019-licenses-in-the-typescript-project.md>) — decisão, item 2
-- [arquitetura](<../../architecture/overview.md>) — §2
+- [arquitetura](<../../architecture/overview.md>) — §2 e §11
 - [regras de desenvolvimento](<../../engineering/development-rules.md>) — §3 a §5 e §7
 - [qualidade de código](<../../engineering/code-quality.md>) — §1
-- [estratégia de testes](<../../engineering/testing-strategy.md>) — §3, §12 e §13
+- [estratégia de testes](<../../engineering/testing-strategy.md>) — §3, §11, §12 e §13
 
 ## Escopo
 
@@ -34,6 +34,8 @@ Criar o monorepo TypeScript com os quatro pacotes compilando, todas as ferrament
 - CI: o job `rust` vira um job `node` (instalar, lint, tipos, testes com cobertura, E2E, mutação incremental); o `preflight` detecta `package.json`; `docs` e `build` continuam, com `build` agregando `docs` e `node`. Actions pinadas por SHA com `oss-pin-actions.sh`.
 - CodeQL passa a analisar `javascript-typescript` e `actions`.
 - Verificação de licenças das dependências no CI com a lista do ADR 0019.
+- Cobertura das linhas novas do PR (≥ 95%) verificada no CI.
+- Etapa de benchmark no CI preparada: roda `npm run bench` quando `packages/engine` muda e publica o resultado no resumo do PR (o benchmark de verdade chega na SOC-05).
 
 **Não inclui:**
 
@@ -54,6 +56,7 @@ Criar o monorepo TypeScript com os quatro pacotes compilando, todas as ferrament
 - given coverage below the threshold when running coverage then the command fails
 - given the server started when calling /api/health then it answers from 127.0.0.1 only
 - given the web app when opening the start page then the smoke E2E passes
+- given a change whose new lines are below 95% coverage when running the diff coverage step then it fails
 ```
 
 ## Critérios de aceite

@@ -20,12 +20,12 @@ Expor a API pública da cena (`createScene`, `step`, entradas e eventos), gravar
 
 **Inclui:**
 
-- Ordem do passo exatamente como a seção 16.
+- Ordem do passo exatamente como a seção 16, com a sub-ordem por tick e o movimento em paralelo aos atos.
 - Entradas `PLAYER_ACT`, `TAKE_TURN`, `SET_CONTROL`, `FORCE_DRAW` e `SET_DRAW_MODE`.
 - Eventos, incluindo `RenderRequested` com os dados simbólicos para o pacote de encenação.
 - Registro JSONL com cabeçalho (versões, seeds, cena) e entradas, sorteios, eventos e chamadas de IA.
 - Replay que confere o hash a cada passo; ramificação a partir de qualquer passo.
-- Benchmark com 8 personagens e infraestrutura de transcrições de ouro.
+- Benchmark com 8 personagens e infraestrutura de transcrições de ouro, com a primeira transcrição: cena de 3 personagens e seed fixa.
 
 **Não inclui:**
 
@@ -46,11 +46,13 @@ Expor a API pública da cena (`createScene`, `step`, entradas e eventos), gravar
 - given a fork at step 10 when stepping with a different input then the fork diverges and the original stays intact
 - given a malformed log line when loading then it is rejected with the line number
 - given 8 characters when benchmarking then the step time is reported
+- given an NPC with bladder 9500 and a path to an exit when stepping then the NPC leaves the slice within a finite number of decision points
 ```
 
 ## Critérios de aceite
 
-- [ ] Invariantes 1, 8 e 10 como testes.
+- [ ] Invariantes 1, 7, 8 e 10 como testes.
+- [ ] Transcrição de ouro de 3 personagens com seed fixa.
 - [ ] Benchmark publicado no resumo do PR.
 - [ ] Gates do motor verdes.
 - [ ] Definition of Done das [regras de desenvolvimento](<../../engineering/development-rules.md>) cumprida.

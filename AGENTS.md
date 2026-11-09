@@ -198,7 +198,7 @@ merges — rebase não é.
 
 Formato obrigatório: `Erro: <o que aconteceu> — Solução: <o que fazer a seguir>`.
 
-Exit codes dos gates: `0` ok · `1` bloqueado · `2` uso inválido · `3` ferramenta em falta ·
+Exit codes dos gates: `0` ok · `1` bloqueado · `2` uso inválido · `3` ferramenta ausente ·
 `4` não é repositório git.
 
 <!-- BEGIN:coala-memory (gerido por coala-agent-skill — não editar dentro do bloco) -->

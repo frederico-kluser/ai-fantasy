@@ -101,7 +101,7 @@ Nenhum código de produção entra sem um teste que primeiro falhou:
 3. **Refatorar** — limpe com a rede verde.
 
 Um bug fix começa por um **teste de regressão**. Um PR sem teste (ou sem justificativa explícita)
-não é revisto. Detalhes em [`docs/engineering/testing-strategy.md`](docs/engineering/testing-strategy.md).
+não é revisado. Detalhes em [`docs/engineering/testing-strategy.md`](docs/engineering/testing-strategy.md).
 
 ## Gates (todos verdes antes do PR)
 
@@ -154,7 +154,7 @@ complexidade dentro dos limites de [qualidade de código](docs/engineering/code-
 
 São permitidas, com transparência:
 
-- declare no PR que houve assistência de IA e qual foi o âmbito;
+- declare no PR que houve assistência de IA e qual foi o escopo;
 - **você** é responsável pelo código, pela licença e pelos testes;
 - não cole conteúdo de terceiros sem verificar licença e atribuição;
 - não use um modelo para "aprovar" o próprio código;

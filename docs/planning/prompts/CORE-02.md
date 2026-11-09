@@ -8,27 +8,29 @@
 
 ## Objetivo
 
-Implementar o relógio por ticks e as fases do dia, o clima e a luz, a grade com tipos de célula, distância, linha de visão, audição por volume e caminhos dentro da cena.
+Implementar o relógio por ticks, as fases do dia e a luz, a grade com tipos de célula e marcas (`exit`, `roofed`), distância, linha de visão, audição por volume, caminhos e o passo de movimento célula a célula.
 
 ## Leia antes
 
-- [modelo de simulação](<../../architecture/simulation-model.md>) — §2, §3 e §8.2
+- [modelo de simulação](<../../architecture/simulation-model.md>) — §2, §3, §8.1 e §8.2
 - [presets](<../../architecture/presets.md>) — §2 a §4 (só o formato dos dados)
 
 ## Escopo
 
 **Inclui:**
 
-- Relógio: `minuteOfDay` a partir de `startMinute` e ticks de 5 s; fases `DAWN`, `MORNING`, `AFTERNOON`, `EVENING`, `LATE_NIGHT`.
-- Luz por fase, clima e lugar; alcance visual (20, 8, 3 células).
-- Grade até 48 × 48 com `FLOOR`, `WALL`, `DOOR_OPEN`, `DOOR_CLOSED`, `WINDOW`, `LOW_OBSTACLE`, `ROUGH` e saídas `EXIT`.
-- Distância de Chebyshev; linha de visão por supercobertura (paredes e porta fechada bloqueiam; janela e obstáculo baixo não bloqueiam a visão).
-- Audição: alcance por volume, efeito do ruído na fala normal (mínimo 3), paredes e janela; chance de fragmento até o dobro do alcance.
-- Caminho mínimo na grade (custo 2 em `ROUGH`; janela e obstáculo baixo não são atravessáveis).
+- Relógio: `minuteOfDay` a partir de `startMinute` e ticks de 5 s; fases com os limites exatos da seção 3.2.
+- Luz: `lightLevel` (fase, lugar iluminado, tag `dark`, tempestade num lugar exposto) e alcance visual (20, 8, 3; neblina pela metade em lugar exposto).
+- Grade até 48 × 48 com os sete tipos de célula, custos de travessia (porta fechada custa 2 e continua fechada) e marcas `exit` e `roofed`.
+- Distância de Chebyshev; linha de visão por supercobertura (parede e porta fechada bloqueiam).
+- Audição: alcance por volume, ruído na fala normal (mínimo 3), parede, janela e porta fechada; perspectivas `DIRECT`, `FRAGMENT` (com chance) e `SEEN`.
+- Caminho de menor custo com 8 direções (células ocupadas bloqueiam) e passo de movimento por tick: 1 célula, 2 ticks em `ROUGH` e porta fechada, espera se o próximo passo está ocupado.
+- Destinos de `APPROACH` (1 célula do alvo), `WITHDRAW` (4 células ou mais) e saída (a `exit` alcançável mais perto).
 
 **Não inclui:**
 
 - Efeitos do clima e do horário no corpo e nas vontades (CORE-04).
+- Atos de movimento e seus destinos de alto nível (SOC-01).
 
 ## Entregáveis
 
@@ -40,20 +42,24 @@ Implementar o relógio por ticks e as fases do dia, o clima e a luz, a grade com
 ```text
 - given startMinute 1430 when 144 ticks pass then the clock wraps to minute 2
 - given the phase boundaries when converting minutes then each boundary maps to the right phase
+- given the evening in a lit place when computing light then it is DIM; at late night it stays DIM; with the dark tag it is DARK
+- given fog in an exposed place when computing vision then the range is halved
 - given a wall between two cells when checking sight then it is blocked; with a low obstacle it is not
 - given a whisper when computing hearers then only cells at distance 1 hear it directly
 - given noise 8000 when computing normal speech range then the range is 4
 - given a shout behind a wall when computing range then it is halved
-- given rough terrain on the shortest path when finding a path then the cheaper route is chosen
+- given a closed door on the path when moving through it then it costs 2 ticks and the door stays closed
+- given an occupied next cell when moving then the character waits that tick
 ```
 
 ## Critérios de aceite
 
-- [ ] Invariante 5 do modelo de simulação como teste de propriedade.
+- [ ] Invariantes 5 e 11 do modelo de simulação como testes de propriedade.
 - [ ] Gates do motor verdes.
 - [ ] Definition of Done das [regras de desenvolvimento](<../../engineering/development-rules.md>) cumprida.
 - [ ] Estado da tarefa atualizado no [ROADMAP](<../../../ROADMAP.md>).
 
 ## Cuidados
 
-- Desempates sempre pelo menor índice de célula.
+- Desempates sempre pelo menor índice de célula (`y × W + x`).
+- A função de luz recebe os dados como parâmetros; os catálogos são da CORE-03.

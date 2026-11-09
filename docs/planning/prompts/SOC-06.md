@@ -8,22 +8,23 @@
 
 ## Objetivo
 
-Fazer os atos moverem tendências, cristalizarem traços e levar a história dos personagens de uma fatia para a outra com as regras de intervalo.
+Fazer os atos moverem tendências, cristalizarem traços e levar a história dos personagens de uma fatia para a outra, com as regras de intervalo e a criação da fatia seguinte.
 
 ## Leia antes
 
 - [modelo de simulação](<../../architecture/simulation-model.md>) — §12 a §14
 - [atos de conversa](<../../architecture/dialogue-acts.md>) — §10
+- [arquitetura](<../../architecture/overview.md>) — §3.2
 
 ## Escopo
 
 **Inclui:**
 
-- Sinais de traço por ato e tom como dados.
-- Tendência com taxa de 10% por ato e traço efetivo com 30% da tendência.
-- Cristalização: 30 atos no mesmo sentido em pelo menos 2 fatias movem o traço 500 bp.
-- Estado de campanha e `endSlice` com intervalo: corpo, emoções, saudade, vingança, memória e tendências.
-- Memórias marcantes persistentes (até 50) e reforço ao falar de novo.
+- Sinais de traço por ato e tom como dados; tendência só nos traços sinalizados; traço efetivo limitado a ±10000.
+- Contador de cristalização e cristalização no fim da fatia, recalculando as linhas de base.
+- `endSlice` com `TimeGap` (horas inteiras e grupos `together`): corpo, emoções, saudade, vingança, memória e tendências por dia; descarte do que não persiste.
+- `createSlice` a partir da campanha, com os mesmos personagens.
+- Memórias marcantes (até 50) e reforço ao contar de novo.
 
 **Não inclui:**
 
@@ -38,10 +39,12 @@ Fazer os atos moverem tendências, cristalizarem traços e levar a história dos
 
 ```text
 - given 10 aggressive threats when updating then temper tendency approaches 10000 by 10% steps
-- given a tendency of 7000 sustained over 30 acts in 2 slices when ending a slice then the trait moves 500
-- given a 3-day gap when ending a slice then intimacy toward an absent loved one rises by 1500
+- given a tendency of 7000 sustained over 30 acts across 2 slices when the second slice ends then the trait moves 500
+- given a 72-hour gap with the pair apart when ending a slice then intimacy toward the absent loved one rises by 1500
+- given the same gap spent together when ending a slice then it does not rise
 - given 51 important memories when storing then the least important is dropped
 - given a fact retold when rehearsing then its fidelity returns to the speaker's maximum
+- given a campaign when creating the next slice then the characters keep their bonds and memorable memories
 ```
 
 ## Critérios de aceite

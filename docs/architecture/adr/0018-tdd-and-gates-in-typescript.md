@@ -1,6 +1,6 @@
 # ADR 0018 — TDD e gates completos em TypeScript
 
-- **Status:** Aceite
+- **Status:** Aceito
 - **Data:** 2026-11-09
 - **Decisores:** @frederico-kluser
 - **Relacionado:** D-25; substitui o ADR 0006

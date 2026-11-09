@@ -8,7 +8,7 @@
 
 ## Objetivo
 
-Montar o site com as rotas principais, o motor num Web Worker e a criação manual de playground (lugar, horário, clima, elenco, laços, posições) até a ficha e o início da cena.
+Montar o site com as rotas principais, o motor num Web Worker e a criação manual de playground (lugar, horário, clima, elenco, laços, posições) até a ficha de revisão com uma configuração de cena válida.
 
 ## Leia antes
 
@@ -21,15 +21,16 @@ Montar o site com as rotas principais, o motor num Web Worker e a criação manu
 
 **Inclui:**
 
-- Rotas: Playground, Cena, Sessões e Avaliação (as duas últimas como esqueleto).
-- Protocolo de mensagens com o Web Worker do motor.
+- Rotas: Playground, Cena, Sessões e Avaliação (as três últimas como esqueleto).
+- Protocolo de mensagens com o Web Worker do motor; a geração de elenco roda no worker.
 - Tema claro e escuro.
 - Playground manual: preset de lugar e gabarito, horário, clima, personagens por arquétipo com edição, laços gerados e editáveis (travar e sortear de novo), posições na grade, escolha do personagem do jogador.
-- Ficha de revisão e botão de começar.
+- Ficha de revisão que valida a configuração da cena (começar a cena é da WEB-02).
 
 **Não inclui:**
 
-- Premissa pelo SOM (AI-04); tela da cena (WEB-02).
+- Premissa pelo SOM (AI-04).
+- Começar a cena e a tela da cena (WEB-02).
 
 ## Entregáveis
 
@@ -41,13 +42,13 @@ Montar o site com as rotas principais, o motor num Web Worker e a criação manu
 ```text
 - given the manual form with no character when submitting then validation explains what is missing
 - given a cast seed when regenerating bonds with one locked then the locked bond stays
-- given the worker when creating a scene then it answers with the initial state
-- E2E: given a manual playground when starting then the scene opens with the chosen cast
+- given the worker when generating a cast then it answers with the generated characters and bonds
+- E2E: given a manual playground when confirming then the review sheet shows the chosen cast and a valid setup
 ```
 
 ## Critérios de aceite
 
-- [ ] Fluxo E2E 2 da estratégia de testes.
+- [ ] Fluxo E2E 2 até a ficha de revisão.
 - [ ] Formulários acessíveis (rótulos e teclado).
 - [ ] Definition of Done das [regras de desenvolvimento](<../../engineering/development-rules.md>) cumprida.
 - [ ] Estado da tarefa atualizado no [ROADMAP](<../../../ROADMAP.md>).

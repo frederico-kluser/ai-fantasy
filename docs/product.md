@@ -48,7 +48,7 @@ O motor se chama **Hermeneutic Core** (motor de diálogo interpretativo). **O mo
 | Fala | Cada fala é **ato × tom × tópico, com valores** (intensidade, volume, marca de mentira). Paquera e provocação são combinações. | D-13 |
 | Jogador | O jogador é **um personagem simulado como os outros**: decide os próprios atos, mas sente tudo e deixa transparecer; pode largar o controle. | D-14 |
 | Personalidade | Decisões e interações passadas formam tendências (as recentes pesam mais); um padrão mantido vira **traço fixo**. Vale para todos. | D-14 |
-| Turnos | Quem age a seguir sai da **vontade de agir** de cada um: interrupções, silêncios e saídas surgem sozinhos. A conversa termina quando sobra uma pessoa. | D-15 |
+| Turnos | Quem age a seguir sai da **vontade de agir** de cada um: interrupções, silêncios e saídas surgem sozinhos. A conversa termina quando sobra uma pessoa ou quando morre (5 minutos de silêncio). | D-15 |
 | Espaço | A cena é uma **grade com paredes**; distância e audição saem da geometria. A grade cobre só o lugar da cena. | D-16 |
 | Elenco | Personagens e laços nascem de **arquétipos com história gerada**; a criação à mão usa as mesmas peças. | D-17 |
 | Cenário | **Qualquer cenário e qualquer tipo de personagem**: a premissa vira presets; o motor só conhece presets; o modelo de texto usa o enredo. | D-21 |
