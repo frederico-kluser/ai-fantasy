@@ -19,12 +19,13 @@ Gerar personagens, laços e história a partir dos arquétipos, com a seed do el
 
 **Inclui:**
 
-- Personagem a partir do arquétipo: traços nas faixas, pesos e déficits iniciais, dominantes (escolhas do SOM primeiro, até 3), aptidões, linhas de base, associações e estado do dia.
+- Personagem a partir do arquétipo: traços nas faixas, pesos e déficits iniciais, dominantes (escolhas do SOM primeiro, até 3), aptidões, linhas de base e associações; o estado do dia escolhido é aplicado na abertura da cena, no stream `setup`.
 - Laços pelo arquétipo (com direção), variação, reciprocidade de rótulos e coerência do grafo (um cônjuge e um parceiro, sem ciclo de parentesco, família transitiva).
 - Acontecimentos de história como fatos anteriores, com efeitos, deslocamentos de base, ofensor, segredo e memórias marcantes.
 - Gancho de tensão com a definição de tensão (presets §10, passo 6).
-- Posições iniciais distintas (as sugeridas do gabarito; depois a célula livre de menor índice).
 - API de criação manual que valida as mesmas peças.
+- Posições iniciais distintas no stream `setup` (as sugeridas do gabarito; depois a célula livre de menor índice).
+- Gerar de novo personagens ou laços mantendo os travados: mesma seed do elenco com um contador de tentativa; o que está travado não muda.
 
 **Não inclui:**
 
@@ -43,8 +44,10 @@ Gerar personagens, laços e história a partir dos arquétipos, com a seed do el
 - given two children of the same parent when generating then they become siblings
 - given SOM picks for two dominant drives when generating then the dominants are those picks followed by the archetype's, up to 3
 - given acquaintances without tension when generating then a tension event is added to the pair with the lowest ids
-- given a secret event when generating then only its author holds a copy of the fact
 - given a manual character with an unknown archetype when validating then it is rejected
+- given a stole event when generating then only its author holds a copy and the victim's effects wait until the victim learns it
+- given a shared_secret event when generating then both hold DIRECT copies with fidelity 8000 and no one else does
+- given a locked bond when regenerating with the next attempt counter then the locked bond is unchanged and the others may change
 ```
 
 ## Critérios de aceite

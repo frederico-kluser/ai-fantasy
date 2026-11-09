@@ -24,7 +24,7 @@ Começar a cena a partir da ficha e mostrá-la: a grade com os personagens, a tr
 - Começar a cena a partir da ficha de revisão (`createScene` no worker).
 - Grade com personagens e posições, atualizada pelos eventos.
 - Transcrição com falas prontas de `packages/ai` e gestos.
-- Controles de passo, automático com velocidade, pausa, tomar a vez e modo `MANUAL`/`AUTO` por personagem.
+- Controles de passo, automático com velocidade, pausa, tomar a vez e modo `MANUAL`/`AUTO` do personagem do jogador (NPCs são sempre `AUTO`).
 - Entrada do jogador por menu de atos (ato, tom, alvo, tópico, intensidade, volume) enquanto não há SOM.
 - Estado de espera do jogador e fim da fatia.
 

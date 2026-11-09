@@ -126,7 +126,8 @@ Ao ler errado, o ouvinte sorteia entre as confusões típicas do tom. Peso de um
 O **ofensor** de um fato é o autor de um ato de valência ≤ −1 (pelo tom real) ou o lado marcado
 como ofensor num acontecimento de história ([presets](<presets.md>), seção 7). Uma acusação é
 **verdadeira** se o fato existe no registro com o alvo como ofensor; uma cópia falsa, vinda de
-mentira, aponta para algo que não aconteceu.
+mentira, aponta para algo que não aconteceu. Um fato é **ruim para Y** quando Y é o ofensor dele
+ou quando é um segredo de Y (`SECRET` em que Y é autor ou ofensor).
 
 **Objetos de `REQUEST` e `OFFER`** e as vontades que cada um toca:
 
@@ -154,23 +155,33 @@ mentira, aponta para algo que não aconteceu.
   - De um NPC: `WHISPER` em `TELL` de `SECRET` (só com todos os alvos a 1 célula); `SHOUT` se o
     alvo só ouviria gritando, ou com raiva ≥ 7000 em tom `AGGRESSIVE`; senão `NORMAL`.
 - **Mentira (`isFalse`):** afirmar como verdadeiro algo falso.
-  - Do jogador: lida pelo SOM (probabilidade ≥ 5000 ⇒ `true`).
+  - **Versão falsa:** uma mentira sobre um fato (`TELL` de `EVENT`, `SECRET` ou `RUMOR`, ou
+    `REFUSE` que nega uma acusação) conta o mesmo fato com outro **ofensor**: ninguém (negação)
+    ou a pessoa culpada pela mentira. O motor guarda a versão falsa como cópia marcada; o modelo
+    de texto encena a distorção.
+  - Do jogador: lida pelo SOM (probabilidade ≥ 5000 ⇒ `true`); o culpado vem da pergunta
+    `blamed` (seção 11; `NONE` = negação).
   - De um NPC com `honesty` efetiva ≤ −3000: para cada candidato `TELL` sobre um fato,
-    `APOLOGIZE` e `OFFER` de `PROMISE`, entra também a variante mentirosa. Negar uma acusação
-    verdadeira (`REFUSE`) é sempre mentira.
-  - **Detecção** (stream `perception`): quem tem cópia própria do fato distorcido, com
-    fidelidade ≥ 5000, detecta com chance `clamp(4000 + perceptiveness / 2 −
-    eloquence(autor) / 4, 0, 9500)`. Mentiras sem fato (desculpa ou promessa falsa) só se revelam
-    pelo sinal `lying`.
-  - **Crença:** quem não detecta e não tem cópia acredita com chance
+    `APOLOGIZE` e `OFFER` de `PROMISE`, entra também a variante mentirosa. Num fato cujo ofensor
+    é o próprio autor ou alguém por quem ele tem afeto ≥ 6000, a versão falsa nega; senão, culpa
+    o presente por quem o autor tem maior ressentimento (≥ 3000; sem ninguém assim, não há
+    variante). Negar uma acusação verdadeira (`REFUSE`) é sempre mentira e nega.
+  - **Detecção** (stream `perception`): quem tem cópia própria do fato com fidelidade ≥ 5000 e
+    verdadeira detecta com chance `clamp(4000 + perceptiveness / 2 − eloquence(autor) / 4, 0,
+    9500)`; quem não detecta, ou tem cópia falsa, fica com a própria cópia.
+  - **Crença:** quem não tem cópia do fato acredita com chance
     `clamp((trust + perceivedSincerity)(ouvinte→autor) / 2, 500, 9500)`. Quem acredita recebe a
     cópia `TOLD` da versão falsa; quem não acredita faz `perceivedSincerity` −1500.
+  - **Mentira sem fato** (desculpa ou promessa falsa): é descoberta quando um ouvinte `DIRECT`
+    interpreta um sinal `lying` do autor durante os ticks do ato; fora disso, interpretar
+    `lying` só reduz a sinceridade percebida (simulação §7).
   - **Mentira descoberta:** `trust` −1500 (o teto por ato), `resentment` +1000,
     `perceivedSincerity` −3000, `predictability` +2000, e a cópia do fato da mentira ganha +3000
     de importância.
 - **Objeto** de um NPC: em `REQUEST`, cada objeto cuja "vontade de quem recebe" está entre as
-  duas vontades de maior `mulBp(effectiveWeight, deficit)` do autor; em `OFFER`, cada objeto cuja
-  "vontade de quem dá" é dominante no autor.
+  duas vontades de maior `mulBp(effectiveWeight, deficit)` do autor (nas dirigidas, o déficit
+  dirigido ao alvo do candidato); em `OFFER`, cada objeto cuja "vontade de quem dá" é dominante no
+  autor.
 - **Alvos:** um ou mais personagens; `GROUP` dirige o ato a todos que ouvem; `[]`, a ninguém.
 
 ## 6. Combinações que o produto pede
@@ -208,12 +219,13 @@ segredo que também é fato novo), os efeitos se somam e a valência é a de mai
 | Ato interpretado | Valência | Emoções do alvo | Laço do alvo com o autor | Vontades do alvo |
 | --- | --- | --- | --- | --- |
 | `GREET` | +1 | `joy` +1 | `affection` +1, `trust` +1, `closeness` +1 | `company` −2 |
-| `CHAT`, tópico interessa | +1 | `joy` +1 | `closeness` +1 | `company` −2, `curiosity` −1 |
+| `CHAT`, tópico interessa | +1 | `joy` +1 | `closeness` +1 | `company` −2, `curiosity` −1, `intimacy` (ao autor) −1 |
 | `CHAT`, não interessa | 0 | — (tédio pela simulação 5.2) | — | `company` −1 |
 | `ASK` | 0 | se o tópico é segredo ou fato ruim do alvo: `shame` +2, `fear` +1 | — | — |
 | `TELL`, fato novo para o alvo | +1 | `surprise` +1 | `trust` +1 | `curiosity` −2 |
 | `TELL` de segredo ao alvo | +2 | `joy` +1 | `trust` +2, `closeness` +2 | `intimacy` (ao autor) −2 |
-| `TELL` de fato ruim sobre o alvo | −2 | `anger` +2, `shame` +2 | `resentment` +2 | `dignity` +2 |
+| `TELL` de fato ruim para o alvo | −2 | `anger` +2, `shame` +2 | `resentment` +2 | `dignity` +2 |
+| `TELL`, demais casos (fato já conhecido, pessoa, sentimento, coisa, lugar, amenidades) | como `CHAT` | como `CHAT` | como `CHAT` | como `CHAT` |
 | `PRAISE` | +2 | `joy` +2 | `affection` +1, `respect` +1 | `recognition` −3 |
 | `TEASE`, diverte (`PLAYFUL` e afeto ≥ 5000) | +1 | `joy` +2 | `affection` +1 | `fun` −2 |
 | `TEASE`, ofende (demais casos) | −1 | `anger` +2, `shame` +1 | `respect` −1, `resentment` +2 | `dignity` +2, `justice` (ao autor) +1 |
@@ -224,7 +236,10 @@ segredo que também é fato novo), os efeitos se somam e a valência é a de mai
 | `APOLOGIZE`, sinceridade percebida ≥ 5000 | +1 | `anger` −2, `sadness` −1 | `resentment` −2, `trust` +1 | — (perdão na resposta) |
 | `APOLOGIZE`, sinceridade percebida < 5000 | −1 | `anger` +1 | `resentment` +1 | — |
 | `THREATEN` | −3 | `fear` +3 (também `× (10000 + fearOf) / 10000`), `anger` +2 | `fearOf` +2, `resentment` +2, `trust` −3 | `physical_safety` +3, `dignity` +2, `justice` (ao autor) +2 |
-| `ACCEPT`, `REFUSE` | ver 8.3 | ver 8.3 | ver 8.3 | ver 8.3 |
+| `ACCEPT` (resposta a pedido) | `ENTHUSIASTIC` +3; `ACCEPT` +2; `PARTIAL` +1 | ver 8.3 | ver 8.3 | ver 8.3 |
+| `REFUSE` a um pedido | −1 (`HARD_REFUSE` vai em `AGGRESSIVE`) | ver 8.3 | ver 8.3 | ver 8.3 |
+| `REFUSE` a uma pergunta (não responder) | −1 | `anger` +1 | `trust` −1 | `curiosity` +1 |
+| `REFUSE` a uma acusação (negar) | −1 | `anger` +1 | `trust` −1 | `justice` (a quem negou) +1 |
 | `FAREWELL` | 0 | `sadness` +1 se afeto ≥ 6000 | — | `company` +1 |
 | `STAY_SILENT` devido (ignorar) | −1 | `anger` +1 | `respect` −1 | `recognition` +2 |
 | `TOUCH` `WARM`, afeto ≥ 4000 | +2 | `joy` +2 | `affection` +1, `closeness` +1 | `intimacy` (ao autor) −2 |
@@ -240,7 +255,9 @@ segredo que também é fato novo), os efeitos se somam e a valência é a de mai
 | `WITHDRAW` | −1 com afeto ≥ 6000; senão 0 | `sadness` +1 se afeto ≥ 6000 | — | `company` +1 |
 | `MOVE`, `LEAVE` | 0 | — | — | — |
 
-"Afeto", "atração", `fearOf` e "sinceridade percebida" são sempre do alvo pelo autor.
+"Afeto", "atração", `fearOf` e "sinceridade percebida" são sempre do alvo pelo autor. Numa
+resposta, o "alvo" da linha é quem fez a pergunta, a acusação ou o pedido. Um ato sem linha
+aplicável tem valência 0 e nenhum efeito.
 
 **Surpresa:** `surprise` +2 quando o ato tem valência ≥ 2 vindo de quem o alvo tem `resentment`
 ≥ 6000, ou valência ≤ −2 vindo de quem tem `affection` ≥ 6000. Cada ganho de surpresa soma metade
@@ -248,8 +265,16 @@ dele ao déficit de `predictability`.
 
 ### 7.2 Multiplicadores do tom
 
-"Efeitos positivos" são os bons para o alvo (emoção boa sobe, emoção ruim cai, déficit cai, eixo
-bom sobe); "negativos", o contrário.
+"Efeitos positivos" são os bons para o alvo; "negativos", o contrário:
+
+- emoção boa: `joy`; ruins: `sadness`, `fear`, `anger`, `disgust`, `shame`, `guilt`, `jealousy`,
+  `boredom`; neutra: `surprise`;
+- eixos bons: `trust`, `affection`, `respect`, `attraction`, `closeness`; ruins: `fearOf`,
+  `resentment`; neutro: `dependence`;
+- déficit que cai é bom; que sobe, ruim.
+
+Efeitos neutros não recebem multiplicador. As linhas de `TOUCH` já são por tom e não recebem esta
+seção; as demais, inclusive as de `TEASE`, recebem.
 
 | Tom lido | Positivos | Negativos | Valência | Extras |
 | --- | --- | --- | --- | --- |
@@ -270,6 +295,10 @@ bom sobe); "negativos", o contrário.
 
 Valências ficam em `−3..+3`.
 
+**Ordem de cálculo** de cada efeito (cada passo trunca): `k × u` (ou `k × (u / 2)` nos laços) →
+multiplicador do tom → soma dos extras do tom → fator de traço da emoção (simulação 5.6) → fator
+especial da linha (o de `fearOf` em `THREATEN`) → teto de ±1500 nos laços.
+
 ### 7.3 Efeitos em quem agiu
 
 | Situação | Efeito no autor |
@@ -289,13 +318,18 @@ Ouvintes `DIRECT` que não são alvo:
 - num `TELL` de fato ruim sobre Y, quem tem `justice` dirigida a Y faz `justice` −3 (Y exposto);
 - num ato de valência ≤ −2: `perceivedHostility` sobre o autor `+ 500 × |valência|`.
 
+**Ciúme:** quem percebe (`DIRECT` ou `SEEN`) um ato de valência ≥ 1 em `SEDUCTIVE` ou `WARM` de Z
+para Y, tendo atração ≥ 6000 por Y ou rótulo `SPOUSE` ou `PARTNER` com Y, faz `jealousy` +2 e
+`resentment` por Z +1 (meia unidade), com a unidade do ato percebido.
+
 ## 8. Pedidos: aceite, faixas e respostas
 
 ### 8.1 Probabilidade de aceite
 
-`REQUEST`, `OFFER`, `APOLOGIZE` e `THREATEN` dirigidos a um alvo em `AUTO` sorteiam na hora, no
-stream `resolution`, a **faixa de resultado** que o alvo dará. Para um alvo em `MANUAL`, nada é
-sorteado: o jogador responde como quiser.
+`REQUEST`, `OFFER`, `APOLOGIZE` e `THREATEN` criam uma obrigação de resposta. A **faixa de
+resultado** é sorteada no stream `resolution` quando o alvo, em `AUTO`, ganha a vez com a
+obrigação pendente, com o estado daquele momento. Um alvo em `MANUAL` responde como quiser, e
+nada é sorteado.
 
 ```text
 p = clamp(
@@ -326,7 +360,7 @@ Nas vontades dirigidas, conta só a dirigida ao autor com déficit ≥ 3000.
 
 ### 8.2 Faixas e respostas
 
-Com `u` sorteado em `[0, 10000)`:
+Com `u` sorteado em `[0, 10000)` (no modo `MOST_LIKELY`, vence a faixa mais larga; simulação §15):
 
 | Condição | Faixa | Resposta do alvo em `AUTO` |
 | --- | --- | --- |
@@ -500,10 +534,15 @@ jogador conhece, e responde a perguntas atômicas (detalhes em
 | `target` | `choice` | os presentes que ouvem + `GROUP` + `NOBODY` (vira `targets = []`) |
 | `topicType` | `choice` | os 8 tipos de tópico com fala |
 | `topicRef` | `choice` | entidades salientes conhecidas + `NONE` + `OTHER` |
-| `object` | `choice` | só se `act` for `REQUEST` ou `OFFER` |
+| `object` | `choice` | os objetos + `NONE` (só vale em `REQUEST` e `OFFER`) |
 | `intensity` | `score` | régua de 2 a 10 |
 | `volume` | `choice` | `WHISPER`, `NORMAL`, `SHOUT` |
 | `isFalse` | `noul` | "a fala afirma como verdade algo que contradiz os fatos conhecidos?" |
+| `blamed` | `choice` | as pessoas conhecidas + `NONE` (só vale com `isFalse`: quem a mentira culpa) |
+
+As 10 perguntas vão sempre na mesma chamada; respostas que não se aplicam ao ato lido são
+ignoradas. `MOVE` lido com alvo vira `APPROACH`; sem alvo, a interface pede a célula no mapa e
+registra a escolha como correção.
 
 A **confiança da leitura** é a menor entre a maior probabilidade de `act` e a maior de `target`.
 Abaixo de 7000 bp, ou com `act` = `OTHER`, a interface mostra a etiqueta "entendido como" para o

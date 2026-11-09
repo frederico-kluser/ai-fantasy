@@ -14,8 +14,10 @@
    a carregar.
 3. Presets são **genéricos**: "interior social" serve para taverna, bar, café ou cantina de nave.
    O que muda de um cenário para outro é a premissa, que só o modelo de texto vê.
-4. Valores com faixa (por exemplo `affection 6000–8000`) são sorteados no stream `generation` ao
-   montar o elenco, de forma uniforme e inclusiva.
+4. Valores com faixa (por exemplo `affection 6000–8000`) são sorteados de forma uniforme e
+   inclusiva: os do elenco (traços, pesos, déficits, laços, história) no stream `generation`, da
+   seed do elenco; os de abertura da cena (estado do dia e posições) no stream `setup`, da seed da
+   cena.
 5. Listas de corpo, emoções, vontades, laços, traços e sinais pertencem ao
    [modelo de simulação](<simulation-model.md>); este documento só as referencia.
 
@@ -94,8 +96,8 @@ Valores que o arquétipo não cita:
 | traços não citados | `−2000..2000` |
 | aptidões não citadas / "alta" | `3500..6500` / `6500..8500` |
 | peso das vontades dominantes / das demais | `7000..9000` / `2000..5000` |
-| déficit inicial das dominantes / das demais | `4000..6000` / `2000..4000` |
-| déficit inicial de uma vontade dirigida criada por laço ou acontecimento | 3000, mais o que o acontecimento somar |
+| déficit inicial das vontades não dirigidas: dominantes / demais | `4000..6000` / `2000..4000` |
+| déficit inicial de uma vontade dirigida: criada por laço ou acontecimento / qualquer outra pessoa | 3000, mais o que o acontecimento somar / 0 |
 | linhas de base das emoções | fórmulas da simulação 5.2 |
 
 `physical_relief` e `physical_safety` não são sorteados: são calculados (simulação 5.3).
@@ -153,32 +155,35 @@ ao outro, quando marcadas) e deslocamentos na linha de base de emoções ("de ba
 **ofensor** diz quem fez algo errado (para acusações, [atos de conversa](<dialogue-acts.md>),
 seção 4).
 
-| Id | Nome | Efeito em A | Efeito em B | Ofensor | Segredo? |
-| --- | --- | --- | --- | --- | --- |
-| `helped_in_crisis` | ajudou numa crise | afeto +1000 | confiança +2000, afeto +1500, dependência +1000 | — | não |
-| `saved_life` | salvou a vida | afeto +1000 | confiança +3000, afeto +2500, dependência +2000 | — | não |
-| `lent_not_repaid` | emprestou e não recebeu de volta | ressentimento +2500, confiança −2000, `material_security` +1500 | culpa de base +500, vergonha de base +500 | B | não |
-| `betrayed_trust` | traiu a confiança | culpa de base +1000 se `honesty` > 0 | confiança −4000, ressentimento +4000, `justice` dirigida +3000 | A | pode ser |
-| `public_humiliation` | humilhou em público | — | ressentimento +3500, `dignity` +3000, `justice` dirigida +2500 | A | não |
-| `abandoned` | abandonou | culpa de base +1000 | afeto −2000, ressentimento +3000, `intimacy` dirigida +2000 | A | não |
-| `nursed_when_sick` | cuidou na doença | afeto +1000 | afeto +2000, confiança +1500 | — | não |
-| `stole` | roubou | culpa de base +1000 se `honesty` > 0 | ressentimento +3000, confiança −3000 (só se B sabe) | A | sim, até ser descoberto |
-| `lied_seriously` | mentiu sobre algo grave | — | confiança −3000 (só se B sabe) | A | sim, até ser descoberto |
-| `won_competition` | venceu uma disputa | alegria de base +500 | ressentimento +2000, respeito +1500 | — | não |
-| `taught_craft` | ensinou um ofício | afeto +1000 | respeito +3000, afeto +1500 | — | não |
-| `rejected_love` | declarou amor e foi rejeitado(a) | vergonha de base +500; atração mantida | culpa de base +300 | — | não |
-| `violent_fight` | brigaram feio | ressentimento +3000, medo de +1500 | idem | ambos | não |
-| `forgave` | perdoou | ressentimento −3000 | culpa de base −500 | — | não |
-| `shared_secret` | compartilhou um segredo | proximidade +2000 | confiança +2000, proximidade +2000 | — | sim (o conteúdo) |
-| `informed_on` | delatou | — | ressentimento +4000, `justice` dirigida +4000 | A | sim |
-| `shared_grief` | perderam alguém em comum | proximidade +2000, tristeza de base +500 | idem | — | não |
-| `valuable_gift` | deu um presente valioso | — | afeto +2000, dependência +500 | — | não |
-| `broken_promise` | quebrou uma promessa | culpa de base +500 | confiança −2500, ressentimento +2000 | A | não |
-| `kept_promise` | cumpriu uma promessa difícil | — | confiança +2500, respeito +1500 | — | não |
-| `secret_affair` | traiu B com outra pessoa, às escondidas | culpa de base +1000 se `honesty` > 0 | — (B não sabe) | A | sim |
+| Id | Nome | Efeito em A | Efeito em B | Ofensor | Segredo? | Quem sabe |
+| --- | --- | --- | --- | --- | --- | --- |
+| `helped_in_crisis` | ajudou numa crise | afeto +1000 | confiança +2000, afeto +1500, dependência +1000 | — | não | ambos |
+| `saved_life` | salvou a vida | afeto +1000 | confiança +3000, afeto +2500, dependência +2000 | — | não | ambos |
+| `lent_not_repaid` | emprestou e não recebeu de volta | ressentimento +2500, confiança −2000, `material_security` +1500 | culpa de base +500, vergonha de base +500 | B | não | ambos |
+| `betrayed_trust` | traiu a confiança | culpa de base +1000 se `honesty` > 0 | confiança −4000, ressentimento +4000, `justice` dirigida +3000 | A | com chance 5000 | ambos; só A se for secreto |
+| `public_humiliation` | humilhou em público | — | ressentimento +3500, `dignity` +3000, `justice` dirigida +2500 | A | não | ambos |
+| `abandoned` | abandonou | culpa de base +1000 | afeto −2000, ressentimento +3000, `intimacy` dirigida +2000 | A | não | ambos |
+| `nursed_when_sick` | cuidou na doença | afeto +1000 | afeto +2000, confiança +1500 | — | não | ambos |
+| `stole` | roubou | culpa de base +1000 se `honesty` > 0 | ressentimento +3000, confiança −3000 (só se B sabe) | A | sim, até ser descoberto | só A |
+| `lied_seriously` | mentiu sobre algo grave | — | confiança −3000 (só se B sabe) | A | sim, até ser descoberto | só A |
+| `won_competition` | venceu uma disputa | alegria de base +500 | ressentimento +2000, respeito +1500 | — | não | ambos |
+| `taught_craft` | ensinou um ofício | afeto +1000 | respeito +3000, afeto +1500 | — | não | ambos |
+| `rejected_love` | declarou amor e foi rejeitado(a) | vergonha de base +500; atração mantida | culpa de base +300 | — | não | ambos |
+| `violent_fight` | brigaram feio | ressentimento +3000, medo de +1500 | idem | ambos | não | ambos |
+| `forgave` | perdoou | ressentimento −3000 | culpa de base −500 | — | não | ambos |
+| `shared_secret` | compartilhou um segredo | proximidade +2000 | confiança +2000, proximidade +2000 | — | sim (o conteúdo) | ambos |
+| `informed_on` | delatou | — | ressentimento +4000, `justice` dirigida +4000 | A | sim | ambos |
+| `shared_grief` | perderam alguém em comum | proximidade +2000, tristeza de base +500 | idem | — | não | ambos |
+| `valuable_gift` | deu um presente valioso | — | afeto +2000, dependência +500 | — | não | ambos |
+| `broken_promise` | quebrou uma promessa | culpa de base +500 | confiança −2500, ressentimento +2000 | A | não | ambos |
+| `kept_promise` | cumpriu uma promessa difícil | — | confiança +2500, respeito +1500 | — | não | ambos |
+| `secret_affair` | traiu B com outra pessoa, às escondidas | culpa de base +1000 se `honesty` > 0 | — (B não sabe) | A | sim | só A |
 
-Deslocamentos de base somam à linha de base calculada e respeitam o teto de 3000. "Só se B sabe":
-o segredo começa conhecido só por A; B ganha os efeitos quando receber uma cópia do fato.
+Deslocamentos de base somam à linha de base calculada e respeitam o teto de 3000. Quem sabe
+recebe uma cópia `DIRECT` com fidelidade 8000. "Segredo" é segredo para terceiros: ninguém além
+de quem sabe tem cópia. Quando só A sabe, os efeitos em B ("só se B sabe") esperam até B receber
+uma cópia do fato e então se aplicam uma vez. Se `betrayed_trust` é secreto, sorteia-se no stream
+`generation`.
 
 ## 8. Associações
 
@@ -194,7 +199,8 @@ Tags usadas por lugares e por medos e apegos: `forest`, `water`, `dark`, `height
 
 ## 9. Estado do dia
 
-Valores de abertura do corpo e das emoções; não mudam a linha de base. O padrão é `rested`.
+Valores de abertura do corpo e das emoções, sorteados no stream `setup`; não mudam a linha de
+base. O padrão é `rested`.
 
 | Id | Nome | Corpo | Emoções |
 | --- | --- | --- | --- |
@@ -213,8 +219,11 @@ Necessidades não citadas seguem `rested`.
 1. **Entrada.** O usuário digita a premissa (texto livre) e, opcionalmente, uma linha por
    personagem (até 8). Uma linha pode marcar o personagem do jogador ("eu sou…").
 2. **Cena** (uma chamada, 6 perguntas): lugar (`choice` entre os 10 + `OTHER`), tag natural
-   (`choice` entre as tags + `NONE`), clima (`choice`), fase do dia (`choice`), presença do
-   jogador (`noul`) e, se não houver linhas de personagens, quantos personagens (`choice` 2–8).
+   (`choice` entre as tags + `NONE`), clima (`choice`), fase do dia (`choice`; vira o minuto
+   inicial `DAWN` 180, `MORNING` 540, `AFTERNOON` 900, `EVENING` 1200, `LATE_NIGHT` 1350),
+   presença do jogador (`noul`) e, se não houver linhas de personagens, quantos personagens
+   (`choice` 2–8). Com o jogador presente e nenhuma linha marcada como dele, o primeiro
+   personagem é o do jogador; a ficha permite trocar.
 3. **Personagens** (7 perguntas cada, em lotes de 2 personagens por chamada): arquétipo (`choice`
    entre os 16), faixa etária (`choice`: `CHILD`, `TEEN`, `YOUNG`, `ADULT`, `ELDER` — só
    apresentação), primeira e segunda vontade dominante (`choice` entre as 15 + `NONE`), estado do

@@ -94,7 +94,7 @@ Ids de modelo só existem na configuração; o código usa nomes de papel (seç�
 
 | Uso | Perguntas | Onde está a lista |
 | --- | --- | --- |
-| Fala do jogador → ato | `act`, `tone`, `target`, `topicType`, `topicRef`, `object`, `intensity`, `volume`, `isFalse` | [atos de conversa](<dialogue-acts.md>), seção 11 |
+| Fala do jogador → ato | `act`, `tone`, `target`, `topicType`, `topicRef`, `object`, `intensity`, `volume`, `isFalse`, `blamed` (as 10 sempre numa chamada) | [atos de conversa](<dialogue-acts.md>), seção 11 |
 | Premissa → cena | lugar, tags naturais, clima, fase do dia, jogador presente, número de personagens | [presets](<presets.md>), seção 10 |
 | Linha de personagem → presets | arquétipo, faixa etária, duas vontades dominantes, estado do dia, associação, registro de fala (7 por personagem; 2 personagens por chamada) | idem |
 | Par de personagens → laço | arquétipo de laço com direção, até 2 acontecimentos com quem fez cada um (5 por par; 3 pares por chamada) | idem |

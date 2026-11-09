@@ -19,11 +19,11 @@ Fazer os personagens em `AUTO` escolherem atos pela utilidade com Maslow e decid
 
 **Inclui:**
 
-- Candidatos: atos permitidos, pré-condições (9.1), alvos, 3 tons por viés, até 4 tópicos salientes por alvo e valores (intensidade, volume, mentira, objeto).
+- Candidatos: atos permitidos, pré-condições (9.1), alvos, 3 tons por viés, tópicos pela regra de cada ato (salientes filtrados antes do limite de 4) e valores (intensidade, volume, mentira, objeto).
 - Utilidade com satisfação (9.2), vieses (9.3), bônus de objetivo e penalidade de repetição; escolha entre os 5 melhores com pesos limitados.
-- Respostas devidas: só as respostas possíveis e `STAY_SILENT`, com bônus de 4000.
+- Respostas devidas: a união das respostas possíveis de cada obrigação pendente e `STAY_SILENT`, com bônus de 4000; a faixa de um pedido é sorteada quando o devedor em `AUTO` ganha a vez.
 - Vontade de agir com pressão social, sorteio de quem age, ticks de silêncio e seus efeitos, interrupção.
-- Saída: vontade de sair contra vontade de ficar, saída forçada por necessidade crítica (só NPC), `FAREWELL` ou `LEAVE` imediatos.
+- Saída: avaliação em ordem de id até o primeiro que sai (no máximo um por ponto de decisão), saída forçada por necessidade crítica (só NPC) e o ato de saída com os valores fixos da seção 11.
 - Fim por uma pessoa restante ou 60 ticks de silêncio.
 - Jogador em `MANUAL`: a escolha de quem age devolve o pedido de entrada; `TAKE_TURN`.
 
@@ -48,6 +48,9 @@ Fazer os personagens em `AUTO` escolherem atos pela utilidade com Maslow e decid
 - given an NPC with bladder 9500 when deciding departures then the NPC leaves without a draw
 - given the player in MANUAL picked when picking the actor then the result asks for player input and no act is chosen
 - given 60 silent ticks when checking the end then the slice ends
+- given a request whose target switched from MANUAL to AUTO when the target gets the turn then the band is drawn then
+- given two NPCs that would both leave when deciding departures then only the one with the lowest id starts leaving
+- given an author whose salient topics are all facts when generating REQUEST candidates then the topic is PERSON of the target
 ```
 
 ## Critérios de aceite

@@ -99,7 +99,7 @@ type TimeGap = { hours: number; together: CharacterId[][] }; // horas inteiras; 
 type EngineInput =
   | { kind: "PLAYER_ACT"; act: ActLabel }          // ato confirmado do jogador
   | { kind: "TAKE_TURN"; characterId: CharacterId } // o jogador toma a vez
-  | { kind: "SET_CONTROL"; characterId: CharacterId; mode: "MANUAL" | "AUTO" }
+  | { kind: "SET_CONTROL"; characterId: CharacterId; mode: "MANUAL" | "AUTO" } // só o personagem do jogador; NPCs são sempre AUTO
   | { kind: "FORCE_DRAW"; selector: DrawSelector; outcome: number }
   | { kind: "SET_DRAW_MODE"; mode: "NORMAL" | "MOST_LIKELY" };
 

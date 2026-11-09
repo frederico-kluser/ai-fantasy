@@ -12,7 +12,7 @@ Modelar o personagem e atualizar, a cada tick, corpo, emoções e vontades com a
 
 ## Leia antes
 
-- [modelo de simulação](<../../architecture/simulation-model.md>) — §4 a §6, §12 (modelo de dados), §16 (passo 7), §17 e §18 (invariantes 2, 4 e 6)
+- [modelo de simulação](<../../architecture/simulation-model.md>) — §4 a §6, §12 (modelo de dados), §16 (passo 6), §17 e §18 (invariantes 2, 4 e 6)
 - [presets](<../../architecture/presets.md>) — §5 e §9 (valores iniciais)
 
 ## Escopo
@@ -21,8 +21,8 @@ Modelar o personagem e atualizar, a cada tick, corpo, emoções e vontades com a
 
 - Personagem com identidade de apresentação fora do estado do hash.
 - Corpo: taxas por tick, modificadores inteiros e faixas; alvo térmico pela célula coberta ou descoberta.
-- Emoções: linhas de base pelas fórmulas da seção 5.2, decaimento antes dos ganhos do tick, tédio sem decaimento com ganhos e alívios.
-- Vontades: déficits, pesos, dominantes, dirigidas, regras por tick da tabela 5.3 e precedência de Maslow.
+- Emoções: linhas de base pelas fórmulas da seção 5.2, decaimento antes dos ganhos do tick, ganhos do corpo e das associações (sem fator de traço) e tédio sem decaimento.
+- Vontades: déficits, pesos, dominantes, dirigidas (uma entrada por pessoa conhecida, 0 por padrão), regras por tick da tabela 5.3 e precedência de Maslow.
 - Laços com os oito eixos (`fearOf`, `closeness`…) e rótulos; associações e tags presentes (`storm`, `dark`).
 - Ameaça e presença pela fórmula da seção 6, com `perceivedThreat`, incluindo o exemplo do pai.
 - Percepção do momento: campos, prévias e `relax` (a atualização por sinais é da SOC-02).
@@ -53,6 +53,7 @@ Modelar o personagem e atualizar, a cada tick, corpo, emoções e vontades com a
 - given a son with trust 8000, affection 9000 and no fear toward his father when the father is adjacent then threat drops by 2125, and by 425 when he is 12 cells away
 - given a character on an uncovered cell in snow when ticking then the thermal target is the full weather temperature; on a covered cell it is a quarter of it
 - given perceived threat 6000 with prior 0 and no updates when 35 ticks pass then it is 2947
+- given pain 6000 and sadness and anger at baseline 0 when a tick passes then both rise by 5
 ```
 
 ## Critérios de aceite
@@ -64,5 +65,5 @@ Modelar o personagem e atualizar, a cada tick, corpo, emoções e vontades com a
 
 ## Cuidados
 
-- Toda constante vem da tabela da seção 17; nada de número mágico solto.
+- Toda constante vem da especificação (seção 17 ou das tabelas das seções) e vira dado nomeado; nada de número mágico solto.
 - Os eixos de laço `fearOf` e `closeness` não se confundem com a emoção `fear` nem com a vontade `intimacy`.

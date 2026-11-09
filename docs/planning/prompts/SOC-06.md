@@ -23,8 +23,9 @@ Fazer os atos moverem tendências, cristalizarem traços e levar a história dos
 - Sinais de traço por ato e tom como dados; tendência só nos traços sinalizados; traço efetivo limitado a ±10000.
 - Contador de cristalização e cristalização no fim da fatia, recalculando as linhas de base.
 - `endSlice` com `TimeGap` (horas inteiras e grupos `together`): corpo, emoções, saudade, vingança, memória e tendências por dia; descarte do que não persiste.
-- `createSlice` a partir da campanha, com os mesmos personagens.
+- `createSlice` a partir da campanha, com os mesmos personagens; corpo e posições sorteados no stream `setup` da seed da nova cena.
 - Memórias marcantes (até 50) e reforço ao contar de novo.
+- Ligar as tendências ao passo do motor e gravar de novo as transcrições de ouro, explicando a mudança no PR.
 
 **Não inclui:**
 

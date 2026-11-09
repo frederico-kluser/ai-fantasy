@@ -112,7 +112,7 @@ O revisor confere:
 | [WEB-01](<WEB-01.md>) | Site base e playground manual | F4 | FND-01, CORE-05 |
 | [WEB-02](<WEB-02.md>) | Cena e controles (sem IA) | F4 | WEB-01, SOC-05, AI-01 |
 | [WEB-03](<WEB-03.md>) | Inspetor e sessões | F4 | WEB-02, SRV-01, SOC-06 |
-| [AI-01](<AI-01.md>) | Portas de IA, perguntas do SOM e falas prontas | F5 | CORE-04 |
+| [AI-01](<AI-01.md>) | Portas de IA, perguntas do SOM e falas prontas | F4 | CORE-04 |
 | [AI-02](<AI-02.md>) | SOM via OpenRouter e fala livre do jogador | F5 | AI-01, SRV-01, WEB-02 |
 | [AI-03](<AI-03.md>) | Modelo de texto via OpenRouter e encenação | F5 | AI-01, SRV-01, WEB-02 |
 | [AI-04](<AI-04.md>) | Playground por premissa | F5 | AI-02, WEB-01 |

@@ -23,7 +23,7 @@ Implementar o relógio por ticks, as fases do dia e a luz, a grade com tipos de 
 - Luz: `lightLevel` (fase, lugar iluminado, tag `dark`, tempestade num lugar exposto) e alcance visual (20, 8, 3; neblina pela metade em lugar exposto).
 - Grade até 48 × 48 com os sete tipos de célula, custos de travessia (porta fechada custa 2 e continua fechada) e marcas `exit` e `roofed`.
 - Distância de Chebyshev; linha de visão por supercobertura (parede e porta fechada bloqueiam).
-- Audição: alcance por volume, ruído na fala normal (mínimo 3), parede, janela e porta fechada; perspectivas `DIRECT`, `FRAGMENT` (com chance) e `SEEN`.
+- Audição geométrica: alcance por volume, ruído na fala normal (mínimo 3), parede, janela e porta fechada; quem está no alcance e quem está até o dobro dele (as perspectivas e o sorteio de fragmento são da SOC-01).
 - Caminho de menor custo com 8 direções (células ocupadas bloqueiam) e passo de movimento por tick: 1 célula, 2 ticks em `ROUGH` e porta fechada, espera se o próximo passo está ocupado.
 - Destinos de `APPROACH` (1 célula do alvo), `WITHDRAW` (4 células ou mais) e saída (a `exit` alcançável mais perto).
 

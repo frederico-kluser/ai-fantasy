@@ -30,8 +30,8 @@ produto está pronto quando passar pelo pacote de métricas B e pelo teste cego
 | F1 — Base TypeScript | monorepo, gates de qualidade e CI | FND-01 | base pronta para receber código |
 | F2 — Núcleo determinístico | domínio, sorteio, tempo, grade, presets, status e elenco | CORE-01 a CORE-05 | motor calcula estado e contexto |
 | F3 — Comportamento social | atos, sinais, consequências, decisão, turnos, sessão, replay e personalidade | SOC-01 a SOC-06 | **motor completo, sem IA** |
-| F4 — Servidor e site sem IA | servidor local, playground manual, cena, inspetor e sessões | SRV-01, WEB-01 a WEB-03 | **simulador jogável com falas prontas** |
-| F5 — IA via OpenRouter | portas, SOM, modelo de texto e playground por premissa | AI-01 a AI-04 | **simulador com IA** |
+| F4 — Servidor e site sem IA | servidor local, playground manual, cena, inspetor, sessões e a parte de IA sem rede (portas, perguntas, falas prontas) | SRV-01, WEB-01 a WEB-03, AI-01 | **simulador jogável com falas prontas** |
+| F5 — IA via OpenRouter | SOM, modelo de texto e playground por premissa | AI-02 a AI-04 | **simulador com IA** |
 | F6 — Validação | avaliação, cenas douradas e rodada com o maintainer | EVAL-01 a EVAL-03 | **produto validado** |
 | F7 — Condicional | WebAssembly se o passo do motor passar de 16 ms | PERF-01 | só se a medição pedir |
 
@@ -126,7 +126,7 @@ uma tarefa atualiza esta tabela no próprio PR.
 | [WEB-01](<docs/planning/prompts/WEB-01.md>) | Site base e playground manual | F4 | FND-01, CORE-05 | ⏳ pendente |
 | [WEB-02](<docs/planning/prompts/WEB-02.md>) | Cena e controles (sem IA) | F4 | WEB-01, SOC-05, AI-01 | ⏳ pendente |
 | [WEB-03](<docs/planning/prompts/WEB-03.md>) | Inspetor e sessões | F4 | WEB-02, SRV-01, SOC-06 | ⏳ pendente |
-| [AI-01](<docs/planning/prompts/AI-01.md>) | Portas de IA, perguntas do SOM e falas prontas | F5 | CORE-04 | ⏳ pendente |
+| [AI-01](<docs/planning/prompts/AI-01.md>) | Portas de IA, perguntas do SOM e falas prontas | F4 | CORE-04 | ⏳ pendente |
 | [AI-02](<docs/planning/prompts/AI-02.md>) | SOM via OpenRouter e fala livre do jogador | F5 | AI-01, SRV-01, WEB-02 | ⏳ pendente |
 | [AI-03](<docs/planning/prompts/AI-03.md>) | Modelo de texto via OpenRouter e encenação | F5 | AI-01, SRV-01, WEB-02 | ⏳ pendente |
 | [AI-04](<docs/planning/prompts/AI-04.md>) | Playground por premissa | F5 | AI-02, WEB-01 | ⏳ pendente |

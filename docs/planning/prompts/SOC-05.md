@@ -20,7 +20,7 @@ Expor a API pública da cena (`createScene`, `step`, entradas e eventos), gravar
 
 **Inclui:**
 
-- Ordem do passo exatamente como a seção 16, com a sub-ordem por tick e o movimento em paralelo aos atos.
+- Ordem do passo exatamente como a seção 16: movimento em paralelo, obrigações vencidas a cada tick, saída só para quem está saindo; a atualização de tendências é chamada no passo 5 (função vazia até a SOC-06).
 - Entradas `PLAYER_ACT`, `TAKE_TURN`, `SET_CONTROL`, `FORCE_DRAW` e `SET_DRAW_MODE`.
 - Eventos, incluindo `RenderRequested` com os dados simbólicos para o pacote de encenação.
 - Registro JSONL com cabeçalho (versões, seeds, cena) e entradas, sorteios, eventos e chamadas de IA.

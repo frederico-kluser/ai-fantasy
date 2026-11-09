@@ -123,7 +123,7 @@ haver zero ou um personagem do jogador; com zero, a cena é só observada.
 | --- | --- | --- |
 | Identidade | nome, faixa etária, papel, registro de fala — **apresentação, fora do hash** | sim |
 | Traços e aptidões | 5.6 | sim (mudam devagar, seção 13) |
-| Tendências | sinal recente de cada traço (seção 13) | sim |
+| Tendências e contadores de cristalização | sinal recente de cada traço e há quanto tempo ele se mantém (seção 13) | sim |
 | Corpo | 5.1 | sim, com recuperação entre fatias |
 | Emoções | 5.2 | não (voltam à linha de base) |
 | Vontades | 5.3 | sim |
@@ -131,7 +131,7 @@ haver zero ou um personagem do jogador; com zero, a cena é só observada.
 | Percepção do momento | 5.5, um registro por presente | não |
 | Associações | 5.7 | sim |
 | Memórias | cópias de fatos (seção 12) | só as memórias marcantes |
-| Obrigações, destino de movimento, contadores da fatia | seções 8, 10 e 11 | não |
+| Obrigações, destino de movimento e contadores da fatia (silêncio, repetições, cumprimentos, objetivo da cena) | seções 8, 10 e 11 | não |
 
 ## 5. Camadas de status
 
@@ -191,12 +191,25 @@ Os acontecimentos de história somam deslocamentos à linha de base (presets, se
 
 Ganhos de emoção vindos de atos entram na hora em que o ato é resolvido (seção 9).
 
+**Corpo nas emoções** (ganhos por tick, sem fator de traço):
+
+| Condição | Por tick |
+| --- | --- |
+| `pain` ≥ 5000 | `sadness` +5, `anger` +5 |
+| `hunger`, `thirst` ou `bladder` ≥ 7500 | `anger` +5 |
+| `fatigue` ≥ 7500 | `sadness` +5 |
+| módulo de `thermal` ≥ 5000 | `joy` −5 |
+| `intoxication` ≥ 5000 | `joy` +5, `fear` −5 |
+
 ### 5.3 Vontades (pirâmide de Maslow)
 
 Cada vontade tem um **déficit** (0 = satisfeita; 10000 = desesperada) e um **peso** por
 personagem (o quanto aquilo importa para ele). Cada personagem tem de 2 a 3 vontades
 **dominantes** (peso ≥ 7000). As vontades `intimacy`, `desire`, `care` e `justice` são
-**dirigidas**: têm um déficit por alvo; as demais têm um déficit só.
+**dirigidas**: têm uma entrada por pessoa conhecida (cada personagem da campanha), todas com o
+mesmo peso e déficit inicial 0, salvo as criadas por laço ou acontecimento ([presets](<presets.md>),
+seções 6 e 7); as demais têm um déficit só. Quando uma regra cita "o alvo" de uma vontade
+dirigida sem dizer qual, vale o presente com o maior déficit (empate: menor id).
 
 | Nível | Id | Nome | Como o déficit muda (por tick e por evento) |
 | --- | --- | --- | --- |
@@ -204,7 +217,7 @@ personagem (o quanto aquilo importa para ele). Cada personagem tem de 2 a 3 vont
 | 2 Segurança | `physical_safety` | segurança física | `approach(déficit, ameaça, 1000)` por tick (seção 6) |
 | 2 Segurança | `material_security` | segurança material | eventos com objetos `MONEY` e `ITEM` e acontecimentos de história |
 | 2 Segurança | `predictability` | previsibilidade | −1 por tick; +2000 ao descobrir uma mentira; + metade de cada ganho de surpresa |
-| 3 Pertença | `company` | companhia | +1 por tick; em tick de silêncio, `+ (sociability + 10000) / 4000`; cai com atos de valência positiva recebidos |
+| 3 Pertença | `company` | companhia | +1 por tick; em tick de silêncio, `+ (sociability + 10000) / 4000`; cai com cumprimentos, papos que interessam e aproximações recebidos |
 | 3 Pertença | `intimacy` | intimidade (dirigida) | cai com segredo contado, toque caloroso aceito e papo que interessa com o alvo; saudade entre fatias (seção 14) |
 | 3 Pertença | `desire` | desejo (dirigida) | `approach(déficit, attraction(X→Y), 500)` por tick com Y presente e visível; cai com flerte bem recebido |
 | 3 Pertença | `care` | cuidado (dirigida) | `approach(déficit, aflição aparente de Y, 1000)` por tick com Y presente (abaixo) |
@@ -216,7 +229,8 @@ personagem (o quanto aquilo importa para ele). Cada personagem tem de 2 a 3 vont
 | 5 Realização | `fun` | diversão | +2 por tick com tédio ≥ 5000; cai com provocação brincalhona que diverte |
 | 5 Realização | `justice` | justiça, inclui vingança (dirigida) | sobe com ofensas de Y; cai com desculpa de Y aceita, com Y exposto ou ferido |
 
-Os valores dos eventos (em múltiplos da unidade `u`) estão na tabela de avaliação de
+A tabela acima resume; os valores dos eventos (em múltiplos da unidade `u`) estão na tabela de
+avaliação, que é a fonte, em
 [atos de conversa](<dialogue-acts.md>), seção 7. **Aflição aparente** de Y para X: a intensidade
 de `apparentEmotion(X→Y)` quando ela é `fear` ou `sadness` (senão 0), mais 3000 se
 `apparentState(X→Y)` tiver alguma marca; limitada a 10000.
@@ -289,7 +303,9 @@ Traços bipolares (`-10000..=10000`), estáveis, mudados só pela cristalizaçã
 Aptidões unipolares: `perceptiveness` (perspicácia: ler sinais e intenções), `eloquence`
 (eloquência: convencer, seduzir, ferir com palavras) e `memory` (lembrar fatos com fidelidade).
 
-Toda regra usa o **traço efetivo** (seção 13). Fatores de traço sobre ganhos de emoção:
+Toda regra usa o **traço efetivo** (seção 13). Fatores de traço sobre ganhos de emoção vindos de
+atos, de interrupções e de testemunhar (seção 9); ganhos por tick (associações, corpo, tédio) não
+usam fator:
 
 | Ganho | Fator |
 | --- | --- |
@@ -409,7 +425,7 @@ com pesos:
 | causa verdadeira | `+ perceptiveness` |
 | `cold` com alvo térmico do emissor ≤ −2000 | `mulBp(peso, 20000)` |
 | `fatigue` em `DAWN` ou `LATE_NIGHT` | `mulBp(peso, 20000)` |
-| causas ameaçadoras (`anger`, `disgust`, `jealousy`, `lying`) | `mulBp(peso, 10000 − trustInOthers / 2)` e, se o observador tem `resentment` ou `fearOf` ≥ 5000 pelo emissor, mais `mulBp(peso, 15000)` |
+| causas ameaçadoras (`anger`, `disgust`, `jealousy`, `lying`) | `mulBp(peso, 10000 − trustInOthers / 2)` e depois, se o observador tem `resentment` ou `fearOf` ≥ 5000 pelo emissor, `mulBp(peso, 15000)` |
 
 A causa escolhida atualiza a percepção do observador sobre o emissor — e **pode estar errada**,
 que é de onde vêm os mal-entendidos:
@@ -467,7 +483,8 @@ Cada presente recebe uma **perspectiva** do ato:
 | `SEEN` | não ouviu, mas vê quem agiu | quem fez e para quem; num ato sem fala, o ato inteiro |
 | nenhuma | o resto | nada |
 
-Só quem recebe `DIRECT` sofre as consequências completas do ato (seção 9). `FRAGMENT` e `SEEN`
+Em **atos sem fala**, recebem `DIRECT` os alvos e todo presente que vê o autor; os demais não
+percebem o ato. Só quem recebe `DIRECT` sofre as consequências completas do ato (seção 9). `FRAGMENT` e `SEEN`
 geram cópia do fato (seção 12) e, num ato de valência ≤ −2, `perceivedHostility` +500 sobre o
 autor.
 
@@ -491,11 +508,11 @@ testemunha de [atos de conversa](<dialogue-acts.md>), seção 7.4):
 2. **Laços com quem agiu:** deltas em meias unidades, limitados a ±1500 por eixo por ato
    (`BOND_DELTA_CAP`).
 3. **Vontades:** deltas de déficit da tabela de avaliação.
-4. **Percepção do momento** sobre o autor: valência ≤ −1 → `perceivedHostility`
-   `+ 1000 × |valência|`; valência ≥ 1 com o ouvinte entre os alvos → `perceivedInterest`
-   `+ 500 × valência`; `THREATEN` → `perceivedThreat` +2000.
-5. **Obrigação de resposta** e, nos pedidos, **faixa de resultado** (seção 10 e
-   [atos de conversa](<dialogue-acts.md>), seção 8).
+4. **Percepção do momento** do alvo sobre o autor (só alvos; testemunhas seguem a seção 7.4 de
+   atos de conversa): valência ≤ −1 → `perceivedHostility` `+ 1000 × |valência|`; valência ≥ 1 →
+   `perceivedInterest` `+ 500 × valência`; `THREATEN` → `perceivedThreat` +2000.
+5. **Obrigação de resposta** (seção 10). A faixa de resultado de um pedido é sorteada depois,
+   quando o devedor em `AUTO` ganha a vez ([atos de conversa](<dialogue-acts.md>), seção 8).
 
 Depois, os efeitos **em quem agiu** (culpa por mentir, por ferir quem se ama; alívio de justiça
 por ferir um ofensor) e, se houve, os efeitos da **interrupção** (seção 11). Tabelas, unidade,
@@ -505,15 +522,15 @@ multiplicadores e pedidos estão em [atos de conversa](<dialogue-acts.md>), seç
 
 Quando um personagem em modo `AUTO` ganha a vez:
 
-1. **Obrigação primeiro.** Se ele deve uma resposta, só entram como candidatos as **respostas
-   possíveis** (com bônus `OBLIGATION_BONUS = 4000` na utilidade) e `STAY_SILENT` (ignorar, que
-   tem custo social):
+1. **Obrigação primeiro.** Se ele deve respostas, só entram como candidatos as **respostas
+   possíveis** de cada obrigação pendente (com bônus `OBLIGATION_BONUS = 4000` na utilidade) e
+   `STAY_SILENT` (ignorar, que tem custo social):
 
    | Ato recebido | Respostas possíveis |
    | --- | --- |
    | `ASK` | `TELL` sobre o tópico perguntado (pode ser mentira); `REFUSE` (não responder) |
    | `ACCUSE` | `APOLOGIZE` (admitir); `REFUSE` (negar, com `isFalse` se a acusação for verdadeira); `ACCUSE` de volta ao autor |
-   | `REQUEST`, `OFFER`, `APOLOGIZE`, `THREATEN` | **a resposta fixada pela faixa sorteada** ([atos de conversa](<dialogue-acts.md>), seção 8) |
+   | `REQUEST`, `OFFER`, `APOLOGIZE`, `THREATEN` | **a resposta fixada pela faixa**, sorteada agora se ainda não foi ([atos de conversa](<dialogue-acts.md>), seção 8) |
 
    Sem obrigação, seguem os passos 2 a 4.
 2. **Candidatos.** Combinações de ato × alvo × tom × tópico, com os valores, montadas assim:
@@ -526,12 +543,22 @@ Quando um personagem em modo `AUTO` ganha a vez:
      quem está a até 3 células.
    - **Tons:** os 3 de maior viés para aquele ato e alvo (seção 9.3 de atos de conversa); empate
      pela ordem `WARM`, `NEUTRAL`, `PLAYFUL`, `SEDUCTIVE`, `IRONIC`, `AGGRESSIVE`.
-   - **Tópicos salientes**, por alvo (até 4, nesta ordem, sem repetir): o tópico do último ato
-     dirigido a ele; o alvo de uma vontade dominante dirigida; o fato de maior importância de que
-     ele tem cópia envolvendo um presente; um sentimento (`FEELING`) se afeto, atração ou
-     ressentimento pelo alvo ≥ 6000; o próprio alvo (`PERSON`); uma coisa ou tag associada
-     presente; `SMALL_TALK`. Cada ato usa só os tipos de tópico que aceita (atos de conversa,
-     seção 4).
+   - **Tópicos** ([atos de conversa](<dialogue-acts.md>), seção 4):
+     - atos sem fala: `NONE`; `STAY_SILENT` entra uma vez só, com `targets = []`;
+     - `GREET`, `FAREWELL`, `REQUEST` e `OFFER`: `PERSON` (o alvo);
+     - `ACCUSE`: o fato mais importante para o autor em que o alvo é o ofensor;
+     - `APOLOGIZE`: o fato mais importante em que o autor é o ofensor e o alvo é alvo ou tópico;
+       sem ele, `PERSON` (o alvo);
+     - `THREATEN`: `PERSON` (o alvo) e, se houver, o fato secreto mais importante em que o alvo é
+       o ofensor (chantagem);
+     - `TELL` de `SECRET`: o segredo mais importante de que o autor tem cópia;
+     - `CHAT`, `ASK`, `TELL`, `PRAISE` e `TEASE`: os **tópicos salientes** do autor para aquele
+       alvo, primeiro filtrados pelos tipos que o ato aceita e só então limitados a 4, nesta ordem
+       e sem repetir: o tópico do último ato dirigido ao autor; o alvo de uma vontade dominante
+       dirigida do autor; o fato de maior importância de que o autor tem cópia envolvendo um
+       presente; um sentimento (`FEELING`) se afeto, atração ou ressentimento pelo alvo ≥ 6000; o
+       próprio alvo (`PERSON`); uma coisa ou tag associada presente; `SMALL_TALK`;
+     - "mais importante" é a cópia do autor com maior importância (empate: o fato mais recente).
    - **Valores:** intensidade, volume, mentira e objeto pelas regras de
      [atos de conversa](<dialogue-acts.md>), seção 5.
 3. **Utilidade** (inteiro) de cada candidato:
@@ -564,15 +591,18 @@ atos por ele.
 
 **Obrigações.** Um ato `ASK`, `ACCUSE`, `REQUEST`, `OFFER`, `APOLOGIZE` ou `THREATEN` dirigido a
 alguém (não em `GROUP` nem sem alvo) cria, para cada alvo que o ouviu como `DIRECT`, uma
-obrigação de resposta. Ela acaba quando o alvo age: se o ato for uma resposta possível, foi
-respondida; senão, foi ignorada. Também é ignorada se passarem `OBLIGATION_TTL_TICKS = 12` ticks
-sem resposta. Ignorar tem os efeitos de `STAY_SILENT` devido (atos de conversa, seção 7).
+obrigação de resposta. Quando o alvo age, a obrigação a que o ato responde termina como
+respondida; se o ato não responde a nenhuma, todas as pendentes terminam como ignoradas. Uma
+obrigação também é ignorada ao completar `OBLIGATION_TTL_TICKS = 12` ticks sem resposta
+(verificado a cada tick). Ignorar aplica a linha de `STAY_SILENT` devido (atos de conversa, seção
+7.1) ao autor do ato que criou a obrigação, com intensidade fixa de 5000 (`IGNORE_INTENSITY`).
 
 ## 11. Vontade de agir, turnos, silêncio e saída
 
 Em cada **ponto de decisão** (fim de um ato ou de um tick de silêncio), na ordem da seção 16:
 
-1. **Saída.** Para cada personagem em `AUTO` que não está saindo:
+1. **Saída.** Para cada personagem em `AUTO` que não está saindo, em ordem de id (a avaliação
+   para no primeiro que decide sair: no máximo um começa a sair por ponto de decisão):
 
    ```text
    leave = max(0, maior necessidade do corpo − 5000)
@@ -593,9 +623,11 @@ Em cada **ponto de decisão** (fim de um ato ou de um tick de silêncio), na ord
      `p = clamp((leave − stay) × 2, 0, 9500)`.
    - Maior necessidade do corpo ≥ 9000 força a saída de um NPC, sem sorteio.
    - O personagem do jogador em `MANUAL` nunca sai sozinho: recebe aviso e emite sinais.
-   - Quem decide sair age imediatamente, antes do sorteio da vez: faz `FAREWELL` se agiu ou
-     recebeu um ato nos últimos 12 ticks, senão `LEAVE`. Daí em diante caminha até a saída e não
-     disputa mais a vez.
+   - Quem decide sair age imediatamente, antes do sorteio da vez. Se agiu ou recebeu um ato nos
+     últimos 12 ticks, faz `FAREWELL` para `GROUP`, em `WARM` se tem afeto ≥ 6000 por algum
+     ouvinte (senão `NEUTRAL`), tópico `SMALL_TALK`, intensidade 3000 e volume `NORMAL`; senão,
+     `LEAVE` com `targets = []`, tópico `NONE` e intensidade 3000. Daí em diante caminha até a
+     saída e não disputa mais a vez.
 2. **Vontade de agir** de cada presente que não está saindo:
 
    ```text
@@ -626,8 +658,9 @@ Em cada **ponto de decisão** (fim de um ato ou de um tick de silêncio), na ord
 ## 12. Memória, fatos e perspectiva
 
 - Cada ato vira um **fato** no registro: `id`, tick, autor, ato, tom, tópico, alvos, volume,
-  faixa de resultado e marca de mentira. Acontecimentos da história gerada (presets) entram como
-  fatos anteriores à primeira fatia.
+  faixa de resultado, ofensor e marca de mentira. Acontecimentos da história gerada entram como
+  fatos anteriores à primeira fatia; quem sabe deles ganha cópia `DIRECT` com fidelidade 8000
+  (`HISTORY_FIDELITY`; ver [presets](<presets.md>), seção 7).
 - Cada personagem guarda **cópias** dos fatos que percebeu, com perspectiva e **fidelidade**
   inicial:
 
@@ -640,13 +673,16 @@ Em cada **ponto de decisão** (fim de um ato ou de um tick de silêncio), na ord
 
 - **`TOLD`:** quando um `TELL` tem como tópico um fato (`EVENT`, `SECRET` ou `RUMOR`), cada
   ouvinte `DIRECT` que não tem cópia desse fato ganha uma cópia `TOLD`. Se o `TELL` for mentira e
-  o ouvinte acreditar, a cópia guarda a versão falsa (marcada no estado, invisível para o
-  personagem); recontada, a falsidade se espalha.
+  o ouvinte acreditar, a cópia guarda a **versão falsa**: o mesmo fato com outro ofensor
+  (ninguém, ou a pessoa culpada pela mentira; [atos de conversa](<dialogue-acts.md>), seção 5),
+  marcada no estado e invisível para o personagem. Recontada, a falsidade se espalha.
 - **Importância** de um fato para um personagem:
 
   ```text
   importance = clamp(Σ |deltas de emoção| + 2 × Σ |deltas de laço| + 3000 se é autor, alvo ou tópico, 0, 10000)
   ```
+
+  Nos acontecimentos de história, os deslocamentos de base contam como deltas de emoção.
 
   Cópias com importância ≥ 6000 (`MEMORY_IMPORTANCE`) são **memórias marcantes**: só elas
   persistem entre fatias, até 50 por personagem (`MEMORIES_MAX`; sai a de menor importância,
@@ -678,19 +714,24 @@ não cristalizam.
 
 O usuário escolhe o intervalo até a próxima fatia: um número inteiro de horas
 (`TimeGap = { hours, together }`), em que `together` lista os grupos de personagens que passaram o
-intervalo juntos. `days = hours / 24`. As regras diárias se aplicam `days` vezes, uma a uma, em
-inteiros:
+intervalo juntos. `endSlice` não sorteia nada.
 
-- **Corpo:** volta aos valores do estado `rested` (presets, seção 9), salvo o que a nova cena
-  definir.
+**Uma vez por intervalo**, de qualquer duração:
+
 - **Emoções:** voltam à linha de base.
+- **Descarte:** percepção, obrigações, contadores da fatia e cópias não marcantes.
+- **Corpo:** é refeito por `createSlice` com o estado do dia da nova cena (padrão `rested`;
+  [presets](<presets.md>), seção 9), sorteado no stream `setup` da seed da nova cena.
+
+**Por dia**, com `days = hours / 24` (nada se `hours < 24`), aplicando cada regra `days` vezes,
+uma a uma, em inteiros:
+
 - **Saudade:** para cada par que não passou o intervalo junto, se `closeness` ou `affection`
   ≥ 6000, a vontade `intimacy` dirigida ao outro sobe +500 por dia.
 - **Vingança:** `justice` dirigida faz `−mulBp(déficit, 1000)` por dia.
 - **Memória:** a fidelidade de cada memória marcante faz `−mulBp(fidelidade, 100 − memory / 200)`
   por dia (de 1% a 0,5% ao dia, conforme a aptidão `memory`).
-- **Tendências:** `−mulBp(tend, 1000)` por dia.
-- Percepção, obrigações, contadores da fatia e cópias não marcantes são descartados.
+- **Tendências:** `−mulBp(tend, 1000)` por dia. Os contadores de cristalização continuam.
 
 ## 15. Aleatoriedade, replay e forçar caminho
 
@@ -698,18 +739,21 @@ inteiros:
   palavras iniciais de cada stream vêm de `splitmix32` a partir de `hash32(seed, nome)`, e as 12
   primeiras saídas são descartadas.
 - **`hash32(seed, nome)`:** FNV-1a de 32 bits sobre os bytes UTF-8 de `"<seed>:<nome>"`.
-- **Streams:** uma por finalidade — `generation`, `turn`, `choice`, `signal`, `perception`,
-  `resolution`, `leave`. A seed do elenco alimenta só `generation`; a seed da cena alimenta as
-  demais. Assim se varia uma sem mexer na outra.
+- **Streams:** uma por finalidade — `generation`, `setup`, `turn`, `choice`, `signal`,
+  `perception`, `resolution`, `leave`. A seed do elenco alimenta só `generation` (personagens,
+  laços, história); a seed da cena alimenta as demais, e `setup` sorteia os valores de abertura
+  (estado do dia e posições). Assim se varia uma sem mexer na outra.
 - **Sorteio sem viés:** `draw(stream, bound)`, com `0 < bound ≤ 2^31`, usa rejeição para entregar
   um inteiro uniforme em `[0, bound)`. `drawChance(p)` é `draw(stream, 10000) < p`;
   `drawWeighted(pesos)` sorteia pelo total.
 - **Registro:** todo sorteio entra no registro da sessão com número de sequência, tick, stream,
   finalidade, limite, valor, probabilidade (se houver) e resultado.
 - **Forçar caminho (testes):** o inspetor pode forçar o resultado de um sorteio identificado
-  (por sequência ou por finalidade e alvo) ou ligar o modo "mais provável" (`MOST_LIKELY`), que
-  resolve cada sorteio pelo resultado de maior probabilidade (empate: o menor índice). Forçar é
-  uma **entrada** registrada e reproduzível.
+  (por sequência ou por finalidade e alvo) ou ligar o modo "mais provável" (`MOST_LIKELY`), em
+  que cada sorteio vira o resultado mais provável: `drawChance(p)` dá sucesso se e só se
+  `p ≥ 5000`; `drawWeighted` escolhe o maior peso (empate: o menor índice); a faixa de um pedido
+  é um `drawWeighted` das larguras das cinco faixas; um `draw` cru devolve `(bound − 1) / 2`.
+  Forçar é uma **entrada** registrada e reproduzível.
 - **Hash do estado:** FNV-1a de 64 bits (com `BigInt`) sobre a serialização canônica do estado
   (chaves ordenadas, só inteiros e strings), em 16 dígitos hexadecimais. Não é criptográfico; só
   confere o replay.
@@ -724,15 +768,20 @@ resolve **um ponto de decisão**:
 
 1. **Entrada:** aplicar a entrada recebida (`SET_CONTROL`, `FORCE_DRAW` e `SET_DRAW_MODE` mudam o
    estado; `TAKE_TURN` marca o jogador como próximo a agir; `PLAYER_ACT` é o ato do jogador que
-   estava sendo aguardado e vai direto ao passo 6).
-2. **Obrigações vencidas** viram ignoradas (seção 10).
-3. **Saídas** (seção 11, item 1): quem decide sair age agora e pula para o passo 6.
-4. **Quem age** (seção 11, itens 2 e 3) ou um tick de silêncio (vai ao passo 7 com 1 tick).
-5. **Jogador em `MANUAL`:** devolver `awaiting` e parar.
-6. **Resolver o ato** — o de saída (passo 3), o do jogador (`PLAYER_ACT`) ou o escolhido pela
-   seção 10 para quem está em `AUTO`: validar; marcar interrupção; ouvintes e perspectivas; interpretação; consequências (seção 9); obrigação e
-   faixa de resultado; fatos e cópias; tendências de quem agiu (seção 13); destino de movimento.
-7. **Avançar os ticks** do custo do ato (ou o tick de silêncio). Em cada tick, nesta ordem, para
+   estava sendo aguardado e vai direto ao passo 5).
+2. **Saídas** (seção 11, item 1): quem decide sair age agora e pula para o passo 5.
+3. **Quem age** (seção 11, itens 2 e 3) ou um tick de silêncio (vai ao passo 6 com 1 tick).
+4. **Jogador em `MANUAL`:** devolver `awaiting` e parar.
+5. **Resolver o ato** — o de saída (passo 2), o do jogador (`PLAYER_ACT`) ou o escolhido pela
+   seção 10 para quem está em `AUTO` (sorteando antes a faixa de um pedido pendente, se for o
+   caso):
+   1. validar e marcar interrupção;
+   2. ouvintes, perspectivas e interpretação (seção 8);
+   3. consequências (seção 9) e obrigações (seção 10);
+   4. fatos e cópias (seção 12);
+   5. tendências de quem agiu (seção 13);
+   6. destino de movimento (8.1).
+6. **Avançar os ticks** do custo do ato (ou o tick de silêncio). Em cada tick, nesta ordem, para
    todos os presentes:
    1. movimento de quem tem destino (8.1), com cansaço por célula andada;
    2. corpo (5.1), incluindo o alvo térmico pela célula;
@@ -740,13 +789,19 @@ resolve **um ponto de decisão**:
    4. luz, tags presentes, ameaça (seção 6) e vontades (5.3);
    5. sinais: emissão de todos, depois notar e interpretar de cada observador, depois `relax` da
       percepção sem atualização (seção 7 e 5.5);
-   6. chegada à saída: quem alcança a célula `exit` deixa a fatia.
-8. **Fim da fatia** (seção 11, item 6).
-9. **Eventos e hash:** emitir `ActResolved`, `SignalPerceived`, `StatusChanged`, `Silence`,
+   6. obrigações que completaram 12 ticks viram ignoradas (seção 10);
+   7. quem **está saindo** e alcança uma célula `exit` deixa a fatia (passar por uma saída sem
+      estar saindo não tira ninguém da cena).
+7. **Fim da fatia** (seção 11, item 6).
+8. **Eventos e hash:** emitir `ActResolved`, `SignalPerceived`, `StatusChanged`, `Silence`,
    `CharacterLeft`, `SceneEnded` e `RenderRequested` (um por ato de fala, com os dados simbólicos
    para o pacote de encenação), e atualizar o hash.
 
 ## 17. Constantes iniciais
+
+As tabelas das seções 3 a 16, de [atos de conversa](<dialogue-acts.md>) e de [presets](<presets.md>)
+também são constantes: o código as declara como dados nomeados. Esta tabela reúne os números que
+aparecem soltos no texto.
 
 | Constante | Valor | Seção |
 | --- | --- | --- |
@@ -764,7 +819,9 @@ resolve **um ponto de decisão**:
 | `APPARENT_EMOTION_INTENSITY` | 6000 | 7 |
 | `EFFECT_UNIT_MAX` | 800 | 2 |
 | `BOND_DELTA_CAP` | 1500 por eixo por ato | 9 |
-| `OBLIGATION_BONUS` / `OBLIGATION_TTL_TICKS` | 4000 / 12 | 10 |
+| `OBLIGATION_BONUS` / `OBLIGATION_TTL_TICKS` / `IGNORE_INTENSITY` | 4000 / 12 / 5000 | 10 |
+| `BODY_EMOTION_RATE` | 5 por tick | 5.2 |
+| `LEAVE_ACT_INTENSITY` | 3000 | 11 |
 | `TONES_PER_ACT` / `TOPICS_MAX` / `TOP_K` | 3 / 4 / 5 | 10 |
 | `REPEAT_PENALTY` / `REPEAT_WINDOW` | 1500 / 6 atos | 10 |
 | `GOAL_BONUS` | 2000 | 10 |
@@ -773,7 +830,7 @@ resolve **um ponto de decisão**:
 | `SILENCE_END_TICKS` | 60 | 11 |
 | `WITHDRAW_DISTANCE` | 4 | 8.1 |
 | `MEMORY_IMPORTANCE` / `MEMORIES_MAX` | 6000 / 50 | 12 |
-| `TOLD_FIDELITY` | 8000 | 12 |
+| `TOLD_FIDELITY` / `HISTORY_FIDELITY` | 8000 / 8000 | 12 |
 | `TENDENCY_RATE` / `TENDENCY_WEIGHT` | 1000 / 3000 | 13 |
 | `CRYSTAL_THRESHOLD` / `CRYSTAL_ACTS` / `CRYSTAL_SLICES` / `CRYSTAL_STEP` | 6000 / 30 / 2 / 500 | 13 |
 

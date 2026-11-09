@@ -24,6 +24,9 @@ Transformar cada ato interpretado em mudanças de emoção, laço, vontade e per
 - Pedidos: probabilidade de aceite com sinceridade percebida e ajustes de vontade, faixas, resposta fixada para alvo em `AUTO`, faixa registrada para alvo em `MANUAL`, efeitos da resposta (8.3).
 - Mentiras: detecção, crença, cópias falsas e mentira descoberta.
 - Efeitos da interrupção.
+- Ofensor de cada fato (pela valência do tom real) e importância das cópias a partir dos deltas.
+- Linhas de resposta (`ACCEPT` por faixa, `REFUSE` a pedido, pergunta e acusação), ciúme e a regra padrão (sem linha, sem efeito).
+- Versão falsa das mentiras (outro ofensor ou negação) e descoberta de mentira sem fato pelo sinal `lying`.
 
 **Não inclui:**
 
@@ -45,6 +48,9 @@ Transformar cada ato interpretado em mudanças de emoção, laço, vontade e per
 - given a request to the player in MANUAL when resolving then no band is drawn
 - given an honest liar when lying then guilt rises by one unit times the guilt factor
 - given a discovered lie when applying then trust drops by 1500 and not more
+- given a REFUSE to a question when appraising then the asker gets anger +1, trust -1 and curiosity +1
+- given a believed lie that blames Z when recording then the listener's copy names Z as the offender and is marked false
+- given a SEDUCTIVE praise from Z to Y seen by Y's spouse when appraising then the spouse's jealousy rises by 2 units
 ```
 
 ## Critérios de aceite

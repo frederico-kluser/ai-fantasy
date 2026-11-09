@@ -21,10 +21,10 @@ Validar e resolver atos: pré-condições, custo em ticks, destinos de movimento
 
 - Validação de `ActLabel`: alvo presente e audível, `TOUCH` a 1 célula, tópicos aceitos por ato, `targets = []`, campos coerentes com o ato.
 - Custo em ticks; atos de movimento só definem o destino, sem travar a conversa.
-- Ouvintes por volume e geometria, com perspectivas `DIRECT`, `FRAGMENT` e `SEEN`.
+- Perspectivas a partir da audição geométrica da CORE-02: `DIRECT`, `FRAGMENT` (sorteio no stream `perception`) e `SEEN`; em atos sem fala, `DIRECT` para os alvos e quem vê o autor.
 - Leitura errada do tom (fórmula com o laço) e sorteio entre confusões pior e melhor.
-- Fatos com ofensor e marca de mentira; cópias com fidelidade inicial; cópias `TOLD` num `TELL` sobre um fato; importância.
-- Obrigações de resposta: criação, resposta, ignorar e vencimento em 12 ticks.
+- Fatos com marca de mentira; cópias com fidelidade inicial; cópias `TOLD` num `TELL` sobre um fato (o ofensor e a importância vêm da SOC-03).
+- Obrigações de resposta: criação, resposta, várias pendentes, ignorar e vencimento a cada tick.
 
 **Não inclui:**
 
