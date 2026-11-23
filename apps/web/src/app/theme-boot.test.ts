@@ -4,8 +4,11 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import PAGE from "../../index.html?raw";
 import { THEME_KEY } from "./theme.ts";
 
-/** The inline script of the page head: the first `<script>` without attributes. */
-const BOOT = /<script>([\s\S]*?)<\/script>/.exec(PAGE)?.[1] ?? "";
+/** The page parsed as the browser parses it. */
+const DOCUMENT = new DOMParser().parseFromString(PAGE, "text/html");
+
+/** The inline script of the page head. */
+const BOOT = DOCUMENT.head.querySelector("script:not([src])")?.textContent ?? "";
 
 function runBoot(): void {
   // The script is the page's own code; running it here is what the browser does first.
@@ -23,7 +26,9 @@ afterEach(() => {
 
 describe("theme before the first paint (index.html)", () => {
   it("given the page when reading it then the boot script comes before the app script", () => {
-    expect(PAGE.indexOf("<script>")).toBeLessThan(PAGE.indexOf('<script type="module"'));
+    expect(
+      Array.from(DOCUMENT.querySelectorAll("script"), (script) => script.getAttribute("src")),
+    ).toStrictEqual([null, "/src/main.tsx"]);
   });
 
   it("given the boot script when reading it then it reads the key of the theme picker", () => {
