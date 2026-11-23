@@ -36,7 +36,7 @@ describe("paths stay inside the data folder (overview §8, defense in depth)", (
     ["posix", posix, "/data", [".."]],
     ["posix", posix, "/data", ["campaigns", "..", "..", "etc"]],
     ["posix", posix, "/data", ["../data-other/x"]],
-    ["posix", posix, "/data", ["/etc/passwd"]],
+    ["posix", posix, "/data", ["/outside/x"]],
     ["posix", posix, "/data", []],
     ["posix", posix, "/data", ["campaigns", ".."]],
     ["win32", win32, "C:\\data", ["..\\x"]],
