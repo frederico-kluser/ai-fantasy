@@ -1,6 +1,6 @@
 # Modelo de simulação — Hermeneutic Core
 
-> **Especificação v1.3 — 2026-11-23.** As **regras** deste documento são contrato do motor. Os
+> **Especificação v1.4 — 2026-11-23.** As **regras** deste documento são contrato do motor. Os
 > **números** (taxas, limiares, pesos) são valores iniciais e calibráveis: mudar um número exige
 > teste atualizado e nota no PR, não decisão nova. Mudar uma regra exige ADR. Produto em
 > [`docs/product.md`](<../product.md>); atos, tabelas de efeito e vieses em
@@ -9,7 +9,9 @@
 > movimento, luz, uso da percepção, obrigações de resposta e regras entre fatias; a v1.2
 > completou tópicos por ato, respostas, mentiras, saídas e sorteios de abertura; a v1.3 fixou os
 > detalhes do sorteio (variante do `splitmix32`, rejeição, registro e forçar caminho) e da
-> serialização canônica do hash (CORE-01).
+> serialização canônica do hash (CORE-01); a v1.4 fixou o gabarito da grade, a supercobertura, os
+> desempates de caminho e de destino, o passo de movimento e as reduções de alcance da fala
+> (CORE-02).
 
 ## 1. Princípios
 
@@ -59,29 +61,57 @@ O lugar vem de um **preset de lugar** (ver [presets](<presets.md>)) e é uma gra
 no máximo 48 × 48 células. O índice de uma célula é `y × W + x`; todo desempate espacial usa o
 menor índice.
 
-| Tipo de célula | Atravessar | Visão | Fala normal |
-| --- | --- | --- | --- |
-| `FLOOR` (piso) | 1 tick | livre | livre |
-| `ROUGH` (terreno difícil) | 2 ticks | livre | livre |
-| `DOOR_OPEN` | 1 tick | livre | livre |
-| `DOOR_CLOSED` | 2 ticks (abre, passa e fecha; continua fechada) | bloqueia | bloqueia |
-| `WINDOW` | não | livre | alcance pela metade |
-| `LOW_OBSTACLE` (mesa, balcão) | não | livre | livre |
-| `WALL` | não | bloqueia | bloqueia |
+| Tipo de célula | Símbolo | Atravessar | Visão | Fala normal |
+| --- | --- | --- | --- | --- |
+| `FLOOR` (piso) | `.` | 1 tick | livre | livre |
+| `ROUGH` (terreno difícil) | `,` | 2 ticks | livre | livre |
+| `DOOR_OPEN` | `d` | 1 tick | livre | livre |
+| `DOOR_CLOSED` | `D` | 2 ticks (abre, passa e fecha; continua fechada) | bloqueia | bloqueia |
+| `WINDOW` | `=` | não | livre | alcance pela metade |
+| `LOW_OBSTACLE` (mesa, balcão) | `o` | não | livre | livre |
+| `WALL` | `#` | não | bloqueia | bloqueia |
 
 - Cada célula tem duas marcas: `exit` (saída da cena; só em células atravessáveis da borda) e
   `roofed` (coberta). No preset, "exposto ao clima" **não** = todas cobertas; **sim** = nenhuma;
   **parcial** = o gabarito marca quais.
+- **Gabarito.** A grade de um preset vem num gabarito, no formato comum dos presets
+  ([presets](<presets.md>), seção 2), validado inteiro na carga: um gabarito inválido é um erro
+  que diz o campo e a posição, nunca uma grade pela metade. Os campos e as regras:
+
+  | Campo | Conteúdo | Regras |
+  | --- | --- | --- |
+  | `rows` | `H` linhas de `W` símbolos da tabela acima | `1 ≤ W, H ≤ 48` (`GRID_MAX`); todas as linhas com a mesma largura; só os sete símbolos |
+  | `exits` | as células `exit`, como `{ x, y }` | pelo menos uma; distintas; na borda (`x = 0`, `y = 0`, `x = W − 1` ou `y = H − 1`); de tipo atravessável |
+  | `roofed` | `ALL` (todas cobertas), `NONE` (nenhuma) ou máscara | a máscara tem `H` linhas de `W` caracteres: `r` coberta, `.` descoberta |
+  | `starts` | posições iniciais sugeridas, como `{ x, y }` | pelo menos 8; distintas; de tipo atravessável |
+
+  A validação segue a ordem da tabela e para no primeiro erro, que aponta, quando há, a primeira
+  linha (de `rows` ou da máscara) ou o primeiro item (de `exits` ou de `starts`) que falha. Em
+  `exits` e `starts`, a contagem (pelo menos uma; pelo menos 8) vem antes dos itens.
 - Propriedades do lugar em bp: `danger` (perigo), `comfort` (conforto), `privacy` (privacidade),
   `noise` (ruído ambiente) e `baseTemperature` (bipolar; "clima" no preset significa 0). Além
   disso, `lit` (iluminado à noite) e `tags` (por exemplo `forest`, `water`, `dark`, `crowd`,
   `enclosed`), usadas pelas associações (5.7).
 - **Distância:** Chebyshev (`max(|dx|, |dy|)`), em células.
 - **Linha de visão:** supercobertura da reta entre os centros das células; `WALL` e
-  `DOOR_CLOSED` bloqueiam.
+  `DOOR_CLOSED` bloqueiam. A supercobertura são as células que a reta atravessa e, quando ela
+  passa exatamente por um canto, as **duas** células que dividem aquele canto (qualquer uma que
+  bloqueie, bloqueia). Só contam as células **entre** as duas pontas: a célula de quem vê e a de
+  quem é visto nunca bloqueiam. O cálculo é só com inteiros, em coordenadas dobradas: com
+  `nx = |dx|`, `ny = |dy|` e `ix`, `iy` passos já dados em x e em y, o próximo passo compara
+  `(1 + 2 × ix) × ny` com `(1 + 2 × iy) × nx`: menor, passo em x; maior, passo em y; igual,
+  canto exato (entram as duas células do canto e depois a diagonal). A cobertura de A para B é a
+  mesma de B para A, então a visão é simétrica.
 - **Caminho:** menor custo em ticks pelas células atravessáveis, com vizinhança de 8 direções;
   entre caminhos de mesmo custo, o que passa pela sequência de menores índices. Uma célula
-  ocupada por outro personagem conta como bloqueada.
+  ocupada por outro personagem conta como bloqueada. Em detalhe:
+  - o custo é o de **entrar** em cada célula do caminho (a coluna "Atravessar": `FLOOR` e
+    `DOOR_OPEN` 1, `ROUGH` e `DOOR_CLOSED` 2); a célula de partida não conta;
+  - **sem cortar cantos:** um passo na diagonal só vale se as duas células ortogonais vizinhas
+    (as que dividem o canto) forem de tipo atravessável; a ocupação não conta para essa regra;
+  - **desempate:** vale a sequência de índices lexicograficamente menor. Na prática, a partir de
+    cada célula, o próximo passo é o vizinho de menor `custo de entrar + custo restante até o
+    destino` e, no empate, o de menor índice.
 - **Ocupação:** no máximo um personagem por célula; as posições iniciais são distintas.
 
 ### 3.2 Contexto: horário, clima e luz
@@ -108,7 +138,8 @@ seção 3). A tempestade acrescenta a tag `storm` à cena.
 | `DARK` | 3 células |
 
 Neblina (`fog`) num lugar exposto reduz o alcance à metade (mínimo 1). Com luz `DARK`, a tag
-`dark` passa a valer como presente na cena (para as associações).
+`dark` passa a valer como presente na cena (para as associações). Ver uma célula exige linha de
+visão (3.1) e distância de Chebyshev até o alcance visual.
 
 **Temperatura sentida:** o alvo térmico de cada personagem é
 `baseTemperature + mulBp(temperatura do clima, roofed ? 2500 : 10000)`, pela célula onde ele
@@ -467,7 +498,38 @@ custo, recalculado a cada tick. Se o próximo passo está ocupado, o personagem 
 | `LEAVE` / `FAREWELL` de saída | a célula `exit` alcançável mais perto; ao chegar, o personagem deixa a fatia |
 
 Sem caminho até o destino, o ato acontece (o personagem tenta) mas ninguém se move; uma saída sem
-caminho é cancelada.
+caminho é cancelada. "Sem caminho" se mede **só pelas paredes e pelos tipos de célula, ignorando
+as pessoas** (`findPath(grid, de, para, [])`): alguém parado no caminho ou na porta não cancela
+nada; o personagem anda até a fila e espera (veja "Espera e fila" abaixo).
+
+Em detalhe:
+
+- **Destinos.** "Mais perto" é pelo custo do caminho (3.1), com as ocupações daquele momento;
+  "livre" é sem outro personagem; "distância" é a de Chebyshev; todo empate vai para o menor
+  índice. No `WITHDRAW` sem nenhuma célula livre e alcançável a 4 ou mais do alvo, vale a célula
+  alcançável de maior distância do alvo (empate: menor índice), que pode ser a do próprio
+  personagem. Se nenhuma célula livre serve agora, a escolha do `APPROACH` e da saída é refeita
+  ignorando as pessoas; o `APPROACH` só fica sem destino, e a saída só é cancelada, quando as
+  paredes não deixam chegar a nenhuma célula a distância 1 do alvo ou a nenhuma `exit`.
+- **O que se recalcula.** O `MOVE` e o `WITHDRAW` guardam a célula escolhida no ato. O
+  `APPROACH` e a saída recalculam o destino a cada tick, porque o alvo e as ocupações mudam. O
+  deslocamento termina ao alcançar o destino; o do `APPROACH` termina já quando o personagem fica
+  a `d ≤ 1` do alvo ou quando o alvo deixa a fatia, e o da saída, numa célula `exit`.
+- **Ordem.** Em cada tick, quem tem destino anda em ordem de id crescente, e cada um vê as
+  posições já atualizadas pelos anteriores.
+- **Esforço.** Cada tick de deslocamento soma 1 de esforço; o personagem entra na próxima célula
+  do caminho quando o esforço alcança o custo dela (1 ou 2), e o esforço volta a 0. Assim, entrar
+  em `ROUGH` ou `DOOR_CLOSED` leva 2 ticks, e a porta continua fechada. O esforço vale para a
+  próxima célula daquele tick, mesmo que o caminho recalculado tenha mudado.
+- **Espera e fila.** O destino e o caminho evitam as células ocupadas (3.1). Se naquele tick não
+  há destino livre alcançável ou caminho livre até ele, o personagem refaz a conta ignorando as
+  ocupações e olha o próximo passo desse caminho: se a célula está livre, anda (com a regra do
+  esforço); se está ocupada, espera aquele tick e o esforço volta a 0. Assim, quem não consegue
+  contornar alguém faz fila atrás dele, e quem anda atrás de alguém num corredor entra na
+  célula que ele acabou de deixar. Sem caminho nem ignorando as ocupações, também espera. Em
+  todos esses casos o destino continua. Num impasse de frente (dois personagens num corredor,
+  cada um querendo passar pelo outro), os dois ficam parados até a SOC mudar o destino de um
+  deles; o espaço não resolve impasses sozinho.
 
 ### 8.2 Quem ouve
 
@@ -476,6 +538,20 @@ caminho é cancelada.
 | `WHISPER` (sussurro) | 1 | bloqueado por qualquer bloqueio de visão |
 | `NORMAL` | `max(3, 8 − ruído / 2000)` | `WALL` e `DOOR_CLOSED` bloqueiam; `WINDOW` reduz o alcance à metade |
 | `SHOUT` (grito) | 30 | `WALL` reduz o alcance à metade; atravessa portas |
+
+O alcance vale para cada par de quem fala e quem ouve:
+
+- A distância é a de Chebyshev, e as paredes e portas que contam são as células **entre** os dois
+  na linha de visão (3.1), sem as duas pontas.
+- **Metade uma vez:** uma ou mais `WINDOW` entre os dois reduzem a fala normal a
+  `div(alcance, 2)` uma vez só; uma ou mais `WALL` reduzem o grito a `div(30, 2) = 15` uma vez
+  só. A `WINDOW` não muda o sussurro nem o grito, e portas não mudam o grito. Um bloqueio vale
+  mais que uma redução: na fala normal, uma `WALL` ou uma `DOOR_CLOSED` bloqueia mesmo com uma
+  `WINDOW` na linha.
+- O ruído da fala normal é o do lugar mais o do clima, já limitado a `0..10000` (seção 6).
+- Quem está a `d ≤ alcance` está no alcance (`DIRECT`); quem está a `alcance < d ≤ 2 × alcance`
+  é candidato a `FRAGMENT` (o sorteio está na tabela abaixo). Bloqueado é alcance 0: ninguém
+  ouve, nem fragmento.
 
 Cada presente recebe uma **perspectiva** do ato:
 
