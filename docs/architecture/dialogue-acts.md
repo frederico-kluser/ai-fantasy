@@ -1,13 +1,14 @@
 # Atos de conversa
 
-> **Especificação v1.3 — 2026-11-23.** Toda fala e toda ação na fatia é um **ato**: ato × tom ×
+> **Especificação v1.4 — 2026-11-23.** Toda fala e toda ação na fatia é um **ato**: ato × tom ×
 > tópico, com valores (D-13). O motor decide e resolve atos; o SOM converte a fala livre do
 > jogador num ato; o modelo de texto encena o ato. As regras gerais estão no
 > [modelo de simulação](<simulation-model.md>), cujas convenções valem aqui (`/` é divisão
 > inteira; `mulBp`; unidade `u`). Números são iniciais e calibráveis. A v1.1 trocou os "+" e "−"
 > da v1 por números, definiu os valores dos atos dos NPCs, as respostas e os vieses da decisão;
 > a v1.2 deu valência às respostas e fixou a versão falsa das mentiras e a ordem de cálculo; a
-> v1.3 deu nomes de exibição aos objetos de pedido (CORE-03). As tabelas das seções 2 a 4 são
+> v1.3 deu nomes de exibição aos objetos de pedido (CORE-03); a v1.4 fixou a referência de cada
+> tipo de tópico e o destino como índice de célula (CORE-04). As tabelas das seções 2 a 4 são
 > dados do motor ([presets](<presets.md>), seção 1).
 
 ## 1. Estrutura de um ato
@@ -18,13 +19,19 @@ interface ActLabel {
   tone: ToneId;                       // como se faz (seção 3)
   targets: CharacterId[] | "GROUP";   // a quem; GROUP = todos que ouvem; [] = ninguém em particular
   topic: Topic;                       // sobre o quê (seção 4); { type: "NONE" } em atos sem fala
-  intensity: number;                  // 0..10000 bp
+  intensity: Bp;                      // 0..10000 bp
   volume: "WHISPER" | "NORMAL" | "SHOUT";
   isFalse: boolean;                   // marca de mentira (seção 5)
-  object?: RequestObject;             // o que se pede ou oferece (só REQUEST e OFFER)
-  destination?: Cell;                 // só MOVE
+  object?: RequestObjectId;           // o que se pede ou oferece (só REQUEST e OFFER)
+  destination?: number;               // índice da célula (y × W + x); só MOVE
+  blamed?: CharacterId;               // quem a mentira culpa (seção 5); só com isFalse
 }
 ```
+
+Os tipos vivem em `packages/engine/src/acts/label.ts` e valem para o motor e para o pacote de IA.
+Os alvos vão em ordem crescente de id. `blamed` só vale com `isFalse`: é a pessoa que a versão
+falsa aponta como ofensor (seção 5; do jogador, a pergunta `blamed` da seção 11); sem ele, a
+mentira nega (ninguém é o ofensor).
 
 Interrupção não é escolhida: o motor a marca quando acontece ([modelo de
 simulação](<simulation-model.md>), seção 11). Um ato com `targets = []` é ouvido normalmente, mas
@@ -101,7 +108,7 @@ Ao ler errado, o ouvinte sorteia entre as confusões típicas do tom. Peso de um
 | Tipo | Significado | Referência |
 | --- | --- | --- |
 | `PERSON` | uma pessoa (presente, ausente, o ouvinte ou quem fala) | id do personagem |
-| `THING` | um objeto, posse ou apego | id da associação |
+| `THING` | um objeto, posse ou apego | id da coisa (`ThingId`) |
 | `PLACE` | um lugar | tag ou o lugar da cena |
 | `EVENT` | algo que aconteceu | id do fato |
 | `SECRET` | fato marcado como segredo | id do fato |
@@ -109,6 +116,11 @@ Ao ler errado, o ouvinte sorteia entre as confusões típicas do tom. Peso de um
 | `FEELING` | um sentimento ("o que sinto por você") | emoção ou eixo de laço |
 | `SMALL_TALK` | amenidades: clima, trabalho, comida, o dia | — |
 | `NONE` | sem tópico (atos sem fala) | — |
+
+A referência de cada tipo, no estado: `PERSON` leva o id do personagem; `THING`, o id da coisa
+(`ThingId`, inteiro; o nome é apresentação, fora do hash); `PLACE`, uma tag ou `SCENE` (o lugar
+da cena); `EVENT`, `SECRET` e `RUMOR`, o id do fato; `FEELING`, uma emoção ou um eixo de laço;
+`SMALL_TALK` e `NONE` não levam referência.
 
 **Tópicos aceitos por ato:**
 

@@ -37,10 +37,20 @@ export const BOREDOM_SILENCE_RATE = 50;
 export const BOREDOM_RELIEF = 1000;
 /** Boredom relieved when that interesting act is addressed to the character with a positive valence (§17 `BOREDOM_RELIEF_ADDRESSED`, §5.2). */
 export const BOREDOM_RELIEF_ADDRESSED = 2000;
+/** Fear gained per tick for each fear of a present tag (§17 `ASSOCIATION_FEAR_RATE`, §5.7). */
+export const ASSOCIATION_FEAR_RATE = 20;
+/** Joy gained per tick for each attachment to a present tag (§17 `ASSOCIATION_JOY_RATE`, §5.7). */
+export const ASSOCIATION_JOY_RATE = 10;
 /** A drive with at least this weight is dominant (§17 `DOMINANT_DRIVE_WEIGHT`, §5.3). */
 export const DOMINANT_DRIVE_WEIGHT = 7000;
 /** Per-tick `relax` rate of a perception without updates (§17 `PERCEPTION_RELAX`, §5.5). */
 export const PERCEPTION_RELAX = 9800;
+/** An apparent emotion that relaxes below this intensity fades out (§17 `APPARENT_EMOTION_FLOOR`, §5.5). */
+export const APPARENT_EMOTION_FLOOR = 1000;
+/** Ticks without confirmation after which a mark of the apparent state fades (§17 `APPARENT_MARK_TTL_TICKS`, §5.5). */
+export const APPARENT_MARK_TTL_TICKS = 60;
+/** Threat added by `DARK` light (§17 `DARK_THREAT`, §6). */
+export const DARK_THREAT = 1000;
 /** Intensity of the apparent emotion read from an emotion signal (§17 `APPARENT_EMOTION_INTENSITY`, §7). */
 export const APPARENT_EMOTION_INTENSITY = 6000;
 /** Effect unit at full intensity: `u = mulBp(800, intensity)` (§17 `EFFECT_UNIT_MAX`, §2). */

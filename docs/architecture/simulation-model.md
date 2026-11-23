@@ -1,6 +1,6 @@
 # Modelo de simulação — Hermeneutic Core
 
-> **Especificação v1.5 — 2026-11-23.** As **regras** deste documento são contrato do motor. Os
+> **Especificação v1.6 — 2026-11-23.** As **regras** deste documento são contrato do motor. Os
 > **números** (taxas, limiares, pesos) são valores iniciais e calibráveis: mudar um número exige
 > teste atualizado e nota no PR, não decisão nova. Mudar uma regra exige ADR. Produto em
 > [`docs/product.md`](<../product.md>); atos, tabelas de efeito e vieses em
@@ -12,7 +12,9 @@
 > serialização canônica do hash (CORE-01); a v1.4 fixou o gabarito da grade, a supercobertura, os
 > desempates de caminho e de destino, o passo de movimento e as reduções de alcance da fala
 > (CORE-02); a v1.5 tabelou os rótulos de laço (tipo e recíproca) e deu nomes de exibição aos
-> sinais (CORE-03).
+> sinais (CORE-03); a v1.6 fixou o estado do personagem e a ordem das coleções, a leitura dentro
+> do tick, quem conta na presença, o envelhecimento da percepção e o modelo de fatos e cópias
+> (CORE-04).
 
 ## 1. Princípios
 
@@ -168,6 +170,18 @@ haver zero ou um personagem do jogador; com zero, a cena é só observada.
 | Memórias | cópias de fatos (seção 12) | só as memórias marcantes |
 | Obrigações, destino de movimento e contadores da fatia (silêncio, repetições, cumprimentos, objetivo da cena) | seções 8, 10 e 11 | não |
 
+**Estado × identidade.** O **estado** do personagem (o que as regras leem e o hash cobre) tem a
+posição, traços, tendências, aptidões, deslocamentos de base da história, linhas de base,
+emoções, corpo, vontades, laços,
+associações, percepções, memórias e a ameaça do último tick (seção 6). A **identidade** (nome,
+pronomes, descrição, faixa etária, papel, registro de fala e o arquétipo de origem, para
+exibição) é
+apresentação, fica fora do hash e nenhuma regra a lê. Toda coleção por pessoa (vontades
+dirigidas, laços, percepções) é uma lista ordenada por id crescente do outro, e as memórias são
+ordenadas por id do fato; uma entrada ausente vale o padrão da regra (0, laço de desconhecido ou
+a prévia da percepção) e é criada quando uma regra a muda. Coisas (objetos, posses, apegos) têm
+um id inteiro (`ThingId`); o nome delas também é apresentação.
+
 ## 5. Camadas de status
 
 ### 5.1 Corpo
@@ -188,6 +202,9 @@ Faixas: **incômodo** ≥ 5000; **urgente** ≥ 7500; **crítico** ≥ 9000 (par
 A **maior necessidade** é o máximo entre `fatigue`, `hunger`, `thirst`, `bladder`, `pain`,
 `|thermal|` e `intoxication`. O valor inicial de cada necessidade vem do estado do dia da cena
 (presets, seção 9).
+
+Os modificadores leem o estado do início do tick: o +1 de cansaço, as emoções de antes da
+atualização deste tick; o +3 de sede, o térmico de antes do `approach` deste tick (seção 16).
 
 ### 5.2 Emoções
 
@@ -212,7 +229,10 @@ cristaliza), limitada a `0..3000`:
 | `anger` | `500 + temper / 10` |
 | demais | 0 |
 
-Os acontecimentos de história somam deslocamentos à linha de base (presets, seção 7).
+Os acontecimentos de história somam deslocamentos à linha de base (presets, seção 7). O estado
+guarda esses deslocamentos por emoção (bipolares, sem limite) e a linha de base é sempre
+derivada: `clamp(fórmula + deslocamento, 0, 3000)`. Assim, quando um traço cristaliza (seção 13,
+item 5), a linha de base é recalculada sem perder o que o limite de 3000 tinha cortado.
 
 **A cada tick**, primeiro o decaimento e depois os ganhos do tick (associações, tédio, corpo):
 
@@ -225,6 +245,11 @@ Os acontecimentos de história somam deslocamentos à linha de base (presets, se
   dirigida de X, uma tag ou coisa associada a X, ou um fato de que X tem cópia.
 
 Ganhos de emoção vindos de atos entram na hora em que o ato é resolvido (seção 9).
+
+Cada associação com uma tag presente conta sozinha (duas associações negativas presentes dão +40
+de medo por tick). Os ganhos do corpo leem o corpo **já atualizado** neste tick (seção 16), e cada
+linha da tabela abaixo soma uma vez: fome, sede e necessidade fisiológica urgentes ao mesmo tempo
+dão `anger` +5, não +15.
 
 **Corpo nas emoções** (ganhos por tick, sem fator de traço):
 
@@ -342,7 +367,10 @@ Registro **direcionado** do observador X sobre cada presente Y. Não persiste en
 Todas as prévias são limitadas a `0..10000`. Os valores mudam por sinais interpretados (seção 7)
 e por atos (seção 9). A cada tick sem atualização vinda de Y, cada valor faz
 `relax(v, prévia, 9800)`. A intensidade de `apparentEmotion` faz o mesmo rumo a 0 e a emoção se
-apaga abaixo de 1000; as marcas de `apparentState` somem depois de 60 ticks sem confirmação.
+apaga abaixo de 1000 (`APPARENT_EMOTION_FLOOR`); as marcas de `apparentState` somem depois de 60
+ticks sem confirmação (`APPARENT_MARK_TTL_TICKS`). Em detalhe: cada marca guarda os ticks desde a
+última confirmação; cada tick sem atualização soma 1, e a marca sai quando a conta chega a 60. Sem
+registro de X sobre Y, vale a prévia, sem emoção aparente nem marcas.
 
 **Onde a percepção pesa:** na ameaça (seção 6), nos vieses da decisão (seção 10), na chance de
 aceitar um pedido e de acreditar numa mentira ([atos de conversa](<dialogue-acts.md>), seções 5 e
@@ -410,6 +438,11 @@ threat(X) = clamp(
 
 `proximity(d)`, por distância em células e só se X vê ou ouve Y: `d ≤ 1` → 10000; `d ≤ 3` →
 7000; `d ≤ 6` → 4000; `d ≤ 12` → 2000; acima disso ou sem percepção → 0.
+
+"X vê Y" é a regra de 3.2 (linha de visão e alcance visual do tick); "X ouve Y" é estar no alcance
+de uma fala `NORMAL` de Y com o ruído da cena (8.2), mesmo que Y esteja calado: quem está ao
+alcance da voz sente a presença. Cada termo de presença é truncado sozinho (o `/ 2` e o `/ 4`
+valem por presente), e a soma é limitada no fim. A ameaça do tick fica no estado do personagem.
 
 **Exemplo do produto:** um filho com confiança 8000, afeto 9000 e nenhum medo do pai reduz a
 própria ameaça em 2125 com o pai ao lado (`d ≤ 1`) e só em 425 com o pai do outro lado do salão
@@ -794,6 +827,16 @@ Em cada **ponto de decisão** (fim de um ato ou de um tick de silêncio), na ord
   persistem entre fatias, até 50 por personagem (`MEMORIES_MAX`; sai a de menor importância,
   empate pelo fato mais antigo).
 - Contar de novo um fato devolve a cópia de quem conta à maior fidelidade que ela já teve.
+- **Modelo de dados.** Os ids de fato são inteiros em sequência (0, 1, 2…), na ordem de criação:
+  maior id, fato mais recente. Um fato de ato guarda id, tick, autor, o rótulo do ato inteiro
+  (ato, tom, tópico, alvos, intensidade, volume e `isFalse`, que é a marca de mentira;
+  [atos de conversa](<dialogue-acts.md>), seção 1), a faixa de resultado (ou nenhuma), os
+  ofensores e a marca de segredo. Um fato de história guarda o acontecimento, A (autor), B e os
+  mesmos dois campos. Os ofensores são uma lista ordenada por id: vazia, o autor de um ato de
+  valência ≤ −1, ou o lado marcado no acontecimento (os dois em `violent_fight`). Uma cópia
+  guarda o fato, a perspectiva, a fidelidade atual, a maior fidelidade que já teve, a
+  importância e, se for a versão falsa de uma mentira acreditada, a lista dos ofensores falsos
+  (vazia na negação); a versão verdadeira não tem essa lista.
 - **Ninguém cita o que não sabe:** o pacote enviado ao modelo de texto só leva fatos de que o
   falante tem cópia (ver [integração de IA](<ai-integration.md>)).
 
@@ -953,6 +996,13 @@ resolve **um ponto de decisão**:
    6. obrigações que completaram 12 ticks viram ignoradas (seção 10);
    7. quem **está saindo** e alcança uma célula `exit` deixa a fatia (passar por uma saída sem
       estar saindo não tira ninguém da cena).
+
+   Os sub-itens 2 a 4 leem o que os anteriores deixaram: as emoções leem o corpo já atualizado, e
+   as vontades leem o corpo, o tédio e a ameaça deste tick. O +1 de cansaço por medo ou raiva usa
+   as emoções do início do tick, e o +3 de sede pelo calor usa o térmico do início do tick (antes
+   do `approach` deste tick), e a ameaça e as vontades leem as posições (depois do sub-item 1),
+   os laços e as percepções do início do tick; por isso a ordem entre os personagens não muda o
+   resultado. O relógio do tick `t` é `minuteOfDay(startMinute, t)` (seção 2).
 7. **Fim da fatia** (seção 11, item 6).
 8. **Eventos e hash:** emitir `ActResolved`, `SignalPerceived`, `StatusChanged`, `Silence`,
    `CharacterLeft`, `SceneEnded` e `RenderRequested` (um por ato de fala, com os dados simbólicos
@@ -975,8 +1025,11 @@ aparecem soltos no texto.
 | `EMOTION_BASELINE_MAX` | 3000 | 5.2 |
 | `BOREDOM_RATE` / `BOREDOM_SILENCE_RATE` | 25 / 50 por tick | 5.2 |
 | `BOREDOM_RELIEF` / `BOREDOM_RELIEF_ADDRESSED` | 1000 / 2000 | 5.2 |
+| `ASSOCIATION_FEAR_RATE` / `ASSOCIATION_JOY_RATE` | 20 / 10 por tick | 5.7 |
 | `DOMINANT_DRIVE_WEIGHT` | 7000 | 5.3 |
 | `PERCEPTION_RELAX` | 9800 por tick | 5.5 |
+| `APPARENT_EMOTION_FLOOR` / `APPARENT_MARK_TTL_TICKS` | 1000 / 60 ticks | 5.5 |
+| `DARK_THREAT` | 1000 | 6 |
 | `APPARENT_EMOTION_INTENSITY` | 6000 | 7 |
 | `EFFECT_UNIT_MAX` | 800 | 2 |
 | `BOND_DELTA_CAP` | 1500 por eixo por ato | 9 |
