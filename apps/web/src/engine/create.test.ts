@@ -14,7 +14,7 @@ describe("createEngine", () => {
       "Worker",
       class {
         constructor(...args: unknown[]) {
-          started.push(args);
+          started.push([String(args[0]), args[1]]);
         }
         postMessage(): void {
           return undefined;
@@ -29,7 +29,7 @@ describe("createEngine", () => {
 
     expect(started).toStrictEqual([
       [
-        expect.objectContaining({ href: expect.stringMatching(/engine\.worker\.ts$/) as unknown }),
+        expect.stringMatching(/\/src\/engine\/engine\.worker\.ts(\?|$)/) as unknown,
         { type: "module", name: "engine" },
       ],
     ]);

@@ -12,6 +12,8 @@ export function createEngine(): EngineClient {
   if (typeof Worker === "undefined") {
     return createEngineClient(createInProcessPort((message) => handleRequest(PRESETS, message)));
   }
-  const url = new URL("./engine.worker.ts", import.meta.url);
-  return createEngineClient(new Worker(url, { type: "module", name: "engine" }));
+  // Vite bundles the worker only when `new URL(…)` is written inside `new Worker(…)`.
+  return createEngineClient(
+    new Worker(new URL("./engine.worker.ts", import.meta.url), { type: "module", name: "engine" }),
+  );
 }
