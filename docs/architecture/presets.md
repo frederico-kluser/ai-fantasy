@@ -35,7 +35,7 @@
 | `workplace` | local de trabalho | oficina, ferraria, escritório, laboratório | 1500 | 4000 | 4000 | 4000 | 0 | sim | — | 14 × 10, bancadas | não |
 | `market` | comércio | mercado, feira, loja | 2000 | 4000 | 1000 | 6000 | 0 | não | `crowd` | 20 × 14, bancas | parcial |
 | `public_square` | espaço público | praça, rua, estação | 2500 | 3000 | 500 | 5000 | clima | não | `crowd` | 24 × 18 aberto | sim |
-| `wilderness` | ermo natural | floresta, campo, montanha, praia | 4000 | 3000 | 7000 | 1000 | clima | não | conforme a premissa (`forest`, `water`…) | 24 × 24, árvores e rochas | sim |
+| `wilderness` | ermo natural | floresta, campo, montanha, praia | 4000 | 3000 | 7000 | 1000 | clima | não | — | 24 × 24, árvores e rochas | sim |
 | `dangerous_place` | lugar perigoso | beco, ruína, esconderijo, zona de guerra | 7000 | 1000 | 6000 | 2000 | clima | não | `dark` | 16 × 16, entulho | parcial |
 | `solemn_place` | lugar solene | templo, tribunal, hospital, velório | 1000 | 4000 | 3000 | 1000 | 0 | sim | `enclosed`, `sacred` | 18 × 14 | não |
 | `vehicle` | transporte | carroça, carro, trem, barco, nave | 3000 | 4000 | 5000 | 4000 | 0 | sim | `enclosed` | 10 × 4 | parcial |
@@ -43,6 +43,8 @@
 
 - **Temperatura** "clima" significa `baseTemperature = 0`: só o clima conta.
 - **Iluminado** (`lit`): à noite o lugar fica em meia-luz em vez de escuro.
+- **Tags padrão:** "—" é nenhuma. O ermo natural (`wilderness`) não tem tags padrão: a tag natural
+  dele (`forest`, `water`…) vem da premissa, escolhida pelo SOM (seção 10, passo 2), ou da ficha.
 - **Exposto ao clima:** "não" = todas as células cobertas (`roofed`); "sim" = nenhuma; "parcial" =
   o gabarito marca as cobertas.
 - **Grade padrão:** largura × altura (`W × H`) e o que o gabarito tem. Cada grade padrão é um

@@ -19,7 +19,11 @@ import {
   specTones,
   specTopicTypes,
 } from "../../test/support/spec-acts.ts";
-import { specDayStates, specHistoryEvents } from "../../test/support/spec-history.ts";
+import {
+  specDayStates,
+  specEventDriveMarks,
+  specHistoryEvents,
+} from "../../test/support/spec-history.ts";
 import {
   specAssociationTags,
   specBondArchetypes,
@@ -90,6 +94,16 @@ describe("presets.md catalogs × preset data (CORE-03 acceptance)", () => {
 
   it("given the history events when comparing with presets §7 then they match", () => {
     expect(parsed(historyEventSchema, HISTORY_EVENTS)).toStrictEqual(specHistoryEvents());
+  });
+
+  it("given the drives of the history events when reading presets §7 then each is marked dirigida exactly when it is directed", () => {
+    const directed = new Map<string, boolean>(DRIVES.map((drive) => [drive.id, drive.directed]));
+    const marks = specEventDriveMarks();
+
+    expect(marks).toHaveLength(6);
+    expect(marks).toStrictEqual(
+      marks.map(({ drive }) => ({ drive, directed: directed.get(drive) })),
+    );
   });
 
   it("given the association tags when comparing with presets §8 then they match", () => {
