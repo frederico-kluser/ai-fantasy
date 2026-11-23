@@ -211,14 +211,14 @@ describe("statusTick: threat and drives (simulation-model §6 and §5.3)", () =>
     ]);
   });
 
-  it("given a perception of someone absent who looks afraid when ticking then care toward the present one follows only its own distress", () => {
+  it("given a perception of someone absent who looks afraid when ticking then care toward the calm present one stays at the default, with no entry", () => {
     const worried = aCharacter(1, 0, {
       perceptions: [aPerception(2, {}, { emotion: "fear", intensity: toBp(6000) }), aPerception(3)],
     });
 
-    expect(statusTick([worried, aCharacter(3, 1)], INPUT)[0]?.drives.directed.care).toStrictEqual([
-      { target: 3, deficit: 0 },
-    ]);
+    expect(statusTick([worried, aCharacter(3, 1)], INPUT)[0]?.drives.directed.care).toStrictEqual(
+      [],
+    );
   });
 
   it("given an expansive character while an act goes on when ticking then company rises by 1 only", () => {
