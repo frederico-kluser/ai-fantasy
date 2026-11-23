@@ -14,7 +14,7 @@ Uma decisão arquitetural relevante fica registrada aqui. O ADR explica **por qu
 | [0017](<0017-determinism-replay-and-forced-paths.md>) | Determinismo, replay exato e forçar caminho | Aceito |
 | [0018](<0018-tdd-and-gates-in-typescript.md>) | TDD e gates completos em TypeScript | Aceito |
 | [0019](<0019-licenses-in-the-typescript-project.md>) | Licenças do código, das dependências e dos modelos no projeto TypeScript | Aceito |
-| [0020](<0020-base-tools-and-libraries.md>) | Ferramentas e bibliotecas de base do monorepo TypeScript | Aceito |
+| [0020](<0020-base-tools-and-libraries.md>) | Ferramentas de base do monorepo TypeScript | Aceito |
 
 ## Substituídos (histórico)
 

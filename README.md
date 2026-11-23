@@ -77,7 +77,7 @@ cp .env.example .env             # opcional: preencha OPENROUTER_API_KEY para us
 npm run dev                      # servidor em 127.0.0.1:4318 + site com recarga em 127.0.0.1:5173
 npm start                        # compila o site e o serve pelo servidor em http://127.0.0.1:4318
 npx playwright install chromium  # uma vez, antes do primeiro E2E
-npm run check                    # tudo o que o CI roda, na ordem do CI
+npm run check                    # os gates do CI, na mesma ordem (ver abaixo)
 ```
 
 | Comando | O que faz |
@@ -94,6 +94,12 @@ npm run check                    # tudo o que o CI roda, na ordem do CI
 | `npm run bench` | benchmark do motor (provisório até a SOC-05) em `reports/bench.md` |
 | `npm run build` | compila o site em `apps/web/dist` |
 | `npm run docs:lint` | markdownlint da documentação |
+| `npm run governance` | arquivos obrigatórios e espelho `CLAUDE.md` ↔ `AGENTS.md` |
+
+`npm run check` roda localmente, na ordem do CI, tudo o que os jobs `docs`, `node`, `e2e` e
+`mutation` rodam, menos dois passos que só o CI faz: os links da documentação (lychee) e as
+mensagens dos commits (job `build`; na máquina, o hook `commit-msg` e o `oss-gate.sh` fazem esse
+papel).
 
 Estrutura: `packages/engine` (motor puro), `packages/ai` (parte pura e adaptadores do
 OpenRouter), `apps/server` (Fastify em `127.0.0.1`), `apps/web` (React + Vite) e `scripts/`
