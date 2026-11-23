@@ -2,7 +2,7 @@
  * Labelled form fields (overview §6): every input has a visible label tied to
  * it, so it is reachable by keyboard and named for assistive technology.
  */
-import { useId, useState, type JSX } from "react";
+import { useEffect, useId, useRef, useState, type JSX, type RefObject } from "react";
 
 /** An option of a select. */
 export interface Option {
@@ -157,4 +157,22 @@ export function NumberField({ label, value, min, max, onValue }: NumberProps): J
       ) : null}
     </div>
   );
+}
+
+/**
+ * A ref whose element takes the focus when `active` holds, each time `key`
+ * changes: moves the focus to the heading of a screen that just replaced
+ * another, so keyboard and screen-reader users land on it.
+ */
+export function useFocus<T extends HTMLElement>(
+  key: unknown,
+  active: boolean,
+): RefObject<T | null> {
+  const ref = useRef<T>(null);
+  useEffect(() => {
+    if (active) {
+      ref.current?.focus();
+    }
+  }, [key, active]);
+  return ref;
 }

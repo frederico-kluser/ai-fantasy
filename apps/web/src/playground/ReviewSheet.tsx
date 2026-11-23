@@ -8,6 +8,7 @@ import type { JSX } from "react";
 
 import { PRESETS } from "../engine/presets.ts";
 import type { SetupReview } from "../engine/protocol.ts";
+import { useFocus } from "./fields.tsx";
 import { DAY_PHASE_NAMES, displayName, nameIn } from "./labels.ts";
 import type { SceneSetup } from "./setup.ts";
 import { timeOf } from "./values.ts";
@@ -69,9 +70,12 @@ function Cast({ review }: { readonly review: SetupReview }): JSX.Element {
 
 /** The review sheet of a valid setup. */
 export function ReviewSheet({ setup, review, onBack }: Props): JSX.Element {
+  const heading = useFocus<HTMLHeadingElement>(review, true);
   return (
     <section aria-labelledby="review-heading" className="review">
-      <h2 id="review-heading">Ficha da cena</h2>
+      <h2 id="review-heading" ref={heading} tabIndex={-1}>
+        Ficha da cena
+      </h2>
       <p role="status">{`Configuração válida. Impressão do estado: ${review.hash}.`}</p>
       <Summary setup={setup} />
       <Cast review={review} />

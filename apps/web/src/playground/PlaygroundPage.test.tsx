@@ -387,6 +387,50 @@ describe("manual playground: review sheet", () => {
     });
   });
 
+  it("given a valid form when reviewing then the focus moves to the review sheet heading", async () => {
+    renderPage();
+    addCast(["Ana", "caretaker"]);
+
+    click("Revisar ficha");
+
+    expect(await screen.findByRole("heading", { name: "Ficha da cena" })).toBe(
+      document.activeElement,
+    );
+  });
+
+  it("given the review sheet when going back then the focus moves to the form heading", async () => {
+    renderPage();
+    addCast(["Ana", "caretaker"]);
+    click("Revisar ficha");
+    await screen.findByRole("heading", { name: "Ficha da cena" });
+
+    click("Voltar e editar");
+
+    expect(screen.getByRole("heading", { name: "Playground manual" })).toBe(document.activeElement);
+  });
+
+  it("given a second review when going back again then the focus returns to the form heading", async () => {
+    renderPage();
+    addCast(["Ana", "caretaker"]);
+    click("Revisar ficha");
+    await screen.findByRole("heading", { name: "Ficha da cena" });
+    click("Voltar e editar");
+    fireEvent.focus(screen.getByRole("button", { name: "Revisar ficha" }));
+    screen.getByRole("button", { name: "Revisar ficha" }).focus();
+    click("Revisar ficha");
+    await screen.findByRole("heading", { name: "Ficha da cena" });
+
+    click("Voltar e editar");
+
+    expect(screen.getByRole("heading", { name: "Playground manual" })).toBe(document.activeElement);
+  });
+
+  it("given a new playground when rendering then the focus stays where it was", () => {
+    renderPage();
+
+    expect(document.activeElement).toBe(document.body);
+  });
+
   it("given the review sheet when going back then the form keeps what was filled", async () => {
     renderPage();
     addCast(["Ana", "caretaker"]);

@@ -10,6 +10,7 @@ import type { EngineAnswer, EngineClient } from "../engine/client.ts";
 import type { Problem, SetupReview } from "../engine/protocol.ts";
 import { BondFields } from "./BondFields.tsx";
 import { CastFields } from "./CastFields.tsx";
+import { useFocus } from "./fields.tsx";
 import { GeneratedCast } from "./GeneratedCast.tsx";
 import {
   castInputOf,
@@ -88,10 +89,12 @@ function useEngineActions(
       },
     );
   };
+  const [cameBack, setCameBack] = useState(false);
   const back = () => {
+    setCameBack(true);
     setConfirmed(null);
   };
-  return { problems, busy, confirmed, generate, review, back };
+  return { problems, busy, confirmed, cameBack, generate, review, back };
 }
 
 function Problems({ problems }: { readonly problems: readonly Problem[] }): JSX.Element | null {
@@ -132,6 +135,7 @@ function GenerateButton(props: {
 export function PlaygroundPage({ engine, seeds }: Props): JSX.Element {
   const [state, dispatch] = useReducer(playgroundReducer, seeds, startOf);
   const actions = useEngineActions(engine, state, dispatch);
+  const heading = useFocus<HTMLHeadingElement>(actions.confirmed, actions.cameBack);
   if (actions.confirmed !== null) {
     return <ReviewSheet {...actions.confirmed} onBack={actions.back} />;
   }
@@ -143,7 +147,9 @@ export function PlaygroundPage({ engine, seeds }: Props): JSX.Element {
         void actions.review();
       }}
     >
-      <h2 id="playground-heading">Playground manual</h2>
+      <h2 id="playground-heading" ref={heading} tabIndex={-1}>
+        Playground manual
+      </h2>
       <SeedFields state={state} dispatch={dispatch} />
       <SceneFields state={state} dispatch={dispatch} />
       <CastFields state={state} dispatch={dispatch} />
