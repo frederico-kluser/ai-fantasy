@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { fnv1a32 } from "../domain/fnv.ts";
-import { nextU32, sfc32FromWords, type StreamWords } from "./sfc32.ts";
+import { nextU32, seedSfc32, sfc32FromWords, sfc32Words, type StreamWords } from "./sfc32.ts";
 import { createRngState, hash32, isSeed, SCENE_STREAMS, STREAMS, type RngState } from "./state.ts";
 
 /** The first `count` raw u32 outputs of saved stream words. */
@@ -100,4 +100,31 @@ describe("seeded streams (simulation-model §15)", () => {
       new RangeError(`a seed must be an integer in 0..4294967295, got ${String(bad)}`),
     );
   });
+});
+
+describe("cast attempts (simulation-model §15, presets §10.1)", () => {
+  const seeds = { castSeed: 7, sceneSeed: 9 };
+
+  it("given attempt 0 when creating the rng state then it is the state without an attempt", () => {
+    expect(createRngState(seeds, 0)).toStrictEqual(createRngState(seeds));
+  });
+
+  it("given attempt 1 when creating the rng state then only generation changes, seeded from generation#1", () => {
+    const first = createRngState(seeds);
+    const second = createRngState(seeds, 1);
+
+    expect(sameStreams(first, second)).toStrictEqual(SCENE_STREAMS);
+    expect(second.streams.generation).toStrictEqual(
+      sfc32Words(seedSfc32(hash32(7, "generation#1"))),
+    );
+  });
+
+  it.each([-1, 0.5, Number.NaN])(
+    "given attempt %d when creating the rng state then it throws a RangeError",
+    (attempt) => {
+      expect(() => createRngState(seeds, attempt)).toThrow(
+        new RangeError(`a cast attempt must be a safe integer ≥ 0, got ${attempt}`),
+      );
+    },
+  );
 });

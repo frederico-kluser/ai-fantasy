@@ -57,7 +57,9 @@ export {
   type PerceptionValues,
 } from "./perception.ts";
 export {
+  AGE_BANDS,
   refreshBaselines,
+  SPEECH_REGISTERS,
   tagValences,
   type AgeBand,
   type Association,
