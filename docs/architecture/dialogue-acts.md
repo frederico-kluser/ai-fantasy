@@ -1,6 +1,6 @@
 # Atos de conversa
 
-> **Especificação v1.5 — 2026-11-23.** Toda fala e toda ação na fatia é um **ato**: ato × tom ×
+> **Especificação v1.6 — 2026-11-23.** Toda fala e toda ação na fatia é um **ato**: ato × tom ×
 > tópico, com valores (D-13). O motor decide e resolve atos; o SOM converte a fala livre do
 > jogador num ato; o modelo de texto encena o ato. As regras gerais estão no
 > [modelo de simulação](<simulation-model.md>), cujas convenções valem aqui (`/` é divisão
@@ -9,7 +9,8 @@
 > a v1.2 deu valência às respostas e fixou a versão falsa das mentiras e a ordem de cálculo; a
 > v1.3 deu nomes de exibição aos objetos de pedido (CORE-03); a v1.4 fixou a referência de cada
 > tipo de tópico e o destino como índice de célula (CORE-04); a v1.5 fixou a validação de
-> um ato e os sorteios da leitura do tom (SOC-01). As tabelas das seções 2 a 4 são
+> um ato e os sorteios da leitura do tom (SOC-01); a v1.6 fixou os detalhes de cálculo da
+> avaliação, dos pedidos e das mentiras (seções 7.5 e 8.4; SOC-03). As tabelas das seções 2 a 4 são
 > dados do motor ([presets](<presets.md>), seção 1).
 
 ## 1. Estrutura de um ato
@@ -381,6 +382,62 @@ Ouvintes `DIRECT` que não são alvo:
 para Y, tendo atração ≥ 6000 por Y ou rótulo `SPOUSE` ou `PARTNER` com Y, faz `jealousy` +2 e
 `resentment` por Z +1 (meia unidade), com a unidade do ato percebido.
 
+### 7.5 Detalhes de cálculo
+
+Fixados na SOC-03 (`packages/engine/src/acts/appraisal*.ts`, `deltas.ts`, `lies.ts`):
+
+- **Linhas como dados.** A tabela 7.1 e as linhas de 8.3 são dados: cada linha tem ato, condição,
+  valência e termos. Valem todas as linhas do ato cuja condição vale; os termos se somam e a
+  valência é a de maior módulo (empate: a primeira na ordem da tabela). As linhas de valência 0
+  sem efeito (`ASK`, `REQUEST`, `MOVE`, `LEAVE`) existem e recebem o tom (7.2): um `REQUEST` em
+  `AGGRESSIVE` tem valência −2, os extras do tom, hostilidade percebida e ofensor; a linha de `ASK`
+  vale sempre, e as emoções de segredo ou fato ruim são uma linha à parte. Só um ato sem linha
+  nenhuma (`STAY_SILENT`, que tem a linha de obrigação ignorada; `ACCEPT` ou `REFUSE` que não
+  respondem a nada) fica com valência 0 e nenhum efeito, nem os extras do tom.
+- **"Tópico interessa"** (linhas de `CHAT` e `TELL`) é a parte do tópico da regra de interesse da
+  simulação (5.2), sem o "X é alvo" (que valeria sempre para o alvo): a própria pessoa; um
+  presente com quem ela tem afeto, ressentimento ou atração ≥ 5000; uma pessoa a quem ela tem
+  vontade dirigida com déficit ≥ 3000 ("alvo de vontade dirigida", o piso de 8.1); uma tag ou
+  coisa associada; um fato de que tem cópia. O lugar da cena, sentimentos e amenidades não
+  interessam por si.
+- **Fato novo** (linha de `TELL`): o ouvinte não tinha cópia do fato antes do ato e fica com uma;
+  numa mentira, só quem acreditou. **Fato ruim** (seção 4): num `TELL`, pela versão contada (a falsa
+  numa mentira; a da cópia de quem conta, senão); em `ASK` e `ACCUSE`, pelo registro. "Segredo do
+  alvo" na linha de `ASK` é o fato ruim para ele (um `SECRET` de que o alvo é autor ou ofensor).
+- **Tom:** os multiplicadores valem para cada termo pelo sinal do efeito (déficit que cai é bom;
+  `surprise` e `dependence` são neutros). Os extras do tom são termos sem multiplicador. Na regra
+  de `SEDUCTIVE`, "valência +1" e "valência −1" somam à valência da linha (leitura escolhida na
+  SOC-03; o maintainer pode revisitá-la).
+- **Fatores de traço** (simulação 5.6) valem só para ganhos (deltas positivos) de `anger`, `fear` e
+  `guilt`, com o traço efetivo.
+- **Teto dos laços:** os deltas de um ato no mesmo eixo, da mesma pessoa para a mesma pessoa, se
+  somam (de todas as fontes do ato: linha, extras, ciúme, interrupção, mentira descoberta) e o
+  total fica em ±1500. Cada ganho de surpresa soma a metade (truncada) ao déficit de
+  `predictability`, também nas testemunhas.
+- **Testemunhas** (7.4) leem a linha sobre o primeiro alvo (`DIRECT`, menor id), com o tom que
+  elas leram e o laço delas com o autor; num ato sem alvo, não há linha (mas o fato novo vale).
+  "Valência ≤ −2 contra alguém" é a valência dessa leitura, contra cada alvo.
+- **Ciúme** e os **efeitos em quem agiu** (7.3) usam o tom real e a valência pelo tom real para
+  cada alvo; o ciúme vale para quem tem a perspectiva `DIRECT` ou `SEEN` (não `FRAGMENT`). O
+  **ofensor** é o autor quando a valência pelo tom real é ≤ −1 para algum alvo. Um fato de ato
+  nunca é segredo (escolha da SOC-03; o maintainer pode revisitá-la).
+- **Tédio** (simulação 5.2): cada ouvinte `DIRECT` a quem o ato interessa (`actInterests`: o ato é
+  dirigido a ele — alvo, ou ouvinte `DIRECT` de um `GROUP` — ou o tópico lhe interessa) perde 1000
+  de tédio (`BOREDOM_RELIEF`), ou 2000 (`BOREDOM_RELIEF_ADDRESSED`) se o ato é dirigido a ele com a
+  valência que ele leu ≥ 1; nunca abaixo de 0. É um delta de emoção do ato (conta na importância).
+- **Percepção** (simulação §9, item 4) muda só pelos números de lá; ignorar uma obrigação aplica
+  só a linha de `STAY_SILENT` devido (intensidade 5000, sem tom e sem mudar a percepção).
+- **Mentiras:** a detecção (`LIE_DETECT`, stream `perception`) e a crença (`LIE_BELIEF`, stream
+  `resolution`) sorteiam por ouvinte `DIRECT`, em ordem de id, com ele como alvo; a cópia própria
+  "verdadeira" é a sem versão falsa, de qualquer perspectiva. O limite `0..9500` da detecção nunca
+  age (aptidões em `0..10000` dão `1500..9000`). Numa negação mentirosa (`REFUSE`), quem acredita
+  não ganha cópia (só o `TELL` dá cópia `TOLD`); quem duvida perde sinceridade. "A cópia do fato da
+  mentira", que ganha +3000 de importância, é a cópia do fato do próprio ato mentiroso, com ou sem
+  fato contado.
+- **Importância** (simulação §12): para o autor e para cada um que percebeu o ato, com os deltas
+  dele no ato (os de laço contam em dobro) e +3000 para quem está no fato (autor, alvos que ouviram
+  e a pessoa do tópico).
+
 ## 8. Pedidos: aceite, faixas e respostas
 
 ### 8.1 Probabilidade de aceite
@@ -451,6 +508,23 @@ A unidade é a da resposta. "Autor" é quem fez o pedido; "alvo", quem responde.
 
 Uma pergunta respondida (`TELL`) segue a linha de `TELL`; uma acusação admitida (`APOLOGIZE`) ou
 negada (`REFUSE`) segue a linha do próprio ato.
+
+### 8.4 Detalhes de cálculo
+
+Fixados na SOC-03 (`packages/engine/src/acts/requests.ts` e `request-answers.ts`):
+
+- **Aceite:** o ajuste do tom usa o tom real do pedido; laço, atração e `fearOf` são do alvo pelo
+  autor; a sinceridade percebida é a do registro de percepção do alvo (sem registro, a prévia);
+  `courage` e `pride` são efetivos. Uma vontade é dominante pelo peso (≥ 7000).
+- **Faixa:** `drawWeighted` das larguras das cinco faixas, na ordem da tabela, no stream
+  `resolution`, finalidade `REQUEST_BAND`, com o alvo; as larguras somam 10000, então é o mesmo que
+  a tabela com `u` em `[0, 10000)`. A resposta fixada `ACCEPT` em `WARM` ou `NEUTRAL` deixa os dois
+  tons para a decisão (SOC-04); só `ENTHUSIASTIC` fixa a intensidade (8000).
+- **Efeitos da resposta:** a faixa da resposta vai para o fato dela (`band`). Quem fez o pedido
+  recebe as linhas de 8.3 com o tom que leu na resposta (multiplicadores de 7.2); quem responde,
+  sem tom. `PARTIAL` usa meia unidade. "A vontade do pedido" é: em `REQUEST`, a de quem recebe o
+  objeto; em `OFFER`, a de quem dá; em `APOLOGIZE`, `intimacy` (a quem respondeu); em `THREATEN`,
+  `influence`. Uma vontade dirigida de 8.3 é sempre para a outra parte.
 
 ## 9. Escolha do ato (dados da decisão)
 
