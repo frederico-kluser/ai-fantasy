@@ -141,11 +141,11 @@ function roofedError(shape: Shape, roofed: GridSpec["roofed"]): GridError | unde
 }
 
 function startsError(shape: Shape, starts: readonly CellPos[]): GridError | undefined {
-  const bad = starts.findIndex((pos, item) => !isPassableAt(shape, pos) || isRepeat(starts, item));
-  if (bad !== NOT_FOUND) {
-    return { code: "INVALID_START", start: bad };
+  if (starts.length < MIN_GRID_STARTS) {
+    return { code: "TOO_FEW_STARTS" };
   }
-  return starts.length < MIN_GRID_STARTS ? { code: "TOO_FEW_STARTS" } : undefined;
+  const bad = starts.findIndex((pos, item) => !isPassableAt(shape, pos) || isRepeat(starts, item));
+  return bad === NOT_FOUND ? undefined : { code: "INVALID_START", start: bad };
 }
 
 function roofedMarks(shape: Shape, roofed: GridSpec["roofed"]): boolean[] {
@@ -172,7 +172,8 @@ function gridOf(shape: Shape, spec: GridSpec): Grid {
 /**
  * Validates a grid template and builds its grid (simulation-model §3.1). The
  * checks follow the order of the fields: rows (size, width, symbols), exits,
- * roof mask, starts; the first failure is the error.
+ * roof mask, starts (the count of a list before its items); the first failure is
+ * the error.
  *
  * @example
  * const grid = parseGridSpec(place.grid);

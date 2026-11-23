@@ -75,7 +75,8 @@ export function forEachCellBetween(
 
 /**
  * The cells of the supercover strictly between `from` and `to`, in order (see
- * {@link forEachCellBetween}); empty for neighbours or the same cell.
+ * {@link forEachCellBetween}); empty for orthogonal neighbours or the same cell
+ * (diagonal neighbours give the two cells of their corner).
  *
  * @throws RangeError if an index is not a cell of the grid.
  */

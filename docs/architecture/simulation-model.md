@@ -87,7 +87,8 @@ menor índice.
   | `starts` | posições iniciais sugeridas, como `{ x, y }` | pelo menos 8; distintas; de tipo atravessável |
 
   A validação segue a ordem da tabela e para no primeiro erro, que aponta, quando há, a primeira
-  linha (de `rows` ou da máscara) ou o primeiro item (de `exits` ou de `starts`) que falha.
+  linha (de `rows` ou da máscara) ou o primeiro item (de `exits` ou de `starts`) que falha. Em
+  `exits` e `starts`, a contagem (pelo menos uma; pelo menos 8) vem antes dos itens.
 - Propriedades do lugar em bp: `danger` (perigo), `comfort` (conforto), `privacy` (privacidade),
   `noise` (ruído ambiente) e `baseTemperature` (bipolar; "clima" no preset significa 0). Além
   disso, `lit` (iluminado à noite) e `tags` (por exemplo `forest`, `water`, `dark`, `crowd`,
@@ -524,7 +525,9 @@ custo, recalculado a cada tick. Se o próximo passo está ocupado, o personagem 
 | `LEAVE` / `FAREWELL` de saída | a célula `exit` alcançável mais perto; ao chegar, o personagem deixa a fatia |
 
 Sem caminho até o destino, o ato acontece (o personagem tenta) mas ninguém se move; uma saída sem
-caminho é cancelada.
+caminho é cancelada. "Sem caminho" se mede **só pelas paredes e pelos tipos de célula, ignorando
+as pessoas** (`findPath(grid, de, para, [])`): alguém parado no caminho ou na porta não cancela
+nada; o personagem anda até a fila e espera (veja "Espera e fila" abaixo).
 
 Em detalhe:
 
@@ -532,7 +535,9 @@ Em detalhe:
   "livre" é sem outro personagem; "distância" é a de Chebyshev; todo empate vai para o menor
   índice. No `WITHDRAW` sem nenhuma célula livre e alcançável a 4 ou mais do alvo, vale a célula
   alcançável de maior distância do alvo (empate: menor índice), que pode ser a do próprio
-  personagem. O `APPROACH` sem célula livre e alcançável a distância 1 do alvo não tem destino.
+  personagem. Se nenhuma célula livre serve agora, a escolha do `APPROACH` e da saída é refeita
+  ignorando as pessoas; o `APPROACH` só fica sem destino, e a saída só é cancelada, quando as
+  paredes não deixam chegar a nenhuma célula a distância 1 do alvo ou a nenhuma `exit`.
 - **O que se recalcula.** O `MOVE` e o `WITHDRAW` guardam a célula escolhida no ato. O
   `APPROACH` e a saída recalculam o destino a cada tick, porque o alvo e as ocupações mudam. O
   deslocamento termina ao alcançar o destino; o do `APPROACH` termina já quando o personagem fica
@@ -549,7 +554,9 @@ Em detalhe:
   esforço); se está ocupada, espera aquele tick e o esforço volta a 0. Assim, quem não consegue
   contornar alguém faz fila atrás dele, e quem anda atrás de alguém num corredor entra na
   célula que ele acabou de deixar. Sem caminho nem ignorando as ocupações, também espera. Em
-  todos esses casos o destino continua.
+  todos esses casos o destino continua. Num impasse de frente (dois personagens num corredor,
+  cada um querendo passar pelo outro), os dois ficam parados até a SOC mudar o destino de um
+  deles; o espaço não resolve impasses sozinho.
 
 ### 8.2 Quem ouve
 
