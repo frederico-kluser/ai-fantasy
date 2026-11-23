@@ -28,7 +28,7 @@ interface SpecEffects {
 
 const IF_HONEST = " se `honesty` > 0";
 const BASELINE = /^(.+) de base ([+−-]\d+)$/;
-const DRIVE = /^`(\w+)`(?: dirigida)? ([+−-]\d+)$/;
+const DRIVE = /^`(\w+)`( dirigida)? ([+−-]\d+)$/;
 /** Notes of the effect cells that are not effects. */
 const NOTES = [" (só se B sabe)", " (B não sabe)"];
 
@@ -54,7 +54,7 @@ function addEffect(effects: SpecEffects, item: string): void {
     return;
   }
   if (drive !== null) {
-    effects.drives[drive[1] ?? ""] = integer(drive[2] ?? "");
+    effects.drives[drive[1] ?? ""] = integer(drive[3] ?? "");
     return;
   }
   const cut = item.lastIndexOf(" ");
@@ -69,6 +69,23 @@ function effectsOf(text: string): SpecEffects {
     addEffect(effects, item.trim());
   }
   return effects;
+}
+
+/**
+ * §7: every drive named in an effect cell, with whether the cell marks it as
+ * "dirigida", in table order; the test compares the mark with the drive catalog.
+ */
+export function specEventDriveMarks() {
+  const cells = tableOf(PRESETS, "## 7. Acontecimentos de história").rows.flatMap((row) => [
+    cell(row, 2),
+    cell(row, 3),
+  ]);
+  return cells
+    .flatMap((text) => text.split(/[,;] /))
+    .map((item) => DRIVE.exec(item.trim()))
+    .flatMap((match) =>
+      match === null ? [] : [{ drive: match[1] ?? "", directed: match[2] !== undefined }],
+    );
 }
 
 const OFFENDERS = { [DASH]: "NONE", A: "A", B: "B", ambos: "BOTH" } as const;
