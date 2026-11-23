@@ -347,9 +347,10 @@ describe("appraiseAct: the author (dialogue-acts §7.3)", () => {
     expect(amount(deltasOf(input), z, "guilt")).toBeUndefined();
   });
 
-  it("given a hot author who threatens someone loved and someone it wants justice from when appraising then it feels guilt, relief and joy", () => {
+  it("given an author hot by its tendency who threatens someone loved and someone it wants justice from when appraising then it feels guilt, relief and joy", () => {
     const author = aCharacter(1, 0, {
-      traits: someTraits({ temper: 1 }),
+      traits: someTraits({ temper: -2999 }),
+      tendencies: someTraits({ temper: 10000 }),
       bonds: [aBond(2, { affection: 6000 })],
       drives: someDrives({ directed: { justice: [[3, 5000]] } }),
     });

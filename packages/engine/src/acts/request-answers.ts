@@ -41,13 +41,11 @@ function answers(acts: readonly ActId[], bands: readonly OutcomeBand[] | null = 
   return (answer: AnswerView | null): answer is AnswerView =>
     answer !== null &&
     acts.includes(answer.act) &&
-    (bands === null || (answer.band !== null && bands.includes(answer.band)));
+    (bands === null || bands.some((band) => band === answer.band));
 }
 
-function material(answer: AnswerView | null): boolean {
-  return (
-    answer?.object !== null && answer?.object !== undefined && MATERIAL.includes(answer.object)
-  );
+function material(answer: AnswerView): boolean {
+  return MATERIAL.some((object) => object === answer.object);
 }
 
 const on =
@@ -170,12 +168,18 @@ export function responderTerms(answer: AnswerView): EffectTerm[] {
   return RESPONDER_ROWS.filter((row) => row.when(answer)).flatMap((row) => row.effects);
 }
 
+/** The drives of a request object in who receives it and in who gives it. */
+interface ObjectDrives {
+  readonly RECEIVER: DriveId | null;
+  readonly GIVER: DriveId | null;
+}
+
 /** "A vontade do pedido" (dialogue-acts §8.3): what the one who asked wanted from it. */
-const REQUESTED_DRIVE: Readonly<Record<RequestActId, DriveRef>> = {
-  REQUEST: "RECEIVER",
-  OFFER: "GIVER",
-  APOLOGIZE: "intimacy",
-  THREATEN: "influence",
+const REQUESTED_DRIVE: Readonly<Partial<Record<ActId, (sides: ObjectDrives) => DriveId | null>>> = {
+  REQUEST: (sides) => sides.RECEIVER,
+  OFFER: (sides) => sides.GIVER,
+  APOLOGIZE: () => "intimacy",
+  THREATEN: () => "influence",
 };
 
 export function isRequestDriveRef(ref: DriveRef): ref is RequestDriveRef {
@@ -197,24 +201,14 @@ export function requestDrives(
   objects: RequestObjectRules,
 ): RequestDrives {
   const entry = objects.find((object) => object.id === answer?.object);
-  const sides = new Map<DriveRef, DriveId | null>([
-    ["RECEIVER", entry?.receiverDrive ?? null],
-    ["GIVER", entry?.giverDrive ?? null],
-  ]);
-  const act = answer?.act ?? "CHAT";
-  const requested: DriveRef | null = isRequestAct(act) ? REQUESTED_DRIVE[act] : null;
-  sides.set("REQUESTED", resolveRef(requested, sides));
-  return (ref) => sides.get(ref) ?? null;
-}
-
-/** A drive id as it is, a request drive by `sides`, or `null`. */
-function resolveRef(
-  ref: DriveRef | null,
-  sides: ReadonlyMap<DriveRef, DriveId | null>,
-): DriveId | null {
-  if (ref === null) {
-    return null;
-  }
-  // A ref that is not a request drive (not in `sides`) is a drive id.
-  return sides.has(ref) ? (sides.get(ref) ?? null) : (ref as DriveId);
+  const sides: ObjectDrives = {
+    RECEIVER: entry?.receiverDrive ?? null,
+    GIVER: entry?.giverDrive ?? null,
+  };
+  const requested = answer === null ? null : (REQUESTED_DRIVE[answer.act]?.(sides) ?? null);
+  const drives: Readonly<Record<RequestDriveRef, DriveId | null>> = {
+    ...sides,
+    REQUESTED: requested,
+  };
+  return (ref) => drives[ref];
 }

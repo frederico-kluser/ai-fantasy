@@ -74,6 +74,7 @@ describe("factLie (dialogue-acts §5)", () => {
     [aLabel({ act: "REFUSE", topic: aboutFact("EVENT", 0), isFalse: true }), "ACCUSE", 0],
     [aLabel({ act: "REFUSE", topic: aboutFact("EVENT", 0), isFalse: true }), "ASK", null],
     [aLabel({ act: "APOLOGIZE", topic: aboutFact("EVENT", 0), isFalse: true }), null, null],
+    [aLabel({ act: "APOLOGIZE", topic: aboutFact("EVENT", 0), isFalse: true }), "ACCUSE", null],
   ] as const)(
     "given %j answering %s when finding the fact of the lie then it is %s",
     (label, answered, fact) => {
@@ -120,6 +121,16 @@ describe("drawLieOutcomes (dialogue-acts §5)", () => {
       { listener: three, kind: "KEPT" },
     ]);
     expect(drawer.finish().records).toEqual([]);
+  });
+
+  it("given a hearer who only knows another fact when drawing then it is asked to believe", () => {
+    const drawer = aDrawer([forcing("LIE_BELIEF", 1, 3)]);
+    const other = createCopy(factIdOf(5), { perspective: "DIRECT" }, toBp(0));
+    const hearer = aCharacter(3, 0, { memories: [other] });
+
+    expect(drawLieOutcomes(drawer, { author, fact: FACT, hearers: [hearer] })).toEqual([
+      { listener: three, kind: "BELIEVED" },
+    ]);
   });
 
   it("given a hearer without a copy who doubts when drawing then the belief chance reads its trust and perceived sincerity", () => {

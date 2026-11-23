@@ -185,6 +185,68 @@ describe("appraisal rows (dialogue-acts §7.1)", () => {
     );
   });
 
+  it.each([
+    [
+      "ACCEPT",
+      "OFFER",
+      "ACCEPT",
+      [
+        { kind: "DRIVE", drive: "GIVER", k: -3 },
+        { kind: "DRIVE", drive: "purpose", k: -2 },
+        { kind: "EMOTION", emotion: "joy", k: 2 },
+      ],
+    ],
+    [
+      "ACCEPT",
+      "APOLOGIZE",
+      "PARTIAL",
+      [
+        { kind: "EMOTION", emotion: "guilt", k: -2 },
+        { kind: "DRIVE", drive: "intimacy", k: -1 },
+      ],
+    ],
+    ["ACCEPT", "THREATEN", "ENTHUSIASTIC", [{ kind: "DRIVE", drive: "influence", k: -3 }]],
+    [
+      "REFUSE",
+      "THREATEN",
+      "REFUSE",
+      [
+        { kind: "DRIVE", drive: "influence", k: 2 },
+        { kind: "DRIVE", drive: "REQUESTED", k: 1 },
+        { kind: "EMOTION", emotion: "anger", k: 1 },
+        { kind: "EMOTION", emotion: "sadness", k: 1 },
+      ],
+    ],
+  ] as const)(
+    "given an %s of a %s with band %s when selecting rows then the asker's terms are exactly %j",
+    (reply, act, band, terms) => {
+      const rows = appraisalRows(reply, aContext({ answer: answer(act, band, "HELP") }));
+
+      expect(termsOf(rows)).toEqual(terms);
+    },
+  );
+
+  it("given an ACCEPT answering a REFUSE band when selecting rows then nothing applies", () => {
+    expect(
+      appraisalRows("ACCEPT", aContext({ answer: answer("OFFER", "REFUSE", "HELP") })),
+    ).toEqual([]);
+  });
+
+  it("given a REFUSE to an accusation when selecting rows then the accuser gets anger, trust and justice at valence -1", () => {
+    const rows = appraisalRows("REFUSE", aContext({ answer: answer("ACCUSE", null) }));
+
+    expect(combinedValence(rows)).toBe(-1);
+    expect(termsOf(rows)).toEqual([
+      { kind: "EMOTION", emotion: "anger", k: 1 },
+      { kind: "BOND", axis: "trust", k: -1 },
+      { kind: "DRIVE", drive: "justice", k: 1 },
+    ]);
+  });
+
+  it("given a REFUSE to a request answered without a band when selecting rows then no refusal row applies", () => {
+    expect(appraisalRows("REFUSE", aContext({ answer: answer("REQUEST", null) }))).toEqual([]);
+  });
+
   it("given a REFUSE to a question when selecting rows then the asker gets anger, trust and curiosity", () => {
     const rows = appraisalRows("REFUSE", aContext({ answer: answer("ASK", null) }));
 

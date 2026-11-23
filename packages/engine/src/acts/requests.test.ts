@@ -49,7 +49,7 @@ describe("acceptanceChance (dialogue-acts §8.1)", () => {
     const target = aCharacter(2, 1, {
       bonds: [aBond(1, { trust: 6000, resentment: 1000, affection: 3000, fearOf: 6000 })],
       perceptions: [aPerception(1, { perceivedSincerity: 7000 })],
-      traits: someTraits({ courage: 3000 }),
+      traits: someTraits({ courage: 5000 }),
       tendencies: someTraits({ courage: -10000 }),
       drives: someDrives({ weights: { physical_safety: 7000, dignity: 6999 } }),
     });
@@ -65,7 +65,7 @@ describe("acceptanceChance (dialogue-acts §8.1)", () => {
     const eloquence = 300; // (8000 − 5000) / 10
     const tone = 0; // AGGRESSIVE does not lower a THREATEN
     const drive = 1500; // physical_safety dominant; dignity is not
-    const threat = 2000; // (6000 − 0 / 2) / 3: effective courage 3000 − 3000 = 0
+    const threat = 1666; // (6000 − 2000 / 2) / 3: effective courage 5000 − 3000 = 2000
     const humiliation = -700;
 
     expect(acceptanceChance(input)).toBe(
@@ -108,6 +108,7 @@ describe("acceptanceChance (dialogue-acts §8.1)", () => {
     ["OFFER", "DATE", { desire: 7000 }, 0],
     ["OFFER", "COMPANY", { company: 7000 }, 1500],
     ["THREATEN", null, { dignity: 7000 }, -1500],
+    ["REQUEST", "HELP", { physical_safety: 7000 }, 0],
   ] as const)(
     "given a %s of %s and dominant drives %j when computing the chance then the drive adjustment is %i",
     (act, object, weights, adjustment) => {
@@ -123,6 +124,34 @@ describe("acceptanceChance (dialogue-acts §8.1)", () => {
       ]).get(act);
 
       expect(acceptanceChance(input)).toBe((base ?? 0) + 300 + adjustment);
+    },
+  );
+
+  it("given a REQUEST to someone who fears the author when computing the chance then fear only counts in a THREATEN", () => {
+    const target = aCharacter(2, 1, {
+      bonds: [aBond(1, { fearOf: 9000 })],
+      perceptions: [aPerception(1, { perceivedSincerity: 5000 })],
+    });
+
+    expect(acceptanceChance(anInput({ target }))).toBe(5000 + 300);
+  });
+
+  it.each([
+    [3000, -1500],
+    [2999, 0],
+  ])(
+    "given an APOLOGIZE to someone whose dominant justice toward the author is %i when computing the chance then the adjustment is %i",
+    (deficit, adjustment) => {
+      const target = aCharacter(2, 1, {
+        drives: someDrives({ weights: { justice: 7000 }, directed: { justice: [[1, deficit]] } }),
+        perceptions: [aPerception(1, { perceivedSincerity: 5000 })],
+      });
+      const input = anInput({
+        request: { act: "APOLOGIZE", tone: "NEUTRAL", object: null },
+        target,
+      });
+
+      expect(acceptanceChance(input)).toBe(5000 + 300 + adjustment);
     },
   );
 
@@ -184,6 +213,7 @@ describe("humiliates (dialogue-acts §8.1)", () => {
     ["REQUEST", true, 0, 5000, true],
     ["REQUEST", true, 0, 4999, false],
     ["APOLOGIZE", true, 0, 5000, true],
+    ["APOLOGIZE", true, 0, 4999, false],
     ["OFFER", true, 0, 10000, false],
   ] as const)(
     "given a %s, a witness %s, privacy %i and pride %i when checking then giving in humiliates is %s",

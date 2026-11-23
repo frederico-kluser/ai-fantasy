@@ -7,7 +7,7 @@
  * `request-answers.ts`, re-exported here.
  */
 import { bondToward } from "../character/bonds.ts";
-import { directedDeficit, dominantDrives, isDirected } from "../character/drives.ts";
+import { DIRECTED_DRIVE_IDS, directedDeficit, dominantDrives } from "../character/drives.ts";
 import { perceptionPreview, perceptionToward } from "../character/perception.ts";
 import type { CharacterState } from "../character/state.ts";
 import { effectiveTrait } from "../character/traits.ts";
@@ -106,11 +106,12 @@ const HUMILIATION = 700;
 const P_MIN = 500;
 const P_MAX = 9500;
 
-function counts(target: CharacterState, author: CharacterId, drive: DriveId): boolean {
-  const dominant = dominantDrives(target.drives).includes(drive);
+function counts(target: CharacterState, author: CharacterId, drive: DriveId | null): boolean {
+  const dominant = dominantDrives(target.drives).some((id) => id === drive);
+  const directed = DIRECTED_DRIVE_IDS.find((id) => id === drive);
   return (
     dominant &&
-    (!isDirected(drive) || directedDeficit(target.drives, drive, author) >= DIRECTED_FLOOR)
+    (directed === undefined || directedDeficit(target.drives, directed, author) >= DIRECTED_FLOOR)
   );
 }
 
@@ -122,11 +123,10 @@ function driveAdjustment(input: AcceptanceInput): number {
   return DRIVE_ADJUSTMENTS.filter(
     (entry) =>
       entry.act === request.act &&
-      (entry.objects === undefined ||
-        (request.object !== null && entry.objects.includes(request.object))),
+      (entry.objects === undefined || entry.objects.some((object) => object === request.object)),
   )
     .map((entry) => ({ entry, drive: id(entry.drive) }))
-    .filter(({ drive: id }) => id !== null && counts(target, author.id, id))
+    .filter(({ drive: id }) => counts(target, author.id, id))
     .reduce((sum, { entry }) => sum + entry.amount, 0);
 }
 
@@ -212,10 +212,8 @@ export function bandWidths(p: number): number[] {
 /** The band of a draw `u` in `[0, 10000)` for the chance `p` (dialogue-acts §8.2, table). */
 export function bandAt(u: number, p: number): OutcomeBand {
   const widths = bandWidths(p);
-  const limits = widths
-    .slice(0, -1)
-    .map((_, i) => widths.slice(0, i + 1).reduce((a, b) => a + b, 0));
-  // At most four limits are passed: the count is an index of the five bands.
+  const limits = widths.map((_, i) => widths.slice(0, i + 1).reduce((a, b) => a + b, 0));
+  // The last limit is 10000, above any u: at most four are passed, an index of the five bands.
   return BANDS[limits.filter((limit) => u >= limit).length] as OutcomeBand;
 }
 
