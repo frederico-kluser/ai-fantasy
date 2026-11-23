@@ -59,11 +59,10 @@ function eventErrors(presets: Presets, bond: BondSpec, path: string): CastError[
 }
 
 /** The first problem of the pair of a bond, if any: unknown, self or repeated. */
-function pairError(input: CastInput, index: number): CastError | undefined {
-  const bond = input.bonds[index];
+function pairError(input: CastInput, bond: BondSpec, index: number): CastError | undefined {
   const path = `bonds.${index}`;
   const count = input.characters.length;
-  if (bond === undefined || bond.a >= count || bond.b >= count) {
+  if (bond.a >= count || bond.b >= count) {
     return castError("UNKNOWN_CHARACTER", path, `the cast has characters 0..${count - 1}`);
   }
   if (bond.a === bond.b) {
@@ -78,7 +77,7 @@ function pairError(input: CastInput, index: number): CastError | undefined {
 
 function bondErrors(presets: Presets, input: CastInput): CastError[] {
   return input.bonds.flatMap((bond, index) => {
-    const problem = pairError(input, index);
+    const problem = pairError(input, bond, index);
     return problem === undefined ? eventErrors(presets, bond, `bonds.${index}`) : [problem];
   });
 }

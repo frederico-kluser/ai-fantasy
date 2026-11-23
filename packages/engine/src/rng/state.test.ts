@@ -122,7 +122,9 @@ describe("cast attempts (simulation-model §15, presets §10.1)", () => {
   it.each([-1, 0.5, Number.NaN])(
     "given attempt %d when creating the rng state then it throws a RangeError",
     (attempt) => {
-      expect(() => createRngState(seeds, attempt)).toThrow(RangeError);
+      expect(() => createRngState(seeds, attempt)).toThrow(
+        new RangeError(`a cast attempt must be a safe integer ≥ 0, got ${attempt}`),
+      );
     },
   );
 });

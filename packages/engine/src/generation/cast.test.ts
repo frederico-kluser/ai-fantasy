@@ -322,4 +322,151 @@ describe("generateCast (presets §10.1)", () => {
       { numRuns: 50 },
     );
   });
+
+  it("given ten cast seeds when generating then characters draw 0, 1 or 2 associations with distinct tags", () => {
+    const drafts = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10].flatMap(
+      (castSeed) => castOf(FAMILY, { castSeed, sceneSeed: 0 }).drafts.characters,
+    );
+    const tags = drafts.map((draft) => draft.associations.map((a) => a.subject.tag));
+
+    expect(new Set(tags.map((list) => list.length))).toStrictEqual(new Set([0, 1, 2]));
+    expect(tags.every((list) => new Set(list).size === list.length)).toBe(true);
+  });
+
+  it("given an archetype that does not cite a trait when generating then it is drawn in -2000..2000", () => {
+    const courage = [1, 2, 3, 4, 5, 6, 7, 8].map(
+      (castSeed) =>
+        castOf({ characters: [aCastCharacter("caretaker")] }, { castSeed, sceneSeed: 0 }).drafts
+          .characters[0]?.traits.courage ?? 0,
+    );
+
+    expect(courage.every((value) => value >= -2000 && value <= 2000)).toBe(true);
+  });
+
+  it("given an attachment chosen by the SOM when generating then it comes first with valence 5000", () => {
+    const character = aCastCharacter("child", { association: { tag: "fire", kind: "ATTACHMENT" } });
+
+    expect(castOf({ characters: [character] }).characters[0]?.associations[0]?.valence).toBe(5000);
+  });
+
+  it("given events that are never, always and sometimes secret when generating then only the last draws its secret", () => {
+    const bonds = [
+      aBondSpec(0, 1, "colleagues", {
+        events: [anEvent("helped_in_crisis", 0), anEvent("stole", 1)],
+      }),
+      aBondSpec(0, 2, "colleagues", { events: [anEvent("betrayed_trust", 2)] }),
+    ];
+    const generated = valueOf(
+      generateCast(presets, aCastInput(["rebel", "merchant", "elder"], bonds), SEEDS),
+    );
+    const secrets = generated.records.filter((record) => record.purpose === "HISTORY_SECRET");
+
+    expect(secrets.map((record) => [record.target, record.p])).toStrictEqual([[2, 5000]]);
+    expect(generated.cast.facts.map((fact) => fact.secret)).toStrictEqual([
+      false,
+      true,
+      secrets[0]?.outcome === 1,
+    ]);
+  });
+
+  it.each([
+    [1, 1000],
+    [0, 0],
+  ])(
+    "given a thief with honesty %i when generating then the guilt shift is %i",
+    (honesty, guilt) => {
+      const first = castOf(aCastInput(["proud_worker", "merchant"]));
+      const draft = first.drafts.characters[0];
+      const locked = { ...draft, traits: { ...draft?.traits, honesty } };
+      const bond = aBondSpec(0, 1, "colleagues", { events: [anEvent("stole", 0)] });
+      const cast = castOf({
+        characters: [aCastCharacter("proud_worker", { locked }), aCastCharacter("merchant")],
+        bonds: [bond],
+      });
+
+      expect(characterOf(cast.characters, 0).baselineShifts.guilt).toBe(guilt);
+    },
+  );
+
+  it("given a generated character before the scene opens then it stands at cell 0 at rest, at its baselines, with no tendency, perception or threat", () => {
+    const character = characterOf(castOf(FAMILY).characters, 1);
+
+    expect([character.cell, character.perceptions, character.threat]).toStrictEqual([0, [], 0]);
+    expect(character.emotions).toStrictEqual(character.baselines);
+    expect(Object.values(character.body)).toStrictEqual([0, 0, 0, 0, 0, 0, 0]);
+    expect(new Set(Object.values(character.tendencies))).toStrictEqual(new Set([0]));
+  });
+
+  it("given a generated character when reading its drives then the undirected deficits hold the eleven undirected drives with relief and safety at 0", () => {
+    const deficits = characterOf(castOf(FAMILY).characters, 0).drives.deficits;
+
+    expect(Object.keys(deficits)).toStrictEqual([
+      "physical_relief",
+      "physical_safety",
+      "material_security",
+      "predictability",
+      "company",
+      "recognition",
+      "dignity",
+      "influence",
+      "curiosity",
+      "purpose",
+      "fun",
+    ]);
+    expect([deficits.physical_relief, deficits.physical_safety]).toStrictEqual([0, 0]);
+  });
+
+  it("given justice from a bond toward one and from an event toward another when generating then both entries are sorted by target", () => {
+    const bonds = [
+      aBondSpec(0, 1, "colleagues", { events: [anEvent("public_humiliation", 1)] }),
+      aBondSpec(0, 2, "enemies"),
+    ];
+    const cast = castOf(aCastInput(["rebel", "merchant", "elder"], bonds));
+
+    expect(characterOf(cast.characters, 0).drives.directed.justice).toStrictEqual([
+      { target: 1, deficit: 5500 },
+      { target: 2, deficit: 3000 },
+    ]);
+  });
+
+  it("given a grandparent without a chosen bond when generating then the grandparent is side A of the parent_child values", () => {
+    const characters = castOf(FAMILY).characters;
+    const towardGrandparent = characterOf(characters, 2).bonds.find((bond) => bond.target === 0);
+    const towardGrandchild = characterOf(characters, 0).bonds.find((bond) => bond.target === 2);
+
+    expect(towardGrandparent?.axes.dependence).toBeGreaterThanOrEqual(5000);
+    expect(towardGrandchild?.axes.dependence).toBeLessThanOrEqual(500);
+    expect(
+      characterOf(characters, 0).drives.directed.care.map((entry) => entry.target),
+    ).toStrictEqual([1, 2, 3]);
+  });
+
+  it("given a family when generating then every character has one bond per known person and none toward itself", () => {
+    const characters = castOf(FAMILY).characters;
+
+    expect(characters.map((character) => character.bonds.map((bond) => bond.target))).toStrictEqual(
+      [
+        [1, 2, 3],
+        [0, 2, 3],
+        [0, 1, 3],
+        [0, 1, 2],
+      ],
+    );
+  });
+
+  it("given bonds written out of pair order when generating then the draws follow pair order and the drafts the input order", () => {
+    const bonds = [aBondSpec(0, 2, "colleagues"), aBondSpec(0, 1, "colleagues")];
+    const generated = valueOf(
+      generateCast(presets, aCastInput(["rebel", "merchant", "elder"], bonds), SEEDS),
+    );
+    const axisTargets = generated.records
+      .filter((record) => record.purpose === "BOND_AXIS")
+      .map((record) => record.target);
+    const eight = (id: number) => Array.from({ length: 8 }, () => id);
+
+    expect(axisTargets).toStrictEqual([...eight(0), ...eight(1), ...eight(0), ...eight(2)]);
+    expect(characterOf(generated.cast.characters, 0).bonds[1]?.axes).toStrictEqual(
+      generated.cast.drafts.bonds[0]?.aToB,
+    );
+  });
 });

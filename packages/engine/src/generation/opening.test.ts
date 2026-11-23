@@ -99,6 +99,8 @@ describe("openScene (presets §10.1)", () => {
   it.each([
     [[{ x: 0, y: 0 }], "INVALID_POSITION", 0],
     [[{ x: 12, y: 1 }], "INVALID_POSITION", 0],
+    [[{ x: 10, y: 0 }], "INVALID_POSITION", 0],
+    [[{ x: -1, y: 1 }], "INVALID_POSITION", 0],
     [
       [
         { x: 1, y: 1 },
@@ -144,5 +146,46 @@ describe("openScene (presets §10.1)", () => {
       code: "INVALID_GRID",
       grid: { code: "NO_EXIT" },
     });
+  });
+
+  it("given a hungover character when opening then only the needs with a range are drawn", () => {
+    const scene = opened({ grid: ROOM, dayStates: ["hungover"] });
+    const draws = scene.records.filter(
+      (record) => record.purpose === "DAY_STATE_BODY" && record.target === 0,
+    );
+    const elder = characterOf(scene.characters, 0);
+
+    expect(draws.map((record) => record.bound)).toStrictEqual([2001, 2001, 2001]);
+    expect([elder.body.fatigue, elder.body.pain, elder.body.intoxication]).toStrictEqual([
+      5000, 2000, 2000,
+    ]);
+  });
+
+  it("given an opened scene when reading the characters then perceptions and threat start empty", () => {
+    const character = characterOf(opened({ grid: ROOM }).characters, 1);
+
+    expect([character.perceptions, character.threat]).toStrictEqual([[], 0]);
+  });
+
+  it("given a drawn start when opening then the cell is the suggested start the draw picked among the free ones", () => {
+    const scene = opened({ grid: ROOM, positions: [{ x: 0, y: 1 }] });
+    const starts = scene.records.filter((record) => record.purpose === "START_CELL");
+
+    expect(starts.map((record) => [record.target, record.bound])).toStrictEqual([
+      [1, 7],
+      [2, 6],
+    ]);
+    expect(characterOf(scene.characters, 1).cell).toBe(11 + (starts[0]?.outcome ?? 0));
+  });
+
+  it("given some suggested starts taken when placing then the draw is among the free ones only", () => {
+    const drawer = createDrawer(createRngState(SEEDS), {
+      tick: 0,
+      mode: "NORMAL",
+      forced: [{ selector: { kind: "PURPOSE", purpose: "START_CELL" }, outcome: 1 }],
+    });
+
+    expect(drawCell(drawer, ROOM_GRID, [10, 11, 12], [10, undefined], 1 as CharacterId)).toBe(12);
+    expect(drawer.finish().records.map((record) => record.bound)).toStrictEqual([2]);
   });
 });

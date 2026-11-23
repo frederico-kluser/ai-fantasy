@@ -3,7 +3,6 @@
  * presets, drawn only in the `generation` stream of the cast seed, with the
  * locked parts kept as given and the tension hook when the cast lacks tension.
  */
-import { isDirected, type DirectedDriveId } from "../character/drives.ts";
 import type { CharacterIdentity, CharacterState } from "../character/state.ts";
 import type { CharacterId, FactId } from "../domain/ids.ts";
 import { itemAt } from "../domain/lookup.ts";
@@ -11,7 +10,6 @@ import { ok, type Result } from "../domain/result.ts";
 import type { HistoryFact } from "../memory/fact.ts";
 import type { Presets } from "../presets/catalogs.ts";
 import type { DayStateId } from "../presets/day-states.ts";
-import type { DriveId } from "../presets/drives.ts";
 import { createDrawer, type DrawRecord, type Drawer } from "../rng/drawer.ts";
 import { createRngState, type RngSeeds, type RngState } from "../rng/state.ts";
 import { assembleCharacter, type DrawnPair } from "./assemble.ts";
@@ -19,7 +17,7 @@ import { drawBond } from "./bond-draft.ts";
 import { drawCharacter } from "./character-draft.ts";
 import type { CastError } from "./errors.ts";
 import type { PairPlan } from "./graph.ts";
-import { eventOutcome, type Effect, type PlacedEvent } from "./history.ts";
+import { eventOutcome, joinEffects, type Effects, type PlacedEvent } from "./history.ts";
 import type { BondDraft, CastInput, CharacterDraft } from "./input.ts";
 import { presetById } from "./lookup.ts";
 import { drawHook, hookPair } from "./tension.ts";
@@ -56,10 +54,6 @@ function identityOf(input: CastInput, id: number): CharacterIdentity {
   return { id: id as CharacterId, archetype: spec.archetype, ...spec.identity };
 }
 
-function directedOf(drives: readonly DriveId[]): DirectedDriveId[] {
-  return drives.filter(isDirected);
-}
-
 function drawPairs(drawer: Drawer, presets: Presets, pairs: readonly PairPlan[]): DrawnPair[] {
   return pairs.map((plan) => {
     const archetype = presetById(presets.bondArchetypes, plan.archetype);
@@ -68,10 +62,7 @@ function drawPairs(drawer: Drawer, presets: Presets, pairs: readonly PairPlan[])
       author: author as CharacterId,
     }));
     const draft = plan.locked ?? drawBond(drawer, { a: plan.a, b: plan.b, archetype, events });
-    const directed = {
-      aToB: directedOf(archetype.aToB.directedDrives),
-      bToA: directedOf(archetype.bToA.directedDrives),
-    };
+    const directed = { aToB: archetype.aToB.directedDrives, bToA: archetype.bToA.directedDrives };
     return { plan, draft, directed };
   });
 }
@@ -90,7 +81,7 @@ function placedEvents(pairs: readonly DrawnPair[]): PlacedEvent[] {
 
 interface History {
   readonly facts: readonly HistoryFact[];
-  readonly effects: readonly Effect[];
+  readonly effects: Effects;
 }
 
 function historyOf(
@@ -104,14 +95,14 @@ function historyOf(
   );
   return {
     facts: outcomes.map((outcome) => outcome.fact),
-    effects: outcomes.flatMap((outcome) => outcome.effects),
+    effects: joinEffects(outcomes.map((outcome) => outcome.effects)),
   };
 }
 
 function assembleAll(
   drafts: readonly CharacterDraft[],
   pairs: readonly DrawnPair[],
-  effects: readonly Effect[],
+  effects: Effects,
 ): CharacterState[] {
   return drafts.map((draft, id) => assembleCharacter(id as CharacterId, draft, pairs, effects));
 }

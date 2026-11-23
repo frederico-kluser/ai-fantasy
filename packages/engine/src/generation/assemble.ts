@@ -19,11 +19,12 @@ import { toBipolarBp, toBp, type Bp } from "../domain/bp.ts";
 import { compareIds, type CharacterId } from "../domain/ids.ts";
 import { BOND_AXIS_IDS, type BondAxisId, type BondLabelId } from "../presets/bonds.ts";
 import { BODY_NEED_IDS } from "../presets/body.ts";
-import { DRIVE_IDS } from "../presets/drives.ts";
+import { DRIVE_IDS, type DriveId } from "../presets/drives.ts";
 import { EMOTION_IDS } from "../presets/emotions.ts";
 import { TRAIT_IDS } from "../presets/traits.ts";
 import type { PairPlan } from "./graph.ts";
-import type { Effect } from "./history.ts";
+import type { DriveEffect, Effects } from "./history.ts";
+import type { FactCopy } from "../memory/copy.ts";
 import {
   DRAWN_DEFICIT_IDS,
   type BondDraft,
@@ -38,9 +39,10 @@ export const CREATED_DIRECTED_DEFICIT = 3000;
 export interface DrawnPair {
   readonly plan: PairPlan;
   readonly draft: BondDraft;
+  /** The drives each side directs at the other (presets §6; only directed drives). */
   readonly directed: {
-    readonly aToB: readonly DirectedDriveId[];
-    readonly bToA: readonly DirectedDriveId[];
+    readonly aToB: readonly DriveId[];
+    readonly bToA: readonly DriveId[];
   };
 }
 
@@ -49,7 +51,7 @@ interface PairSide {
   readonly target: CharacterId;
   readonly axes: BondDraft["aToB"];
   readonly labels: readonly BondLabelId[];
-  readonly directed: readonly DirectedDriveId[];
+  readonly directed: readonly DriveId[];
 }
 
 function sideOf(pair: DrawnPair, holder: CharacterId): PairSide[] {
@@ -74,27 +76,24 @@ function sum(values: readonly number[]): number {
 /** The effects of `holder`'s history, by kind. */
 interface Ledger {
   readonly bondDelta: (target: CharacterId, axis: BondAxisId) => number;
-  readonly driveDeltas: (drive: string) => readonly { target: CharacterId; delta: number }[];
+  readonly driveDeltas: (drive: string) => readonly DriveEffect[];
   readonly shift: (emotion: string) => number;
-  readonly copies: Effect[];
+  readonly copies: readonly FactCopy[];
 }
 
-function ledgerOf(effects: readonly Effect[], holder: CharacterId): Ledger {
-  const own = effects.filter((effect) => effect.holder === holder);
+function ledgerOf(effects: Effects, holder: CharacterId): Ledger {
+  const own = <T extends { readonly holder: CharacterId }>(list: readonly T[]) =>
+    list.filter((effect) => effect.holder === holder);
+  const bonds = own(effects.bonds);
+  const drives = own(effects.drives);
+  const shifts = own(effects.shifts);
+  const deltas = (list: readonly { readonly delta: number }[]) => sum(list.map((e) => e.delta));
   return {
     bondDelta: (target, axis) =>
-      sum(
-        own.flatMap((e) =>
-          e.kind === "BOND" && e.target === target && e.axis === axis ? [e.delta] : [],
-        ),
-      ),
-    driveDeltas: (drive) =>
-      own.flatMap((e) =>
-        e.kind === "DRIVE" && e.drive === drive ? [{ target: e.target, delta: e.delta }] : [],
-      ),
-    shift: (emotion) =>
-      sum(own.flatMap((e) => (e.kind === "SHIFT" && e.emotion === emotion ? [e.delta] : []))),
-    copies: own.filter((e) => e.kind === "COPY"),
+      deltas(bonds.filter((e) => e.target === target && e.axis === axis)),
+    driveDeltas: (drive) => drives.filter((e) => e.drive === drive),
+    shift: (emotion) => deltas(shifts.filter((e) => e.emotion === emotion)),
+    copies: own(effects.copies).map((e) => e.copy),
   };
 }
 
@@ -154,12 +153,16 @@ function zeroRecord<K extends string, V>(ids: readonly K[], value: V): Record<K,
   return Object.fromEntries(ids.map((id) => [id, value])) as Record<K, V>;
 }
 
-/** The state of character `id` before the scene opens. */
+/**
+ * The state of character `id` before the scene opens. The pairs come in pair
+ * order (lower id, then the other) and the facts in the same order, so the
+ * bonds of a character are already sorted by target and its copies by fact id.
+ */
 export function assembleCharacter(
   id: CharacterId,
   draft: CharacterDraft,
   pairs: readonly DrawnPair[],
-  effects: readonly Effect[],
+  effects: Effects,
 ): CharacterState {
   const ledger = ledgerOf(effects, id);
   const sides = pairs.flatMap((pair) => sideOf(pair, id));
@@ -180,12 +183,10 @@ export function assembleCharacter(
     emotions: baselines,
     body: { ...needs, thermal: toBipolarBp(thermal) },
     drives: drivesOf(draft, sides, ledger),
-    bonds: sides.map((side) => bondOf(side, ledger)).sort((x, y) => compareIds(x.target, y.target)),
+    bonds: sides.map((side) => bondOf(side, ledger)),
     associations: draft.associations,
     perceptions: [],
-    memories: ledger.copies
-      .flatMap((effect) => (effect.kind === "COPY" ? [effect.copy] : []))
-      .sort((x, y) => compareIds(x.fact, y.fact)),
+    memories: ledger.copies,
     threat: toBp(0),
   };
 }

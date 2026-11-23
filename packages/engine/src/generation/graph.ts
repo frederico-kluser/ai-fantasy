@@ -120,11 +120,11 @@ function chosenKinship(bonds: readonly BondSpec[]): FamilyLink[] {
 }
 
 function conflictErrors(links: readonly FamilyLink[]): CastError[] {
-  const kinships = new Map<string, Set<string>>();
+  const kinships = new Map<string, Set<string | undefined>>();
   for (const { holder, target, label } of links) {
     const key = pairKey(holder, target);
-    const kinds = kinships.get(key) ?? new Set<string>();
-    kinds.add(KINSHIP[label] ?? label);
+    const kinds = kinships.get(key) ?? new Set<string | undefined>();
+    kinds.add(KINSHIP[label]);
     kinships.set(key, kinds);
   }
   return [...kinships.entries()]
@@ -132,8 +132,7 @@ function conflictErrors(links: readonly FamilyLink[]): CastError[] {
     .map(([key, kinds]) => {
       const message = `the pair ${key} would be ${[...kinds].sort().join(" and ")}`;
       return castError("FAMILY_CONFLICT", `pair.${key}`, message);
-    })
-    .sort((x, y) => comparePairKeys(x.path.slice("pair.".length), y.path.slice("pair.".length)));
+    });
 }
 
 /** The two ids of a pair key, lower first. */

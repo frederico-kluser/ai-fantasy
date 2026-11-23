@@ -23,29 +23,52 @@ export interface PlacedEvent {
   readonly secret: boolean;
 }
 
-/** One change a history fact makes to a character (`holder`). */
-export type Effect =
-  | {
-      readonly kind: "BOND";
-      readonly holder: CharacterId;
-      readonly target: CharacterId;
-      readonly axis: BondAxisId;
-      readonly delta: number;
-    }
-  | {
-      readonly kind: "DRIVE";
-      readonly holder: CharacterId;
-      readonly target: CharacterId;
-      readonly drive: DriveId;
-      readonly delta: number;
-    }
-  | {
-      readonly kind: "SHIFT";
-      readonly holder: CharacterId;
-      readonly emotion: EmotionId;
-      readonly delta: number;
-    }
-  | { readonly kind: "COPY"; readonly holder: CharacterId; readonly copy: FactCopy };
+/** A delta on a bond axis of `holder` toward `target`. */
+export interface BondEffect {
+  readonly holder: CharacterId;
+  readonly target: CharacterId;
+  readonly axis: BondAxisId;
+  readonly delta: number;
+}
+
+/** A delta on a drive deficit of `holder` (aimed at `target` when the drive is directed). */
+export interface DriveEffect {
+  readonly holder: CharacterId;
+  readonly target: CharacterId;
+  readonly drive: DriveId;
+  readonly delta: number;
+}
+
+/** A shift of a baseline of `holder`. */
+export interface ShiftEffect {
+  readonly holder: CharacterId;
+  readonly emotion: EmotionId;
+  readonly delta: number;
+}
+
+/** The copy of a fact `holder` keeps. */
+export interface CopyEffect {
+  readonly holder: CharacterId;
+  readonly copy: FactCopy;
+}
+
+/** What the history facts do to the characters, by kind. */
+export interface Effects {
+  readonly bonds: readonly BondEffect[];
+  readonly drives: readonly DriveEffect[];
+  readonly shifts: readonly ShiftEffect[];
+  readonly copies: readonly CopyEffect[];
+}
+
+/** All the effects of `list`, in order. */
+export function joinEffects(list: readonly Effects[]): Effects {
+  return {
+    bonds: list.flatMap((effects) => effects.bonds),
+    drives: list.flatMap((effects) => effects.drives),
+    shifts: list.flatMap((effects) => effects.shifts),
+    copies: list.flatMap((effects) => effects.copies),
+  };
+}
 
 type Side = HistoryEvent["onA"];
 
@@ -67,7 +90,7 @@ function sideEffects(
   other: CharacterId,
   fact: FactId,
   honesty: number,
-): Effect[] {
+): Effects {
   const bond = entriesOf(side.bond);
   const shifts = shiftsOf(side, honesty);
   const importance = factImportance({
@@ -75,24 +98,23 @@ function sideEffects(
     bondDeltas: bond.map(([, delta]) => delta),
     involved: true,
   });
-  return [
-    ...bond.map(([axis, delta]): Effect => ({ kind: "BOND", holder, target: other, axis, delta })),
-    ...entriesOf(side.drives).map(([drive, delta]): Effect => ({
-      kind: "DRIVE",
+  return {
+    bonds: bond.map(([axis, delta]) => ({ holder, target: other, axis, delta })),
+    drives: entriesOf(side.drives).map(([drive, delta]) => ({
       holder,
       target: other,
       drive,
       delta,
     })),
-    ...shifts.map(([emotion, delta]): Effect => ({ kind: "SHIFT", holder, emotion, delta })),
-    { kind: "COPY", holder, copy: historyCopy(fact, importance) },
-  ];
+    shifts: shifts.map(([emotion, delta]) => ({ holder, emotion, delta })),
+    copies: [{ holder, copy: historyCopy(fact, importance) }],
+  };
 }
 
 /** A history event as a fact and its effects. */
 export interface EventOutcome {
   readonly fact: HistoryFact;
-  readonly effects: readonly Effect[];
+  readonly effects: Effects;
 }
 
 /**
@@ -113,6 +135,6 @@ export function eventOutcome(
   const fact: HistoryFact = { id, kind: "HISTORY", event, author, subject, offenders, secret };
   const subjectKnows = !(secret && preset.knownBy === "A");
   const onA = sideEffects(preset.onA, author, subject, id, honesty(author));
-  const onB = subjectKnows ? sideEffects(preset.onB, subject, author, id, honesty(subject)) : [];
-  return { fact, effects: [...onA, ...onB] };
+  const onB = subjectKnows ? [sideEffects(preset.onB, subject, author, id, honesty(subject))] : [];
+  return { fact, effects: joinEffects([onA, ...onB]) };
 }

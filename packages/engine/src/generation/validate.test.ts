@@ -130,7 +130,8 @@ describe("validateCast (presets §10.1)", () => {
   });
 
   it.each([
-    [aBondSpec(0, 5, "rivals"), "UNKNOWN_CHARACTER bonds.0"],
+    [aBondSpec(0, 3, "rivals"), "UNKNOWN_CHARACTER bonds.0"],
+    [aBondSpec(3, 0, "rivals"), "UNKNOWN_CHARACTER bonds.0"],
     [aBondSpec(1, 1, "rivals"), "SELF_BOND bonds.0"],
     [
       aBondSpec(0, 1, "rivals", { events: [anEvent("stole", 2)] }),
@@ -234,6 +235,177 @@ describe("validateCast (presets §10.1)", () => {
 
     expect(codesOf({ characters: [character] })).toStrictEqual([
       "INVALID_INPUT characters.0.dominantDrives",
+    ]);
+  });
+
+  it.each([
+    [
+      "an unknown character",
+      aCastInput(["rebel", "merchant"], [aBondSpec(0, 2, "rivals")]),
+      "the cast has characters 0..1",
+    ],
+    [
+      "a bond with itself",
+      aCastInput(["rebel"], [aBondSpec(0, 0, "rivals")]),
+      "a bond joins two different characters",
+    ],
+    [
+      "a repeated pair",
+      aCastInput(["rebel", "merchant"], [aBondSpec(0, 1, "rivals"), aBondSpec(1, 0, "rivals")]),
+      "the pair 0.1 already has a bond",
+    ],
+    [
+      "an author outside the pair",
+      aCastInput(
+        ["rebel", "merchant", "elder"],
+        [aBondSpec(0, 1, "rivals", { events: [anEvent("stole", 2)] })],
+      ),
+      "2 is not in the pair",
+    ],
+    [
+      "strangers with history",
+      aCastInput(
+        ["rebel", "merchant"],
+        [aBondSpec(0, 1, "strangers", { events: [anEvent("stole", 1)] })],
+      ),
+      "strangers share no history",
+    ],
+    [
+      "a second spouse",
+      aCastInput(
+        ["rebel", "merchant", "elder"],
+        [aBondSpec(2, 0, "spouses"), aBondSpec(1, 2, "spouses")],
+      ),
+      "a character already holds a spouses bond",
+    ],
+    [
+      "a parent cycle",
+      aCastInput(
+        ["rebel", "merchant"],
+        [aBondSpec(0, 1, "parent_child"), aBondSpec(1, 0, "parent_child")],
+      ),
+      "the pair 0.1 already has a bond",
+    ],
+    [
+      "a parent cycle of three",
+      aCastInput(
+        ["rebel", "merchant", "elder"],
+        [
+          aBondSpec(0, 1, "parent_child"),
+          aBondSpec(1, 2, "parent_child"),
+          aBondSpec(2, 0, "parent_child"),
+        ],
+      ),
+      "PARENT bonds form a cycle: someone would be their own ancestor",
+    ],
+    [
+      "a chosen sibling who is also a grandchild",
+      aCastInput(
+        ["rebel", "merchant", "elder"],
+        [
+          aBondSpec(0, 1, "parent_child"),
+          aBondSpec(1, 2, "parent_child"),
+          aBondSpec(0, 2, "siblings"),
+        ],
+      ),
+      "the pair 0.2 would be GRANDPARENT and SIBLING",
+    ],
+    [
+      "a locked bond with the wrong marks",
+      aCastInput(
+        ["rebel", "merchant"],
+        [
+          aBondSpec(0, 1, "rivals", {
+            events: [anEvent("stole", 0)],
+            locked: { aToB: AXES, bToA: AXES, secrets: [false] },
+          }),
+        ],
+      ),
+      "a locked bond has one possible secret mark per event",
+    ],
+    [
+      "a locked character with four dominants",
+      {
+        characters: [
+          aCastCharacter("merchant", {
+            locked: aCharacterDraft({ fun: 8000, purpose: 7000, care: 7000, dignity: 9000 }),
+          }),
+        ],
+      },
+      "a character has 2 or 3 dominant drives, got 4",
+    ],
+    [
+      "a locked character with a repeated tag",
+      {
+        characters: [
+          aCastCharacter("merchant", {
+            locked: {
+              ...aCharacterDraft({ fun: 8000, purpose: 7000 }),
+              associations: [
+                { subject: { kind: "TAG", tag: "dark" }, valence: 3000 },
+                { subject: { kind: "TAG", tag: "dark" }, valence: 3000 },
+              ],
+            },
+          }),
+        ],
+      },
+      "dark is repeated",
+    ],
+  ])("given %s when validating then the message explains it", (_case, input, message) => {
+    expect(errorOf(validateCast(presets, input)).map((error) => error.message)).toStrictEqual([
+      message,
+    ]);
+  });
+
+  it.each([
+    [[true], "betrayed_trust"],
+    [[false], "betrayed_trust"],
+    [[true], "stole"],
+    [[false], "helped_in_crisis"],
+  ])(
+    "given the secrets %j for %s when validating then the locked bond is possible",
+    (secrets, event) => {
+      const bond = aBondSpec(0, 1, "rivals", {
+        events: [anEvent(event, 1)],
+        locked: { aToB: AXES, bToA: AXES, secrets },
+      });
+
+      expect(validateCast(presets, aCastInput(["rebel", "merchant"], [bond])).ok).toBe(true);
+    },
+  );
+
+  it("given a locked character with three dominant weights when validating then it is kept", () => {
+    const locked = aCharacterDraft({ fun: 8000, purpose: 7000, care: 7000 });
+
+    expect(validateCast(presets, { characters: [aCastCharacter("merchant", { locked })] }).ok).toBe(
+      true,
+    );
+  });
+
+  it("given an attachment chosen by the SOM when validating then it is accepted", () => {
+    const character = aCastCharacter("child", { association: { tag: "fire", kind: "ATTACHMENT" } });
+
+    expect(
+      valueOf(validateCast(presets, { characters: [character] })).characters[0]?.association,
+    ).toStrictEqual({
+      tag: "fire",
+      kind: "ATTACHMENT",
+    });
+  });
+
+  it("given a grandparent who is also a parent when validating then both kinship conflicts are explained", () => {
+    const input = aCastInput(
+      ["rebel", "merchant", "elder"],
+      [
+        aBondSpec(0, 1, "parent_child"),
+        aBondSpec(1, 2, "parent_child"),
+        aBondSpec(0, 2, "parent_child"),
+      ],
+    );
+
+    expect(errorOf(validateCast(presets, input)).map((error) => error.message)).toStrictEqual([
+      "the pair 1.2 would be PARENT and SIBLING",
+      "the pair 0.2 would be GRANDPARENT and PARENT",
     ]);
   });
 });
