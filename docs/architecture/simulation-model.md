@@ -516,9 +516,13 @@ Em detalhe:
   do caminho quando o esforço alcança o custo dela (1 ou 2), e o esforço volta a 0. Assim, entrar
   em `ROUGH` ou `DOOR_CLOSED` leva 2 ticks, e a porta continua fechada. O esforço vale para a
   próxima célula daquele tick, mesmo que o caminho recalculado tenha mudado.
-- **Espera.** Se naquele tick não há destino alcançável ou caminho até ele (por exemplo, o próximo
-  passo está ocupado e não há outro), o personagem espera aquele tick, o esforço volta a 0 e o
-  destino continua.
+- **Espera e fila.** O destino e o caminho evitam as células ocupadas (3.1). Se naquele tick não
+  há destino livre alcançável ou caminho livre até ele, o personagem refaz a conta ignorando as
+  ocupações e olha o próximo passo desse caminho: se a célula está livre, anda (com a regra do
+  esforço); se está ocupada, espera aquele tick e o esforço volta a 0. Assim, quem não consegue
+  contornar alguém faz fila atrás dele, e quem anda atrás de alguém num corredor entra na
+  célula que ele acabou de deixar. Sem caminho nem ignorando as ocupações, também espera. Em
+  todos esses casos o destino continua.
 
 ### 8.2 Quem ouve
 
