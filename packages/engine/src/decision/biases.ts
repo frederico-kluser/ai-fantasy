@@ -26,10 +26,10 @@ export interface BiasWeights {
   readonly tones: Readonly<Partial<Record<ToneId, number>>>;
 }
 
-const row = (
-  acts: BiasWeights["acts"],
-  tones: BiasWeights["tones"] = {},
-): BiasWeights => ({ acts, tones });
+const row = (acts: BiasWeights["acts"], tones: BiasWeights["tones"] = {}): BiasWeights => ({
+  acts,
+  tones,
+});
 
 /** dialogue-acts §9.3, "Emoções do autor". */
 export const EMOTION_BIASES: Readonly<Partial<Record<EmotionId, BiasWeights>>> = {
@@ -81,10 +81,7 @@ export const BOND_BIASES: Readonly<Partial<Record<BondAxisId, BiasWeights>>> = {
   respect: row({ ACCUSE: -1000, TEASE: -500 }, { IRONIC: -1000 }),
   attraction: row({ APPROACH: 1000, PRAISE: 1000, TOUCH: 500 }, { SEDUCTIVE: 2500 }),
   fearOf: row({ WITHDRAW: 2000, ACCUSE: -2000, THREATEN: -2000 }, { AGGRESSIVE: -2500 }),
-  resentment: row(
-    { ACCUSE: 1500, PRAISE: -1500 },
-    { IRONIC: 1500, AGGRESSIVE: 1500, WARM: -1500 },
-  ),
+  resentment: row({ ACCUSE: 1500, PRAISE: -1500 }, { IRONIC: 1500, AGGRESSIVE: 1500, WARM: -1500 }),
   dependence: row({ REQUEST: 1500, REFUSE: -1000 }),
   closeness: row({ CHAT: 500, TELL: 500, TOUCH: 1000 }),
 };
@@ -134,7 +131,12 @@ export function emotionBias(emotions: Emotions, act: ActId, tone: ToneId): numbe
  * The bias of the author's effective traits (dialogue-acts §9.3), with the
  * `honesty` weight of a lie variant when `isFalse`.
  */
-export function traitBias(author: CharacterState, act: ActId, tone: ToneId, isFalse: boolean): number {
+export function traitBias(
+  author: CharacterState,
+  act: ActId,
+  tone: ToneId,
+  isFalse: boolean,
+): number {
   const trait = (id: TraitId) => effectiveTrait(author.traits, author.tendencies, id);
   const rows = TRAIT_IDS.reduce(
     (sum, id) => sum + mulBp(trait(id), rowWeight(TRAIT_BIASES[id], act, tone)),
