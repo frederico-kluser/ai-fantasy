@@ -239,6 +239,60 @@ proteção da seção 10, os limites e os erros em JSON valem para elas.
 O motor roda num **Web Worker** para o modo automático não travar a interface. Texto vindo dos
 modelos é exibido como texto (nunca como HTML).
 
+### 6.1 Base do site (WEB-01)
+
+Decisões da tarefa WEB-01, tomadas pelo orquestrador sob delegação do maintainer:
+
+1. **Rotas por hash, sem biblioteca:** `#/playground` (padrão, também para `#` vazio), `#/scene`,
+   `#/sessions` e `#/evaluation`; um endereço desconhecido mostra "Página não encontrada". O
+   roteador (`apps/web/src/app/routes.ts`) é uma tabela e um `useSyncExternalStore` sobre
+   `hashchange`, de modo que o site construído funciona servido de qualquer pasta. Cena, Sessões e
+   Avaliação são esqueletos até a WEB-02, a WEB-03 e a EVAL-01.
+2. **Estilo:** CSS puro com propriedades personalizadas, sem framework. O tema segue
+   `prefers-color-scheme`; o seletor "Tema" (do sistema, claro, escuro) marca a raiz com
+   `data-theme` e guarda a escolha em `localStorage` (`ai-fantasy.theme`). Todo acesso ao
+   armazenamento fica em `try/catch`: com ele bloqueado, o tema vale só para a página.
+3. **Estado:** React (`useReducer` e `useState`), sem biblioteca de estado. O formulário do
+   playground é um dado puro (`playground/model.ts`) mudado por um redutor com uma função por ação
+   (`playground/reducer.ts`).
+4. **Protocolo do worker** (`apps/web/src/engine/protocol.ts`), versionado (`v: 1`) e validado
+   com Zod dos dois lados (ADR 0021):
+
+   | Pedido | Resposta com valor |
+   | --- | --- |
+   | `{ v, id, kind: "generateCast", input, seeds }` | `{ v, id, ok: true, kind: "generateCast", cast }` (a vista do elenco: nomes, vontades dominantes, associações, laços com rótulo, rascunhos e gancho) |
+   | `{ v, id, kind: "checkSetup", setup }` | `{ v, id, ok: true, kind: "checkSetup", review }` (personagens com célula e jogador, e o `hashState` dos personagens abertos) |
+
+   Falha é valor: `{ v, id, ok: false, error: { code, problems } }`, com `code` entre
+   `BAD_REQUEST` (envelope inválido; `id` nulo se não havia id válido), `CAST_REJECTED`,
+   `SETUP_REJECTED` e `WORKER_FAILED` (o motor lançou, ou a resposta saiu do protocolo, ou o
+   worker caiu), e cada problema com `path` e `message` em português. O cliente
+   (`engine/client.ts`) dá a cada pedido um id e uma promessa que **nunca rejeita**. O worker
+   (`engine/engine.worker.ts`) só liga `self` ao manipulador puro (`engine/handler.ts`); sem
+   `Worker` (testes de unidade), o mesmo manipulador responde no próprio processo. O worker mora
+   em `apps/web`, então o motor continua sem efeitos colaterais (`sideEffects: false`).
+5. **Seeds:** o site sorteia a seed do elenco e a da cena com `crypto.getRandomValues` (nunca o
+   motor), mostra as duas e deixa editar ou sortear de novo. Mudar a seed do elenco recomeça as
+   tentativas; mudar a da cena não muda o elenco.
+6. **Acessibilidade:** todo campo tem rótulo visível ligado a ele; grupos em `fieldset` com
+   `legend`; problemas num `role="alert"`; foco visível (`:focus-visible`); os testes acham
+   elementos por papel e rótulo.
+7. **Texto como texto:** nomes e descrições digitados, e tudo que vem do worker, são renderizados
+   como texto do React; nada usa `dangerouslySetInnerHTML`.
+8. **Ficha de revisão:** o playground manual vira uma **configuração de cena** (`SceneSetup`,
+   `apps/web/src/playground/setup.ts`, versão 1): `presetsVersion`, `seeds`, a entrada do elenco
+   (`CastInputData`, com `attempt` e os travados — inclusive os pares que a família acrescenta),
+   `place`, `grid` (o lugar cujo gabarito a cena usa), `naturalTag`, `weather`, `startMinute`,
+   `positions` (por id; `null` sorteia) e `player` (`null` só assiste). `checkSceneSetup` valida
+   o esquema e a versão dos presets e roda `generateCast` e `openScene` do próprio motor; só uma
+   configuração que passa chega à ficha. A WEB-02 começa a cena a partir dela.
+9. **Travas no formulário** (presets §10.1, "Tentativas e travados"): "Sortear de novo" soma 1 à
+   tentativa e mantém os personagens e laços travados. Mudar arquétipo, vontades ou associação de
+   um personagem destrava o personagem; mudar o par, o arquétipo ou os acontecimentos de um laço
+   destrava o laço; editar um eixo sorteado trava o laço com o valor editado (limitado a
+   `0..10000`). Qualquer mudança nos laços ou a remoção de um personagem descarta as travas dos
+   pares derivados. Uma geração que chega depois de o elenco mudar é descartada.
+
 ## 7. Fluxo de um turno
 
 1. O motor chega a um ponto de decisão. Se o sorteado é o jogador em `MANUAL`, devolve
