@@ -132,20 +132,19 @@ function tagGains(valences: readonly number[]): EmotionDeltas {
   return { fear: fears * ASSOCIATION_FEAR_RATE, joy: attachments * ASSOCIATION_JOY_RATE };
 }
 
-/** The gains of a tick (simulation-model §5.2 and §5.7), summed by emotion. */
-export function emotionGains(input: EmotionTickInput): EmotionDeltas {
-  const parts = [
+/** The gains of a tick (simulation-model §5.2 and §5.7), summed by emotion (0 when none). */
+export function emotionGains(input: EmotionTickInput): Readonly<Record<EmotionId, number>> {
+  const parts: readonly EmotionDeltas[] = [
     tagGains(input.tagValences),
     { boredom: BOREDOM_GAIN[input.boredom] },
     ...BODY_ROWS.filter((row) => row.applies(input.body)).map((row) => row.gains),
   ];
-  const sums: EmotionDeltas = {};
-  for (const part of parts) {
-    for (const id of EMOTION_IDS) {
-      sums[id] = (sums[id] ?? 0) + (part[id] ?? 0);
-    }
-  }
-  return sums;
+  const entries = EMOTION_IDS.map((id): [EmotionId, number] => [
+    id,
+    parts.reduce((total, part) => total + (part[id] ?? 0), 0),
+  ]);
+  // Every emotion id has just been given a value.
+  return Object.fromEntries(entries) as Record<EmotionId, number>;
 }
 
 /**
@@ -159,7 +158,7 @@ export function emotionsTick(
 ): Emotions {
   const decayed = decayEmotions(emotions, baselines);
   const gains = emotionGains(input);
-  return emotionsFrom((id) => decayed[id] + (gains[id] ?? 0));
+  return emotionsFrom((id) => decayed[id] + gains[id]);
 }
 
 /** Fear or anger at 7000 or more: the body tires faster (simulation-model §5.1). */
