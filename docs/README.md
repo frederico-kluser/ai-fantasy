@@ -32,7 +32,7 @@ docs/
 │   ├── dialogue-acts.md          ← atos, tons, tópicos, consequências, pedidos
 │   ├── presets.md                ← catálogos e premissa → presets
 │   ├── ai-integration.md         ← SOM e modelo de texto via OpenRouter
-│   └── adr/                      ← decisões estruturais (vigentes: 0013–0019)
+│   └── adr/                      ← decisões estruturais (vigentes: 0013–0020)
 ├── engineering/
 │   ├── development-rules.md      ← contrato do dia a dia
 │   ├── testing-strategy.md       ← TDD, suítes, gates

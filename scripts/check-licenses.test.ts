@@ -2,10 +2,11 @@ import { readFileSync } from "node:fs";
 import { basename } from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, onTestFinished, vi } from "vitest";
 
 import {
   checkLicenses,
+  defaultIo,
   lockedPackages,
   main,
   parsePolicy,
@@ -344,5 +345,35 @@ describe("the repository", () => {
     );
 
     expect(run(lock, policy).code).toBe(0);
+  });
+});
+
+describe("default wiring", () => {
+  it("given a path relative to the root when reading through the default io then the file is read", () => {
+    expect(defaultIo(repoRoot).readText("package-lock.json")).toContain('"lockfileVersion": 3');
+  });
+
+  it("given a file that does not exist when reading through the default io then nothing is returned", () => {
+    expect(defaultIo(repoRoot).readText("no-such-lockfile.json")).toBeUndefined();
+  });
+
+  it("given a line to log when using the default io then it goes to the console", () => {
+    const log = vi.spyOn(console, "log").mockImplementation(() => undefined);
+    onTestFinished(() => {
+      log.mockRestore();
+    });
+
+    defaultIo(repoRoot).log("license line");
+
+    expect(log.mock.calls).toEqual([["license line"]]);
+  });
+
+  it("given the repository and the default io when running then the licenses pass", () => {
+    const log = vi.spyOn(console, "log").mockImplementation(() => undefined);
+    onTestFinished(() => {
+      log.mockRestore();
+    });
+
+    expect(main([], defaultIo(repoRoot))).toBe(0);
   });
 });

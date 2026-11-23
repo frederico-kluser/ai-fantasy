@@ -24,6 +24,8 @@ const TS_FILES = ["**/*.{ts,tsx}"];
 const TEST_FILES = ["**/*.test.{ts,tsx}", "**/e2e/**/*.ts"];
 
 const ENGINE_SOURCE = ["packages/engine/src/**/*.ts"];
+/** Engine production code and its tests (the benchmark may measure time). */
+const ENGINE_CODE_AND_TESTS = ["packages/engine/src/**/*.ts", "packages/engine/test/**/*.ts"];
 /** The only engine file allowed to use `/`: CORE-01 defines the truncating `div` there. */
 const ENGINE_DIVISION_FILE = "packages/engine/src/domain/math.ts";
 const AI_SOURCE = ["packages/ai/src/**/*.ts"];
@@ -75,7 +77,8 @@ function restrictImports(patterns, withBuiltins = false) {
 // Engine determinism (development-rules §5, ADR 0017)
 // ---------------------------------------------------------------------------
 
-const ENGINE_GLOBALS = [
+/** Clock, randomness, scheduling, locale and network: banned in engine code and tests. */
+const NON_DETERMINISTIC_GLOBALS = [
   "Date",
   "performance",
   "crypto",
@@ -83,9 +86,17 @@ const ENGINE_GLOBALS = [
   "setInterval",
   "setImmediate",
   "queueMicrotask",
+  "Intl",
   "fetch",
   "XMLHttpRequest",
   "WebSocket",
+].map((name) => ({
+  name,
+  message: `'${name}' is not deterministic; the engine and its tests have no clock, randomness, locale or network (development-rules §5).`,
+}));
+
+/** Host environment and non-integer parsing: banned in engine production code. */
+const IMPURE_GLOBALS = [
   "window",
   "document",
   "navigator",
@@ -95,11 +106,10 @@ const ENGINE_GLOBALS = [
   "process",
   "Buffer",
   "require",
-  "Intl",
   "parseFloat",
 ].map((name) => ({
   name,
-  message: `'${name}' is not deterministic or not pure; the engine has no I/O, clock or randomness (development-rules §5).`,
+  message: `'${name}' is not pure; the engine has no I/O and holds integers only (development-rules §5).`,
 }));
 
 const NON_INTEGER_MATH = [
@@ -156,6 +166,17 @@ const ENGINE_PROPERTIES = [
     property: "EPSILON",
     message: "The engine state holds integers only (development-rules §5).",
   },
+  ...[
+    "localeCompare",
+    "toLocaleString",
+    "toLocaleUpperCase",
+    "toLocaleLowerCase",
+    "toLocaleDateString",
+    "toLocaleTimeString",
+  ].map((property) => ({
+    property,
+    message: `${property} depends on the locale of the machine; compare and format explicitly (development-rules §5).`,
+  })),
 ];
 
 const DIVISION_MESSAGE =
@@ -189,7 +210,22 @@ const OPENROUTER_URL_MESSAGE =
   "The browser never calls OpenRouter; the local server does (ADR 0015).";
 
 const NO_TEST_LOGIC_MESSAGE =
-  "Tests have no logic: one behavior per test, no branches (testing-strategy §2).";
+  "Tests have no logic: one behavior per test, no branches, loops or try (testing-strategy §2).";
+
+const TEST_LOGIC = [
+  "IfStatement",
+  "ConditionalExpression",
+  "SwitchStatement",
+  "ForStatement",
+  "ForInStatement",
+  "ForOfStatement",
+  "WhileStatement",
+  "DoWhileStatement",
+  "TryStatement",
+].map((selector) => ({ selector, message: NO_TEST_LOGIC_MESSAGE }));
+
+const EVERY_INTERFACE_MESSAGE =
+  "The server listens only on 127.0.0.1 (ADR 0014, development-rules §11).";
 
 export default defineConfig(
   globalIgnores([
@@ -254,6 +290,18 @@ export default defineConfig(
   },
 
   {
+    // Determinism holds for the engine and for its tests (golden and replay included).
+    name: "ai-fantasy/engine-determinism",
+    files: ENGINE_CODE_AND_TESTS,
+    rules: {
+      "no-restricted-globals": ["error", ...NON_DETERMINISTIC_GLOBALS],
+      "no-restricted-properties": ["error", ...ENGINE_PROPERTIES],
+    },
+  },
+
+  {
+    // Purity and integer syntax hold for production code only: tests need decimals
+    // and division to prove that the engine rejects them.
     name: "ai-fantasy/engine",
     files: ENGINE_SOURCE,
     ignores: TEST_FILES,
@@ -269,8 +317,7 @@ export default defineConfig(
         ],
         true,
       ),
-      "no-restricted-globals": ["error", ...ENGINE_GLOBALS],
-      "no-restricted-properties": ["error", ...ENGINE_PROPERTIES],
+      "no-restricted-globals": ["error", ...NON_DETERMINISTIC_GLOBALS, ...IMPURE_GLOBALS],
       "no-restricted-syntax": ["error", ...ENGINE_SYNTAX, ENGINE_DIVISION_SYNTAX],
     },
   },
@@ -336,10 +383,13 @@ export default defineConfig(
       ]),
       "no-restricted-syntax": [
         "error",
+        { selector: "Literal[value=/0\\.0\\.0\\.0/]", message: EVERY_INTERFACE_MESSAGE },
+        { selector: "Literal[value=/^::$/]", message: EVERY_INTERFACE_MESSAGE },
         {
-          selector: "Literal[value=/^(0\\.0\\.0\\.0|::)$/]",
-          message: "The server listens only on 127.0.0.1 (ADR 0014, development-rules §11).",
+          selector: "TemplateElement[value.raw=/0\\.0\\.0\\.0/]",
+          message: EVERY_INTERFACE_MESSAGE,
         },
+        { selector: "TemplateElement[value.raw=/^::$/]", message: EVERY_INTERFACE_MESSAGE },
       ],
     },
   },
@@ -374,12 +424,7 @@ export default defineConfig(
     rules: {
       "max-lines-per-function": "off",
       "max-lines": "off",
-      "no-restricted-syntax": [
-        "error",
-        { selector: "IfStatement", message: NO_TEST_LOGIC_MESSAGE },
-        { selector: "ConditionalExpression", message: NO_TEST_LOGIC_MESSAGE },
-        { selector: "SwitchStatement", message: NO_TEST_LOGIC_MESSAGE },
-      ],
+      "no-restricted-syntax": ["error", ...TEST_LOGIC],
     },
   },
 

@@ -9,6 +9,7 @@
  *
  * Usage: `npm run licenses` (exit 1 when a license is outside the policy).
  */
+import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { readTextFile } from "./lib/io.ts";
@@ -376,8 +377,18 @@ export function main(_argv: readonly string[], io: LicensesIo): number {
   return 0;
 }
 
+/** The real outside world, from the repository root. */
+export function defaultIo(root: string): LicensesIo {
+  return {
+    readText: (path) => readTextFile(resolve(root, path)),
+    log: (line) => {
+      console.log(line);
+    },
+  };
+}
+
 /* v8 ignore start -- @preserve: process entry point, run by `npm run licenses` */
 if (import.meta.main) {
-  process.exitCode = main(process.argv.slice(2), { readText: readTextFile, log: console.log });
+  process.exitCode = main(process.argv.slice(2), defaultIo(process.cwd()));
 }
 /* v8 ignore stop -- @preserve */

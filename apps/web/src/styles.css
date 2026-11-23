@@ -1,4 +1,4 @@
-/* Plain CSS with custom properties (ADR 0020). WEB-01 builds the real theme. */
+/* Minimal styles of the start page; WEB-01 decides how the site is styled. */
 :root {
   color-scheme: light dark;
   --color-background: #f6f4f0;

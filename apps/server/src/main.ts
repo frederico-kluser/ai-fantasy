@@ -3,16 +3,12 @@
  * runs TypeScript by stripping types). Loads the `.env` of the repository root,
  * reads `PORT` and listens on 127.0.0.1.
  */
-import { fileURLToPath } from "node:url";
-
 import { ENGINE_NAME } from "@ai-fantasy/engine";
 import type { FastifyInstance } from "fastify";
 
 import { loadEnvFileIfPresent, resolvePort } from "./env.ts";
+import { ROOT_ENV_FILE } from "./paths.ts";
 import { DEFAULT_PORT, listeningAddresses, startServer } from "./server.ts";
-
-/** The `.env` of the repository root (ai-integration §2). */
-export const ROOT_ENV_FILE = fileURLToPath(new URL("../../../.env", import.meta.url));
 
 /** What {@link main} needs from the outside world. */
 export interface MainOptions {
@@ -45,10 +41,21 @@ export async function main(options: MainOptions): Promise<MainResult> {
   return { ok: true, app };
 }
 
+/** The real outside world: the process environment, the root `.env` and the console. */
+export function defaultMainOptions(): MainOptions {
+  return {
+    env: process.env,
+    envFile: ROOT_ENV_FILE,
+    log: (line) => {
+      console.log(line);
+    },
+  };
+}
+
 /* v8 ignore start -- @preserve: process entry point, exercised by `npm start` and the E2E run */
 // Stryker disable all: process entry point, exercised by `npm start` and the E2E run
 if (import.meta.main) {
-  const result = await main({ env: process.env, envFile: ROOT_ENV_FILE, log: console.log });
+  const result = await main(defaultMainOptions());
   process.exitCode = result.ok ? 0 : 1;
 }
 // Stryker restore all

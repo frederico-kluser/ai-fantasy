@@ -117,8 +117,12 @@ npm run e2e               # antes, uma vez: npx playwright install chromium
 npm run mutation          # completa; mutation:changed só nos arquivos mudados
 npm run bench
 npm run docs:lint
-npm run check             # tudo o que o CI roda, na ordem do CI
+npm run governance        # arquivos obrigatórios e espelho CLAUDE.md ↔ AGENTS.md
+npm run check             # os gates do CI, na mesma ordem
 ```
+
+O `check` não roda dois passos que só o CI faz: os links da documentação (lychee) e as
+mensagens dos commits (o hook `commit-msg` e o `oss-gate.sh` cobrem isso na máquina).
 
 `npm run smoke:live` (manual, exige `OPENROUTER_API_KEY`; nunca no CI) chega com a AI-02/AI-03.
 

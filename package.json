@@ -28,7 +28,8 @@
     "start": "npm run build && node apps/server/src/main.ts",
     "dev": "node scripts/dev.ts",
     "docs:lint": "markdownlint-cli2 \"**/*.md\"",
-    "check": "npm run lint && npm run typecheck && npm run coverage && npm run coverage:diff && npm run licenses && npm run e2e && npm run bench && npm run mutation:changed && npm run docs:lint"
+    "governance": "node scripts/check-governance.ts",
+    "check": "npm run lint && npm run typecheck && npm run coverage && npm run coverage:diff && npm run licenses && npm run e2e && npm run bench && npm run mutation:changed && npm run docs:lint && npm run governance"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
