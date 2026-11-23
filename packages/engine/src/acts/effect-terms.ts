@@ -20,7 +20,13 @@ import type { OutcomeBand } from "./label.ts";
  * receives it (`RECEIVER`) or in who gives it (`GIVER`; dialogue-acts §4), or
  * the drive of the request itself (`REQUESTED`; dialogue-acts §8.3).
  */
-export type DriveRef = DriveId | "RECEIVER" | "GIVER" | "REQUESTED";
+export type DriveRef = DriveId | RequestDriveRef;
+
+/** A drive that depends on the request answered (see {@link DriveRef}). */
+export type RequestDriveRef = "RECEIVER" | "GIVER" | "REQUESTED";
+
+/** The request drives, resolved by the request answered. */
+export const REQUEST_DRIVE_REFS: readonly RequestDriveRef[] = ["RECEIVER", "GIVER", "REQUESTED"];
 
 /**
  * One effect of a table row, `k` units (dialogue-acts §7.1): an emotion
