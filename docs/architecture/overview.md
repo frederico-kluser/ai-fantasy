@@ -266,7 +266,9 @@ Decisões da tarefa WEB-01, tomadas pelo orquestrador sob delegação do maintai
 2. **Estilo:** CSS puro com propriedades personalizadas, sem framework. O tema segue
    `prefers-color-scheme`; o seletor "Tema" (do sistema, claro, escuro) marca a raiz com
    `data-theme` e guarda a escolha em `localStorage` (`ai-fantasy.theme`). Todo acesso ao
-   armazenamento fica em `try/catch`: com ele bloqueado, o tema vale só para a página.
+   armazenamento fica em `try/catch`: com ele bloqueado, o tema vale só para a página. Um script
+   mínimo no `<head>` do `index.html` aplica o tema guardado antes da primeira pintura, para a
+   página não piscar no tema errado.
 3. **Estado:** React (`useReducer` e `useState`), sem biblioteca de estado. O formulário do
    playground é um dado puro (`playground/model.ts`) mudado por um redutor com uma função por ação
    (`playground/reducer.ts`).
@@ -291,7 +293,11 @@ Decisões da tarefa WEB-01, tomadas pelo orquestrador sob delegação do maintai
    tentativas; mudar a da cena não muda o elenco.
 6. **Acessibilidade:** todo campo tem rótulo visível ligado a ele; grupos em `fieldset` com
    `legend`; problemas num `role="alert"`; foco visível (`:focus-visible`); os testes acham
-   elementos por papel e rótulo.
+   elementos por papel e rótulo. Ao abrir a ficha, o foco vai para o título "Ficha da cena"; ao
+   voltar, para o título do formulário. Campos numéricos (seeds e eixos) guardam o texto digitado:
+   vazio ou inválido fica no campo, marcado com `aria-invalid` e a mensagem do intervalo, e só um
+   inteiro no intervalo muda o valor. Nomes do catálogo com o marcador `B` ("medo de B", "traiu B
+   com outra pessoa") aparecem com o nome da outra pessoa.
 7. **Texto como texto:** nomes e descrições digitados, e tudo que vem do worker, são renderizados
    como texto do React; nada usa `dangerouslySetInnerHTML`.
 8. **Ficha de revisão:** o playground manual vira uma **configuração de cena** (`SceneSetup`,
@@ -305,7 +311,8 @@ Decisões da tarefa WEB-01, tomadas pelo orquestrador sob delegação do maintai
    tentativa e mantém os personagens e laços travados. Mudar arquétipo, vontades ou associação de
    um personagem destrava o personagem; mudar o par, o arquétipo ou os acontecimentos de um laço
    destrava o laço; editar um eixo sorteado trava o laço com o valor editado (limitado a
-   `0..10000`). Qualquer mudança nos laços ou a remoção de um personagem descarta as travas dos
+   `0..10000`), e um aviso diz que os laços e o gancho gerados só se atualizam ao sortear de novo.
+   Qualquer mudança nos laços ou a remoção de um personagem descarta as travas dos
    pares derivados. Uma geração que chega depois de o elenco mudar é descartada.
 
 ## 7. Fluxo de um turno

@@ -6,6 +6,13 @@
     <meta name="color-scheme" content="light dark" />
     <link rel="icon" href="data:," />
     <title>AI Fantasy</title>
+    <script>
+      // The theme kept by the theme picker (src/app/theme.ts), applied before the first paint.
+      try {
+        var theme = localStorage.getItem("ai-fantasy.theme");
+        if (theme === "light" || theme === "dark") document.documentElement.dataset.theme = theme;
+      } catch (error) {}
+    </script>
   </head>
   <body>
     <div id="root"></div>
