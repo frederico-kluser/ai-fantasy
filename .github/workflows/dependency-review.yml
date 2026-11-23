@@ -2,7 +2,7 @@
 # Dependency review — ai-fantasy
 #
 # Bloqueia PRs que introduzam dependências com vulnerabilidades conhecidas ou
-# licenças incompatíveis. Sem manifesto (F0), o job é inócuo.
+# licenças incompatíveis. O gate próprio de licenças (ADR 0019) roda no CI.
 # =============================================================================
 
 name: Dependency review

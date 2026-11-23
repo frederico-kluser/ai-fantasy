@@ -1,8 +1,8 @@
 # =============================================================================
 # CodeQL — ai-fantasy
 #
-# Rust é suportado pelo CodeQL (build-mode: none). O job só corre quando existe
-# Cargo.toml; em F0 (docs-only) é skipped em vez de falhar.
+# Analisa o TypeScript/JavaScript do monorepo e os workflows do GitHub Actions,
+# ambos sem build (build-mode: none). Actions fixadas por SHA (oss-pin-actions.sh).
 # =============================================================================
 
 name: CodeQL
@@ -22,28 +22,8 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  preflight:
-    name: preflight
-    runs-on: ubuntu-latest
-    timeout-minutes: 5
-    outputs:
-      has_rust: ${{ steps.check.outputs.has_rust }}
-    steps:
-      - name: Checkout
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - name: Detetar workspace Rust
-        id: check
-        run: |
-          if [ -f Cargo.toml ]; then
-            echo "has_rust=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "has_rust=false" >> "$GITHUB_OUTPUT"
-          fi
-
   analyze:
-    name: analyze (rust)
-    needs: preflight
-    if: needs.preflight.outputs.has_rust == 'true'
+    name: analyze (${{ matrix.language }})
     runs-on: ubuntu-latest
     timeout-minutes: 30
     permissions:
@@ -51,15 +31,23 @@ jobs:
       packages: read
       actions: read
       contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        language: [javascript-typescript, actions]
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
 
       - name: Init CodeQL
         uses: github/codeql-action/init@33d7b85da1a04171e211befe2c739303b9a4c066 # v4.39.3
         with:
-          languages: rust
+          languages: ${{ matrix.language }}
           build-mode: none
 
       - name: Analyze
         uses: github/codeql-action/analyze@33d7b85da1a04171e211befe2c739303b9a4c066 # v4.39.3
+        with:
+          category: "/language:${{ matrix.language }}"

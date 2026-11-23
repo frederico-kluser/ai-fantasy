@@ -3,9 +3,14 @@
 #
 # Princípios:
 #  - o job `build` é o agregador e o required status check do ruleset;
-#  - o job `rust` só corre quando existe Cargo.toml (F0 é docs-only);
-#  - nenhum job depende de modelos, GPU ou rede fora do GitHub;
+#  - `node`, `e2e` e `mutation` só correm quando existe package.json;
+#  - nenhum job depende de modelos, chaves, GPU ou rede fora do GitHub e do npm;
 #  - actions fixadas por SHA (ver oss-pin-actions.sh).
+#
+# Ordem (testing-strategy §13; `npm run check` repete localmente): instalar → lint →
+# tipos → testes com cobertura → cobertura das linhas novas → licenças → E2E →
+# benchmark (se o motor mudou) → mutação incremental → documentação → `build`.
+# `node`, `e2e`, `mutation` e `docs` rodam em paralelo; `build` agrega todos.
 # =============================================================================
 
 name: CI
@@ -22,10 +27,6 @@ permissions:
 concurrency:
   group: ci-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
-
-env:
-  CARGO_TERM_COLOR: always
-  RUST_BACKTRACE: 1
 
 jobs:
   docs:
@@ -66,83 +67,174 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     outputs:
-      has_rust: ${{ steps.check.outputs.has_rust }}
+      has_node: ${{ steps.check.outputs.has_node }}
+      engine_changed: ${{ steps.check.outputs.engine_changed }}
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - name: Detetar workspace Rust
-        id: check
-        run: |
-          if [ -f Cargo.toml ]; then
-            echo "has_rust=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "has_rust=false" >> "$GITHUB_OUTPUT"
-          fi
+        with:
+          fetch-depth: 0
+          persist-credentials: false
 
-  rust:
-    name: rust
+      - name: Detectar o monorepo e mudanças no motor
+        id: check
+        env:
+          EVENT: ${{ github.event_name }}
+          BASE_REF: ${{ github.base_ref }}
+          BEFORE: ${{ github.event.before }}
+        run: |
+          set -euo pipefail
+          if [ -f package.json ]; then has_node=true; else has_node=false; fi
+          range=""
+          if [ "$EVENT" = "pull_request" ]; then
+            range="origin/${BASE_REF}...HEAD"
+          elif [ "$EVENT" = "push" ] && git cat-file -e "${BEFORE}^{commit}" 2>/dev/null; then
+            range="${BEFORE}..HEAD"
+          fi
+          # Sem intervalo conhecido (dispatch, branch nova), roda o benchmark por segurança.
+          if [ -z "$range" ] || [ -n "$(git diff --name-only "$range" -- packages/engine)" ]; then
+            engine_changed=true
+          else
+            engine_changed=false
+          fi
+          echo "has_node=${has_node}" >> "$GITHUB_OUTPUT"
+          echo "engine_changed=${engine_changed}" >> "$GITHUB_OUTPUT"
+          echo "monorepo: ${has_node} · motor mudou: ${engine_changed} (${range:-sem intervalo})"
+
+  node:
+    name: node
     needs: preflight
-    if: needs.preflight.outputs.has_rust == 'true'
+    if: needs.preflight.outputs.has_node == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Node.js (versão do .node-version)
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .node-version
+          cache: npm
+
+      - name: Instalar dependências
+        run: npm ci
+
+      - name: Lint (ESLint e Prettier)
+        run: npm run lint
+
+      - name: Tipos
+        run: npm run typecheck
+
+      - name: Testes com cobertura (limiares do ADR 0018)
+        run: npm run coverage
+
+      - name: Cobertura das linhas novas (mínimo 95%)
+        if: github.event_name == 'pull_request'
+        env:
+          BASE_REF: ${{ github.base_ref }}
+        run: npm run coverage:diff -- --base "origin/${BASE_REF}"
+
+      - name: Licenças das dependências (ADR 0019)
+        run: npm run licenses
+
+      - name: Benchmark do motor
+        if: needs.preflight.outputs.engine_changed == 'true'
+        run: |
+          npm run bench
+          cat reports/bench.md >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload da cobertura
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: coverage-lcov
+          path: coverage/lcov.info
+          retention-days: 14
+          if-no-files-found: ignore
+
+  e2e:
+    name: e2e
+    needs: preflight
+    if: needs.preflight.outputs.has_node == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Node.js (versão do .node-version)
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .node-version
+          cache: npm
+
+      - name: Instalar dependências
+        run: npm ci
+
+      - name: Chromium do Playwright
+        run: npx playwright install --with-deps chromium
+
+      - name: E2E (Playwright)
+        run: npm run e2e
+
+      - name: Relatório do Playwright
+        if: failure()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: playwright-report
+          path: |
+            playwright-report/
+            test-results/
+          retention-days: 14
+          if-no-files-found: ignore
+
+  mutation:
+    name: mutation
+    needs: preflight
+    if: needs.preflight.outputs.has_node == 'true' && github.event_name == 'pull_request'
     runs-on: ubuntu-latest
     timeout-minutes: 45
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-
-      - name: Toolchain (stable + componentes)
-        uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # stable
         with:
-          components: rustfmt, clippy, llvm-tools-preview
+          fetch-depth: 0
+          persist-credentials: false
 
-      - name: Cache Rust
-        uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2
-
-      - name: Format
-        run: cargo fmt --all -- --check
-
-      - name: Clippy
-        run: cargo clippy --workspace --all-targets --all-features -- -D warnings
-
-      - name: Instalar nextest + llvm-cov
-        uses: taiki-e/install-action@75a7c0f87bd666af3cdb75c5b9e9d03ab6044e6f # v2
+      - name: Node.js (versão do .node-version)
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
-          tool: nextest,cargo-llvm-cov
+          node-version-file: .node-version
+          cache: npm
 
-      - name: Testes
-        run: cargo nextest run --workspace --profile ci --no-fail-fast
+      - name: Instalar dependências
+        run: npm ci
 
-      - name: Cobertura (gates)
-        run: |
-          cargo llvm-cov nextest --workspace --fail-under-lines 90 \
-            --lcov --output-path lcov.info
+      - name: Mutação incremental (arquivos de produção mudados)
+        env:
+          BASE_REF: ${{ github.base_ref }}
+        run: npm run mutation:changed -- --base "origin/${BASE_REF}"
 
-      - name: Upload cobertura
+      - name: Relatórios de mutação
         if: always()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          name: coverage-lcov
-          path: lcov.info
+          name: mutation-reports
+          path: |
+            packages/*/reports/mutation/
+            apps/*/reports/mutation/
           retention-days: 14
-
-      - name: cargo-deny (licenças, advisories, fontes)
-        uses: EmbarkStudios/cargo-deny-action@17aeb3c839e42274e2b8adf721c8c65edfdc74dd # v2
-
-      - name: Rustdoc
-        env:
-          RUSTDOCFLAGS: -D warnings
-        run: cargo doc --workspace --no-deps
-
-      - name: Offline check (quando xtask existir)
-        run: |
-          if [ -d xtask ]; then
-            cargo xtask check-offline
-          else
-            echo "xtask ainda não existe (F0) — check-offline adiado"
-          fi
+          if-no-files-found: ignore
 
   build:
     name: build
-    needs: [docs, rust]
+    needs: [preflight, docs, node, e2e, mutation]
     if: always()
     runs-on: ubuntu-latest
     timeout-minutes: 10
@@ -151,18 +243,39 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
+          persist-credentials: false
 
-      - name: Falhar se docs falhou
-        if: needs.docs.result != 'success'
+      - name: Falhar se um job necessário falhou
+        env:
+          EVENT: ${{ github.event_name }}
+          HAS_NODE: ${{ needs.preflight.outputs.has_node }}
+          PREFLIGHT: ${{ needs.preflight.result }}
+          DOCS: ${{ needs.docs.result }}
+          NODE: ${{ needs.node.result }}
+          E2E: ${{ needs.e2e.result }}
+          MUTATION: ${{ needs.mutation.result }}
         run: |
-          echo "::error::Job docs falhou — ver o run"
-          exit 1
-
-      - name: Falhar se rust falhou (skipped é OK em F0)
-        if: needs.rust.result != 'success' && needs.rust.result != 'skipped'
-        run: |
-          echo "::error::Job rust falhou — ver o run"
-          exit 1
+          set -uo pipefail
+          fail=0
+          # require <job> <resultado> <aceitos...>
+          require() {
+            local job="$1" result="$2"; shift 2
+            for accepted in "$@"; do [ "$result" = "$accepted" ] && return 0; done
+            echo "::error::job ${job} terminou como '${result}' (esperado: $*)"
+            fail=1
+          }
+          require preflight "$PREFLIGHT" success
+          require docs "$DOCS" success
+          if [ "$HAS_NODE" = "true" ]; then
+            require node "$NODE" success
+            require e2e "$E2E" success
+            if [ "$EVENT" = "pull_request" ]; then
+              require mutation "$MUTATION" success
+            else
+              require mutation "$MUTATION" skipped
+            fi
+          fi
+          exit "$fail"
 
       - name: Commits convencionais (últimos 25)
         run: |
@@ -190,7 +303,16 @@ jobs:
           PY
 
       - name: Resumo
+        env:
+          DOCS: ${{ needs.docs.result }}
+          NODE: ${{ needs.node.result }}
+          E2E: ${{ needs.e2e.result }}
+          MUTATION: ${{ needs.mutation.result }}
         run: |
-          echo "### CI ✅" >> "$GITHUB_STEP_SUMMARY"
-          echo "- docs: ${{ needs.docs.result }}" >> "$GITHUB_STEP_SUMMARY"
-          echo "- rust: ${{ needs.rust.result }} (skipped = F0 sem Cargo.toml)" >> "$GITHUB_STEP_SUMMARY"
+          {
+            echo "### CI"
+            echo "- docs: ${DOCS}"
+            echo "- node (lint, tipos, testes, cobertura, licenças, benchmark): ${NODE}"
+            echo "- e2e: ${E2E}"
+            echo "- mutation (incremental, só em PR): ${MUTATION}"
+          } >> "$GITHUB_STEP_SUMMARY"
