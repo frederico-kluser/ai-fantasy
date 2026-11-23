@@ -1,6 +1,6 @@
 # Modelo de simulação — Hermeneutic Core
 
-> **Especificação v1.6 — 2026-11-23.** As **regras** deste documento são contrato do motor. Os
+> **Especificação v1.7 — 2026-11-23.** As **regras** deste documento são contrato do motor. Os
 > **números** (taxas, limiares, pesos) são valores iniciais e calibráveis: mudar um número exige
 > teste atualizado e nota no PR, não decisão nova. Mudar uma regra exige ADR. Produto em
 > [`docs/product.md`](<../product.md>); atos, tabelas de efeito e vieses em
@@ -14,7 +14,8 @@
 > (CORE-02); a v1.5 tabelou os rótulos de laço (tipo e recíproca) e deu nomes de exibição aos
 > sinais (CORE-03); a v1.6 fixou o estado do personagem e a ordem das coleções, a leitura dentro
 > do tick, quem conta na presença, o envelhecimento da percepção e o modelo de fatos e cópias
-> (CORE-04).
+> (CORE-04); a v1.7 fixou os sorteios da escuta, as respostas às obrigações e a gravação de
+> um ato em fatos e cópias (SOC-01).
 
 ## 1. Princípios
 
@@ -627,6 +628,13 @@ percebem o ato. Só quem recebe `DIRECT` sofre as consequências completas do at
 geram cópia do fato (seção 12) e, num ato de valência ≤ −2, `perceivedHostility` +500 sobre o
 autor.
 
+Em detalhe (`perceiveAct`, em `packages/engine/src/acts/perspectives.ts`): os presentes são
+tratados em ordem de id; quem está entre o alcance e o dobro dele sorteia o fragmento na stream
+`perception`, com a finalidade `HEAR_FRAGMENT` e o ouvinte como alvo; quem não ouviu (além do
+dobro, bloqueado ou com o fragmento falho) recebe `SEEN` se vê o autor (3.2), senão nada. Um
+sussurro só pode ser fragmento a 2 células, por isso a chance de fragmento de um sussurro é
+sempre 5000.
+
 ### 8.3 Interpretação
 
 Cada ouvinte `DIRECT` interpreta o ato. O tom pode ser **lido errado**: a chance vem da
@@ -736,6 +744,20 @@ obrigação também é ignorada ao completar `OBLIGATION_TTL_TICKS = 12` ticks s
 (verificado a cada tick). Ignorar aplica a linha de `STAY_SILENT` devido (atos de conversa, seção
 7.1) ao autor do ato que criou a obrigação, com intensidade fixa de 5000 (`IGNORE_INTENSITY`).
 
+Em detalhe (`packages/engine/src/acts/obligations.ts`):
+
+- Uma obrigação guarda o devedor, o credor (o autor do ato), o fato, o ato, o tópico e o tick em
+  que o ato foi resolvido.
+- Um ato do devedor **responde** a uma obrigação quando é uma das respostas possíveis da tabela
+  acima, dirigido ao credor (na lista de alvos) e, quando a resposta mantém o assunto, com o
+  mesmo tópico: `TELL` e `REFUSE` a um `ASK`; `REFUSE` a um `ACCUSE`; `ACCEPT` e `REFUSE` a um
+  pedido. `APOLOGIZE` e `ACCUSE` de volta respondem a um `ACCUSE` com qualquer tópico. Se o ato
+  responde a várias, termina a mais antiga (a de menor fato); as outras continuam pendentes.
+- No sub-passo 6.6 do tick `t` termina como ignorada toda obrigação criada no tick `c` com
+  `t − c ≥ 12`: criada no tick 10, ainda pende no 21 e é ignorada no 22 (invariante 12).
+- **Interrupção** (seção 11, item 4): o "último ato" é o fato de ato de maior id; quem age
+  interrompe quando há obrigação pendente desse fato e não é o autor dele nem um devedor dela.
+
 ## 11. Vontade de agir, turnos, silêncio e saída
 
 Em cada **ponto de decisão** (fim de um ato ou de um tick de silêncio), na ordem da seção 16:
@@ -837,6 +859,14 @@ Em cada **ponto de decisão** (fim de um ato ou de um tick de silêncio), na ord
   guarda o fato, a perspectiva, a fidelidade atual, a maior fidelidade que já teve, a
   importância e, se for a versão falsa de uma mentira acreditada, a lista dos ofensores falsos
   (vazia na negação); a versão verdadeira não tem essa lista.
+- **Gravar um ato** (`recordAct`, em `packages/engine/src/memory/record.ts`; seção 16, passo
+  5.4): o fato ganha o próximo id e guarda o rótulo real (o tom real, não o lido). O autor guarda
+  uma cópia `DIRECT`; cada um que percebeu o ato, uma cópia com a sua perspectiva. Num `TELL`
+  sobre um fato, a cópia `TOLD` usa a fidelidade **atual** da cópia de quem conta (antes de ela
+  voltar ao pico por contar de novo) e leva a versão de quem conta, falsa ou não. Até a avaliação
+  (SOC-03) preencher, o fato de um ato não tem ofensores nem marca de segredo, e a importância de
+  cada cópia é a sem deltas: 3000 para quem está no fato (o autor, um alvo — no `GROUP`, quem
+  ouviu `DIRECT` — ou a pessoa do tópico; num fato de história, A e B) e 0 para os demais.
 - **Ninguém cita o que não sabe:** o pacote enviado ao modelo de texto só leva fatos de que o
   falante tem cópia (ver [integração de IA](<ai-integration.md>)).
 
