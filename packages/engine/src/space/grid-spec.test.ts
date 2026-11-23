@@ -257,9 +257,9 @@ describe("parseGridSpec: order of the checks (simulation-model §3.1)", () => {
     );
   });
 
-  it("given a bad start and too few starts when parsing then the bad start comes first", () => {
+  it("given a bad start and too few starts when parsing then the count comes first, as with exits", () => {
     expect(parseGridSpec({ ...SPEC, starts: [{ x: 0, y: 0 }] })).toStrictEqual(
-      err({ code: "INVALID_START", start: 0 }),
+      err({ code: "TOO_FEW_STARTS" }),
     );
   });
 });

@@ -36,8 +36,8 @@ describe("approachCell (simulation-model §8.1)", () => {
     expect(approachCell(ROOM, mover, target, [target, mover])).toStrictEqual(ok(mover));
   });
 
-  it("given the only cell next to the target taken when approaching then there is no path", () => {
-    expect(approachCell(gridOf(["...."]), 0, 3, [2, 3])).toStrictEqual(err("NO_PATH"));
+  it("given the only cell next to the target taken when approaching then that cell is still the destination, since only walls cut a path", () => {
+    expect(approachCell(gridOf(["...."]), 0, 3, [2, 3])).toStrictEqual(ok(2));
   });
 
   it("given the cells next to the target behind a wall when approaching then there is no path", () => {
@@ -114,6 +114,18 @@ describe("nearestExit (simulation-model §8.1)", () => {
     const grid = gridOf(["......"], { exits: [0, 5] });
 
     expect(nearestExit(grid, 2, [0])).toStrictEqual(ok(5));
+  });
+
+  it("given the only exit taken by someone when leaving then it is still the destination, since only walls cut a path", () => {
+    const grid = gridOf(["......"], { exits: [5] });
+
+    expect(nearestExit(grid, 2, [5])).toStrictEqual(ok(5));
+  });
+
+  it("given the only way to the exit blocked by someone when leaving then the exit is still the destination", () => {
+    const grid = gridOf(["......"], { exits: [5] });
+
+    expect(nearestExit(grid, 2, [3])).toStrictEqual(ok(5));
   });
 
   it("given a mover standing on an exit when leaving then the destination is its own cell", () => {

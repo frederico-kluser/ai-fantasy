@@ -53,7 +53,19 @@ function withdrawOn(ground: Ground, from: number, target: number): number {
   return away === NONE ? farthestFrom(ground.grid, costField(ground, from, "FROM"), target) : away;
 }
 
-function found(cell: number): Result<number, PathError> {
+/**
+ * A destination chosen with the occupation of the moment and, when none is
+ * free, ignoring the people: only walls and cell types cut a path
+ * (simulation-model §8.1). The mover then walks up and queues (`moveTick`).
+ */
+function chosen(
+  grid: Grid,
+  from: number,
+  occupied: readonly number[],
+  choose: (ground: Ground) => number,
+): Result<number, PathError> {
+  const free = choose(groundOf(grid, occupied, from));
+  const cell = free === NONE ? choose(groundOf(grid, [], from)) : free;
   return cell === NONE ? err("NO_PATH") : ok(cell);
 }
 
@@ -61,9 +73,11 @@ function found(cell: number): Result<number, PathError> {
  * The `APPROACH` destination: the free cell at distance 1 from `target` that is
  * cheapest to reach from `from` (ties: lowest index); `from` itself when it is
  * already next to the target. `occupied` lists the cells taken by characters
- * (the target's included); the mover's own cell is ignored there.
+ * (the target's included); the mover's own cell is ignored there. When no such
+ * cell is free and reachable now, the choice ignores the people (the mover
+ * will queue): "no path" is measured by walls and cell types only.
  *
- * @returns the cell, or `NO_PATH` when no free cell next to the target can be reached.
+ * @returns the cell, or `NO_PATH` when walls leave no cell next to the target reachable.
  * @throws RangeError if a cell is outside the grid or `from` cannot be stood on.
  */
 export function approachCell(
@@ -72,8 +86,8 @@ export function approachCell(
   target: number,
   occupied: readonly number[],
 ): Result<number, PathError> {
-  const ground = groundOf(grid, occupied, from);
-  return found(approachOn(ground, from, requireCell(grid, target)));
+  const cell = requireCell(grid, target);
+  return chosen(grid, from, occupied, (ground) => approachOn(ground, from, cell));
 }
 
 /**
@@ -96,8 +110,10 @@ export function withdrawCell(
 /**
  * The exit destination of a character leaving: the free `exit` cell cheapest to
  * reach from `from` (ties: lowest index); `from` itself when it is an exit.
+ * When no exit is free and reachable now (someone in the doorway), the choice
+ * ignores the people and the character will queue: only walls cancel a leave.
  *
- * @returns the cell, or `NO_PATH` when no exit can be reached: the leave is cancelled.
+ * @returns the cell, or `NO_PATH` when walls leave no exit reachable: the leave is cancelled.
  * @throws RangeError if a cell is outside the grid or `from` cannot be stood on.
  */
 export function nearestExit(
@@ -105,5 +121,5 @@ export function nearestExit(
   from: number,
   occupied: readonly number[],
 ): Result<number, PathError> {
-  return found(exitOn(groundOf(grid, occupied, from), from));
+  return chosen(grid, from, occupied, (ground) => exitOn(ground, from));
 }
