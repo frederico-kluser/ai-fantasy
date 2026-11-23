@@ -88,6 +88,25 @@ describe("statusTick: body (simulation-model §5.1 and §3.2)", () => {
   });
 });
 
+describe("statusTick: reads within the tick (simulation-model §16 step 6)", () => {
+  it("given anger 7000 at baseline 0, which decays to 6930 this tick, when ticking then fatigue still reads the anger of the start: 3", () => {
+    const angry = aCharacter(1, 0, { emotions: someEmotions({ anger: 7000 }) });
+    const [after] = statusTick([angry], INPUT);
+
+    expect([after?.emotions.anger, after?.body.fatigue]).toStrictEqual([6930, 3]);
+  });
+
+  it("given thermal 3000 heading to a cold target when ticking then thirst reads the thermal of the start: 5", () => {
+    const hot = aCharacter(1, 0, {
+      body: { ...aCharacter(1, 0).body, thermal: toBipolarBp(3000) },
+    });
+    const scene = aScene({ weather: "snow" });
+    const [after] = statusTick([hot], { ...INPUT, scene });
+
+    expect([after?.body.thermal, after?.body.thirst]).toStrictEqual([2965, 5]);
+  });
+});
+
 describe("statusTick: emotions (simulation-model §5.2)", () => {
   it("given an act that interests only character 1 when ticking then only character 2 gets bored", () => {
     const input = { ...INPUT, pace: { kind: "ACT", interested: [idOf(1)] } } as const;

@@ -202,6 +202,9 @@ A **maior necessidade** é o máximo entre `fatigue`, `hunger`, `thirst`, `bladd
 `|thermal|` e `intoxication`. O valor inicial de cada necessidade vem do estado do dia da cena
 (presets, seção 9).
 
+Os modificadores leem o estado do início do tick: o +1 de cansaço, as emoções de antes da
+atualização deste tick; o +3 de sede, o térmico de antes do `approach` deste tick (seção 16).
+
 ### 5.2 Emoções
 
 Intensidade unipolar.
@@ -992,7 +995,8 @@ resolve **um ponto de decisão**:
 
    Os sub-itens 2 a 4 leem o que os anteriores deixaram: as emoções leem o corpo já atualizado, e
    as vontades leem o corpo, o tédio e a ameaça deste tick. O +1 de cansaço por medo ou raiva usa
-   as emoções do início do tick, e a ameaça e as vontades leem as posições (depois do sub-item 1),
+   as emoções do início do tick, e o +3 de sede pelo calor usa o térmico do início do tick (antes
+   do `approach` deste tick), e a ameaça e as vontades leem as posições (depois do sub-item 1),
    os laços e as percepções do início do tick; por isso a ordem entre os personagens não muda o
    resultado. O relógio do tick `t` é `minuteOfDay(startMinute, t)` (seção 2).
 7. **Fim da fatia** (seção 11, item 6).
