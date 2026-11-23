@@ -21,10 +21,6 @@ const PRESETS: SpecName = "presets";
 
 const EXPOSURE = { não: "NONE", parcial: "PARTIAL", sim: "FULL" } as const;
 
-function placeTags(text: string): string[] {
-  return text.startsWith("conforme a premissa") ? [] : codes(text);
-}
-
 /** §2: the places, without their grid templates. */
 export function specPlaces() {
   return tableOf(PRESETS, "## 2. Lugares").rows.map((row) => ({
@@ -37,7 +33,7 @@ export function specPlaces() {
     noise: integer(cell(row, 6)),
     baseTemperature: cell(row, 7) === "clima" ? 0 : integer(cell(row, 7)),
     lit: yesNo(cell(row, 8)),
-    tags: placeTags(cell(row, 9)),
+    tags: codes(cell(row, 9)),
     exposure: lookup(EXPOSURE, cell(row, 11)),
   }));
 }
