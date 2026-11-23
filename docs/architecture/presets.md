@@ -292,7 +292,11 @@ Necessidades não citadas seguem `rested`.
    se conhecem (laço diferente de `strangers`) e nenhum laço tem tensão, o gerador escolhe, entre
    esses pares, o de menores ids e acrescenta um acontecimento sorteado entre `betrayed_trust`,
    `lent_not_repaid`, `secret_affair`, `rejected_love`, `broken_promise` e `informed_on`, com
-   quem fez também sorteado. É o gancho que dá do que falar.
+   quem fez também sorteado. O gancho garante tensão: só entram no sorteio os acontecimentos que,
+   aplicados ao par com quem fez sorteado e com qualquer marca de segredo que possam ter, deixam o
+   laço com tensão pela definição acima (peso 0 nos outros, como `rejected_love`, que não mexe em
+   eixo de tensão). `secret_affair` e `informed_on` são sempre segredo, então há sempre opção. É o
+   gancho que dá do que falar.
 7. **Revisão.** A ficha montada aparece para o usuário editar. Campos em que a maior
    probabilidade do SOM ficou abaixo de 7000 bp aparecem destacados.
 8. **Nomes e descrições.** São apresentação, fora do hash: vêm das linhas do usuário, de uma lista
@@ -321,20 +325,24 @@ preenche escolhas dessa entrada.
 | `characters[i].association` | associação escolhida pelo SOM: tag e `FEAR` ou `ATTACHMENT` (padrão nenhuma) |
 | `characters[i].locked` | os valores sorteados do personagem, quando ele está travado (padrão nenhum) |
 | `bonds` | laços escolhidos, no máximo um por par: `a` e `b` (ids; `a` é o lado A do arquétipo), o arquétipo de laço (seção 6), os acontecimentos (cada um com o id e quem fez, `a` ou `b`) e `locked` |
+| `derived` | rascunhos travados dos pares que a família transitiva acrescenta: `a` (o avô, ou o irmão de menor id), `b` e `locked` (padrão nenhum) |
 
 Os **valores sorteados** de um personagem (o rascunho, `CharacterDraft`) são os traços, as
 aptidões, os pesos das 15 vontades, os déficits iniciais das vontades não dirigidas (menos
 `physical_relief` e `physical_safety`, que são calculados) e as associações. Os de um laço
 (`BondDraft`) são os oito eixos de A→B e de B→A e, para cada acontecimento, se ele é segredo. Um
 rascunho travado precisa ser possível: pesos com 2 ou 3 dominantes (≥ 7000), até 3 associações com
-tags distintas, uma marca de segredo por acontecimento e só segredos que o acontecimento admite.
+tags distintas, uma marca de segredo por acontecimento e só segredos que o acontecimento admite;
+um travado de par derivado precisa nomear um par que a família acrescenta, com o lado A certo, e
+não tem marcas de segredo. Um rascunho impossível, de personagem ou de laço, é sempre o erro
+`IMPOSSIBLE_DRAFT`; o esquema (campos, tipos, faixas da escala) é `INVALID_INPUT`.
 A edição manual de um personagem ou laço gerado é um rascunho travado com os valores editados.
 
 **Validação.** Toda falha é um erro como valor, com um código e o caminho do item (por exemplo
 `bonds.2`): esquema inválido (inclui arquétipo desconhecido), personagem inexistente, laço de
 alguém consigo, dois laços no mesmo par, autor de acontecimento fora do par, acontecimento num par
 `strangers`, rascunho impossível, mais de um `SPOUSE` ou de um `PARTNER` por personagem, ciclo de
-`PARENT` e conflito de família (um par com duas relações de parentesco diferentes entre pai ou mãe,
+`PARENT` (um erro por laço do ciclo, no caminho dele) e conflito de família (um par com duas relações de parentesco diferentes entre pai ou mãe,
 irmão e avô, depois da família transitiva). O gerador devolve todos os erros encontrados e não
 sorteia nada.
 
@@ -345,20 +353,25 @@ sorteia nada.
    (`3500..6500` ou, se altas, `6500..8500`), os pesos das vontades na ordem do catálogo
    (dominantes `7000..9000`, demais `2000..5000`), os déficits das vontades não dirigidas
    sorteadas (dominantes `4000..6000`, demais `2000..4000`) e as associações: primeiro a do SOM
-   (valência −6000 ou +5000), depois de 0 a 2 sorteadas, cada uma com a tag uniforme entre as
-   ainda não usadas, a chance 7000 de ser medo e a valência na faixa.
+   (valência −6000 ou +5000), depois de 0 a 2 sorteadas: o número é uniforme em 0..2
+   (`draw(3)`, `ASSOCIATION_COUNT`) e cada uma tem a tag uniforme entre as ainda não usadas
+   (`ASSOCIATION_TAG`), a chance 7000 de ser medo (`ASSOCIATION_FEAR`) e a valência na faixa
+   (`ASSOCIATION_VALENCE`).
 2. **Laços escolhidos**, por par (menor id, depois o outro); um travado não sorteia. Para cada
    um: os eixos de A→B e depois os de B→A, na ordem do catálogo (valor típico ± 1000 limitado a
    `0..10000`, ou `0..500` se não citado); depois a marca de segredo de cada acontecimento, na
    ordem da lista, sorteada só quando a chance está entre 1 e 9999.
 3. **Família transitiva** (seção 6): pares sem laço escolhido que viram irmãos ganham o arquétipo
    `siblings`; pares que viram avô e neto ganham os eixos do arquétipo `parent_child` (o avô como
-   A) com os rótulos `GRANDPARENT`/`GRANDCHILD`. São sorteados como no passo 2, por par.
+   A) com os rótulos `GRANDPARENT`/`GRANDCHILD`; como em `parent_child`, o avô também ganha a
+   vontade `care` dirigida ao neto (déficit 3000). São sorteados como no passo 2, por par, salvo
+   os travados em `derived`.
 4. **Fatos de história**: os acontecimentos dos laços, por par e na ordem da lista, viram fatos
    com ids 0, 1, 2…
-5. **Gancho de tensão** (seção 10, passo 6): o acontecimento é sorteado entre os seis com pesos
-   iguais (`TENSION_EVENT`), depois quem fez (`TENSION_AUTHOR`: o de menor id ou o outro) e, se for
-   o caso, o segredo; vira o fato seguinte.
+5. **Gancho de tensão** (seção 10, passo 6): primeiro quem fez (`TENSION_AUTHOR`, `draw(2)`: 0 é
+   o de menor id), depois o acontecimento entre os seis com pesos iguais, peso 0 nos que não
+   garantem tensão para esse autor (`TENSION_EVENT`), e, se for o caso, o segredo; vira o fato
+   seguinte.
 
 **Efeitos da história.** Os deltas de eixo somam aos eixos sorteados de quem sofreu o efeito com
 o outro (limitados a `0..10000`); os de vontade não dirigida somam ao déficit sorteado; uma
@@ -369,19 +382,24 @@ simulação 5.2 mais eles. Quem sabe ganha a cópia `DIRECT` com fidelidade
 8000 e importância pela fórmula da simulação 12 (deslocamentos de base como deltas de emoção, os
 deltas de eixo como deltas de laço e +3000, porque A e B estão envolvidos). Quando só A sabe, B
 não tem cópia e os efeitos em B não se aplicam na geração: o motor os aplica, uma vez, quando B
-recebe uma cópia do fato (SOC-03); nada mais fica guardado, porque eles vêm do catálogo.
+recebe uma cópia do fato (SOC-03); os efeitos vêm do catálogo. Lacuna registrada para a SOC-03:
+como uma cópia não marcante some entre fatias e B pode recebê-la de novo, a SOC-03 guarda no
+estado de B uma marca de "efeitos de história já aplicados" por fato, para não aplicá-los duas
+vezes.
 
 **Saída.** O elenco (`Cast`): as identidades, o estado de cada personagem por id (corpo em 0,
 emoções na linha de base, célula 0 e ameaça 0 até a abertura), os fatos, o estado do dia escolhido
-de cada um, os rascunhos (na ordem da entrada, para travar) e o gancho, se houve; mais o estado do
-sorteio e os registros.
+de cada um, os rascunhos (os personagens por id; os laços escolhidos na ordem da entrada e depois
+os pares derivados, marcados como `derived`, na ordem dos pares) e o gancho, se houve; mais o
+estado do sorteio e os registros.
 
 **Tentativas e travados.** Gerar de novo usa a mesma seed do elenco com o contador de tentativa
 `n`: a stream `generation` da tentativa `n` é semeada com `hash32(castSeed, "generation#<n>")`, e
 a tentativa 0 é a stream normal (`hash32(castSeed, "generation")`). O que está travado não sorteia
 e não muda; o resto é sorteado de novo. Os acontecimentos e os arquétipos vêm da entrada, então o
-grafo continua coerente com os travados. Para manter o gancho, inclua-o nos acontecimentos do laço
-antes de travá-lo.
+grafo continua coerente com os travados. Um par derivado (avô e neto, irmãos implícitos) se trava
+pela lista `derived` da entrada, com o rascunho que a saída marcou como `derived`. Para manter o
+gancho, inclua-o nos acontecimentos do laço antes de travá-lo.
 
 **Abertura da cena** (`openScene`, um drawer, tick 0, só o stream `setup`): para cada personagem
 por id, o corpo na ordem do catálogo, cada necessidade na faixa do estado do dia ou, se ele não a
