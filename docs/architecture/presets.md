@@ -1,16 +1,20 @@
 # Presets
 
-> **Especificação v1.2 — 2026-11-09.** O motor só conhece presets: catálogos fechados, com ids
+> **Especificação v1.3 — 2026-11-23.** O motor só conhece presets: catálogos fechados, com ids
 > estáveis, que valem para qualquer cenário (D-21). O SOM escolhe presets a partir da premissa
 > que o usuário digita; o modelo de texto recebe a premissa para dar o sabor do mundo. Os números
 > são iniciais e calibráveis. A v1.1 fixou luz, exposição ao clima, direção dos laços, valores
 > iniciais da geração e o gancho de tensão; a v1.2 disse quem sabe de cada acontecimento e
-> separou os sorteios do elenco dos de abertura da cena.
+> separou os sorteios do elenco dos de abertura da cena; a v1.3 fixou o formato dos gabaritos de
+> grade, os nomes das tags, a carga e a versão dos catálogos (CORE-03).
 
 ## 1. Regras dos presets
 
 1. Os catálogos vivem como dados tipados no pacote do motor (`packages/engine/src/presets/`),
-   validados por esquema na carga e com uma versão única `PRESETS_VERSION`.
+   validados por esquema na carga e com uma versão única `PRESETS_VERSION`. A carga
+   (`loadPresets`) confere o esquema de cada preset, os ids (sem repetição e sem faltar nenhum) e
+   as referências entre catálogos, e devolve todos os erros encontrados, cada um com o catálogo,
+   o id do preset e o caminho do campo.
 2. **Ids nunca mudam.** Para retirar um preset, marque-o como obsoleto; sessões antigas continuam
    a carregar.
 3. Presets são **genéricos**: "interior social" serve para taverna, bar, café ou cantina de nave.
@@ -31,7 +35,7 @@
 | `workplace` | local de trabalho | oficina, ferraria, escritório, laboratório | 1500 | 4000 | 4000 | 4000 | 0 | sim | — | 14 × 10, bancadas | não |
 | `market` | comércio | mercado, feira, loja | 2000 | 4000 | 1000 | 6000 | 0 | não | `crowd` | 20 × 14, bancas | parcial |
 | `public_square` | espaço público | praça, rua, estação | 2500 | 3000 | 500 | 5000 | clima | não | `crowd` | 24 × 18 aberto | sim |
-| `wilderness` | ermo natural | floresta, campo, montanha, praia | 4000 | 3000 | 7000 | 1000 | clima | não | conforme a premissa (`forest`, `water`…) | 24 × 24, árvores e rochas | sim |
+| `wilderness` | ermo natural | floresta, campo, montanha, praia | 4000 | 3000 | 7000 | 1000 | clima | não | — | 24 × 24, árvores e rochas | sim |
 | `dangerous_place` | lugar perigoso | beco, ruína, esconderijo, zona de guerra | 7000 | 1000 | 6000 | 2000 | clima | não | `dark` | 16 × 16, entulho | parcial |
 | `solemn_place` | lugar solene | templo, tribunal, hospital, velório | 1000 | 4000 | 3000 | 1000 | 0 | sim | `enclosed`, `sacred` | 18 × 14 | não |
 | `vehicle` | transporte | carroça, carro, trem, barco, nave | 3000 | 4000 | 5000 | 4000 | 0 | sim | `enclosed` | 10 × 4 | parcial |
@@ -39,10 +43,40 @@
 
 - **Temperatura** "clima" significa `baseTemperature = 0`: só o clima conta.
 - **Iluminado** (`lit`): à noite o lugar fica em meia-luz em vez de escuro.
+- **Tags padrão:** "—" é nenhuma. O ermo natural (`wilderness`) não tem tags padrão: a tag natural
+  dele (`forest`, `water`…) vem da premissa, escolhida pelo SOM (seção 10, passo 2), ou da ficha.
 - **Exposto ao clima:** "não" = todas as células cobertas (`roofed`); "sim" = nenhuma; "parcial" =
   o gabarito marca as cobertas.
-- Cada grade padrão é um gabarito com paredes, portas, obstáculos baixos, células `exit` e
-  `roofed` e posições iniciais sugeridas. A cena pode trocar o gabarito ou editar células.
+- **Grade padrão:** largura × altura (`W × H`) e o que o gabarito tem. Cada grade padrão é um
+  gabarito com paredes, portas, obstáculos baixos, células `exit` e `roofed` e posições iniciais
+  sugeridas (seção 2.1). A cena pode trocar o gabarito ou editar células.
+
+### 2.1 Gabaritos de grade
+
+Cada lugar traz um gabarito (`GridTemplate` no código) com quatro campos:
+
+| Campo | Conteúdo | Regras |
+| --- | --- | --- |
+| `rows` | `H` linhas de `W` caracteres, de cima (`y = 0`) para baixo; o caractere `x` da linha `y` é a célula `(x, y)`, de índice `y × W + x` | `1 ≤ W, H ≤ 48` (`GRID_MAX`); todas as linhas com a mesma largura; só caracteres da legenda |
+| `exits` | células `exit`, como `{ x, y }` | pelo menos 1; distintas; na borda (`x = 0`, `y = 0`, `x = W − 1` ou `y = H − 1`) e atravessáveis |
+| `roofed` | células cobertas: `"ALL"` (todas), `"NONE"` (nenhuma) ou uma máscara de `H` linhas de `W` caracteres (`r` coberta, `.` descoberta) | segue a exposição ao clima: "não" ⇒ `"ALL"`; "sim" ⇒ `"NONE"`; "parcial" ⇒ máscara com pelo menos uma célula coberta e uma descoberta |
+| `starts` | posições iniciais sugeridas, como `{ x, y }` | pelo menos 8 (o elenco tem até 8 personagens); distintas e atravessáveis |
+
+Legenda dos caracteres de `rows` (fechada):
+
+| Caractere | Tipo de célula |
+| --- | --- |
+| `.` | `FLOOR` |
+| `,` | `ROUGH` |
+| `d` | `DOOR_OPEN` |
+| `D` | `DOOR_CLOSED` |
+| `=` | `WINDOW` |
+| `o` | `LOW_OBSTACLE` |
+| `#` | `WALL` |
+
+Atravessáveis são `FLOOR`, `ROUGH`, `DOOR_OPEN` e `DOOR_CLOSED` ([modelo de simulação](<simulation-model.md>),
+seção 3.1). A carga recusa um gabarito fora dessas regras. Nos gabaritos padrão, toda posição
+inicial é piso (`FLOOR`) e alcança uma saída andando só pelas quatro direções.
 
 ## 3. Climas
 
@@ -182,14 +216,27 @@ seção 4).
 
 Deslocamentos de base somam à linha de base calculada e respeitam o teto de 3000. Quem sabe
 recebe uma cópia `DIRECT` com fidelidade 8000. "Segredo" é segredo para terceiros: ninguém além
-de quem sabe tem cópia. Quando só A sabe, os efeitos em B ("só se B sabe") esperam até B receber
+de quem sabe tem cópia. Um acontecimento que não é segredo é sabido pelos dois; a coluna "Quem
+sabe" diz quem tem cópia quando ele é segredo. Quando só A sabe, os efeitos em B ("só se B sabe") esperam até B receber
 uma cópia do fato e então se aplicam uma vez. Se `betrayed_trust` é secreto, sorteia-se no stream
 `generation`.
 
 ## 8. Associações
 
-Tags usadas por lugares e por medos e apegos: `forest`, `water`, `dark`, `heights`, `crowd`,
-`enclosed`, `storm`, `fire`, `animals`, `sacred`.
+Tags usadas por lugares e por medos e apegos:
+
+| Id | Nome |
+| --- | --- |
+| `forest` | floresta |
+| `water` | água |
+| `dark` | escuro |
+| `heights` | altura |
+| `crowd` | multidão |
+| `enclosed` | lugar fechado |
+| `storm` | tempestade |
+| `fire` | fogo |
+| `animals` | animais |
+| `sacred` | sagrado |
 
 - Cada personagem recebe de 0 a 2 associações sorteadas: a tag é uniforme entre as 10; com
   chance 7000 é um medo (valência `−8000..−4000`), senão um apego (`3000..6000`).
@@ -257,3 +304,7 @@ Cada chamada ao SOM tem no máximo 16 perguntas. O pacote de perguntas exato est
   atualização deste documento.
 - Mudar faixas: é calibração; atualize os testes que dependem delas.
 - Nunca reaproveite um id para outro significado.
+- Toda mudança nos dados sobe `PRESETS_VERSION` (`MAJOR.MINOR.PATCH`, hoje `0.1.0`): o MINOR quando
+  muda a simulação (números, listas, gabaritos, presets novos), o PATCH quando só muda texto de
+  exibição. Um teste guarda o hash dos catálogos de cada versão, e as tabelas destes documentos
+  são conferidas com os dados por outro teste.

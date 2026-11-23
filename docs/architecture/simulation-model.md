@@ -1,6 +1,6 @@
 # Modelo de simulação — Hermeneutic Core
 
-> **Especificação v1.4 — 2026-11-23.** As **regras** deste documento são contrato do motor. Os
+> **Especificação v1.5 — 2026-11-23.** As **regras** deste documento são contrato do motor. Os
 > **números** (taxas, limiares, pesos) são valores iniciais e calibráveis: mudar um número exige
 > teste atualizado e nota no PR, não decisão nova. Mudar uma regra exige ADR. Produto em
 > [`docs/product.md`](<../product.md>); atos, tabelas de efeito e vieses em
@@ -11,7 +11,8 @@
 > detalhes do sorteio (variante do `splitmix32`, rejeição, registro e forçar caminho) e da
 > serialização canônica do hash (CORE-01); a v1.4 fixou o gabarito da grade, a supercobertura, os
 > desempates de caminho e de destino, o passo de movimento e as reduções de alcance da fala
-> (CORE-02).
+> (CORE-02); a v1.5 tabelou os rótulos de laço (tipo e recíproca) e deu nomes de exibição aos
+> sinais (CORE-03).
 
 ## 1. Princípios
 
@@ -171,7 +172,7 @@ haver zero ou um personagem do jogador; com zero, a cena é só observada.
 
 ### 5.1 Corpo
 
-Necessidades unipolares (0 = bem; 10000 = crítico), exceto o térmico, que é bipolar.
+Necessidades unipolares (0 = bem; 10000 = crítico), exceto o térmico (`thermal`), que é bipolar.
 
 | Id | Nome | Variação por tick | Modificadores |
 | --- | --- | --- | --- |
@@ -294,11 +295,36 @@ presentes tem um registro; desconhecidos começam perto de 0.
 Os eixos `fearOf` e `closeness` não se confundem com a emoção `fear` nem com a vontade
 `intimacy`.
 
-Rótulos (removíveis): `PARENT`, `CHILD`, `SIBLING`, `GRANDPARENT`, `GRANDCHILD`, `SPOUSE`, `EX`,
-`PARTNER`, `FRIEND`, `RIVAL`, `ENEMY`, `CREDITOR`, `DEBTOR`, `MENTOR`, `APPRENTICE`, `BOSS`,
-`EMPLOYEE`, `COLLEAGUE`, `NEIGHBOR`, `ACQUAINTANCE`, `STRANGER`, `CRUSH` (paixão),
-`PROTECTOR`, `PROTECTED`. Rótulos familiares e de papel têm recíproca obrigatória (`PARENT` ↔
-`CHILD`, `CREDITOR` ↔ `DEBTOR`, `PROTECTOR` ↔ `PROTECTED`…).
+Rótulos (removíveis). Os familiares e os de papel têm recíproca obrigatória: se A tem o rótulo
+por B, B tem a recíproca por A. Os sociais não têm (a paixão de `unrequited_love`, por exemplo, é
+`CRUSH` de um lado e `ACQUAINTANCE` do outro).
+
+| Id | Nome | Tipo | Recíproca |
+| --- | --- | --- | --- |
+| `PARENT` | pai ou mãe | familiar | `CHILD` |
+| `CHILD` | filho(a) | familiar | `PARENT` |
+| `SIBLING` | irmão(ã) | familiar | `SIBLING` |
+| `GRANDPARENT` | avô ou avó | familiar | `GRANDCHILD` |
+| `GRANDCHILD` | neto(a) | familiar | `GRANDPARENT` |
+| `SPOUSE` | cônjuge | familiar | `SPOUSE` |
+| `EX` | ex-parceiro(a) | social | — |
+| `PARTNER` | namorado(a) | social | — |
+| `FRIEND` | amigo(a) | social | — |
+| `RIVAL` | rival | social | — |
+| `ENEMY` | inimigo(a) | social | — |
+| `CREDITOR` | credor(a) | de papel | `DEBTOR` |
+| `DEBTOR` | devedor(a) | de papel | `CREDITOR` |
+| `MENTOR` | mentor(a) | de papel | `APPRENTICE` |
+| `APPRENTICE` | aprendiz | de papel | `MENTOR` |
+| `BOSS` | patrão ou patroa | de papel | `EMPLOYEE` |
+| `EMPLOYEE` | empregado(a) | de papel | `BOSS` |
+| `COLLEAGUE` | colega | social | — |
+| `NEIGHBOR` | vizinho(a) | social | — |
+| `ACQUAINTANCE` | conhecido(a) | social | — |
+| `STRANGER` | desconhecido(a) | social | — |
+| `CRUSH` | paixão | social | — |
+| `PROTECTOR` | protetor(a) | de papel | `PROTECTED` |
+| `PROTECTED` | protegido(a) | de papel | `PROTECTOR` |
 
 ### 5.5 Percepção do momento
 
@@ -335,7 +361,8 @@ Traços bipolares (`-10000..=10000`), estáveis, mudados só pela cristalizaçã
 | `selfControl` | impulsivo ↔ contido | `romanticBoldness` | recatado ↔ galanteador |
 
 Aptidões unipolares: `perceptiveness` (perspicácia: ler sinais e intenções), `eloquence`
-(eloquência: convencer, seduzir, ferir com palavras) e `memory` (lembrar fatos com fidelidade).
+(eloquência: convencer, seduzir, ferir com palavras) e `memory` (memória: lembrar fatos com
+fidelidade).
 
 Toda regra usa o **traço efetivo** (seção 13). Fatores de traço sobre ganhos de emoção vindos de
 atos, de interrupções e de testemunhar (seção 9); ganhos por tick (associações, corpo, tédio) não
@@ -409,26 +436,26 @@ para o personagem do jogador.
 | `cold` | `max(0, −thermal)` |
 | `fatigue`, `pain`, `intoxication` | a necessidade do corpo |
 
-| Sinal | Canal | Causas possíveis |
-| --- | --- | --- |
-| `tremor` | visual | `fear`, `cold` |
-| `shakyVoice` | vocal | `fear`, `sadness` |
-| `avertedGaze` | visual | `shame`, `guilt`, `fear`, `lying` |
-| `stepBack` | visual | `fear`, `disgust` |
-| `clenchedFists` | visual | `anger` |
-| `raisedVoice` | vocal | `anger`, `joy` |
-| `blush` | visual | `shame`, `attraction`, `anger` |
-| `fixedStare` | visual | `anger`, `jealousy`, `attraction` |
-| `lowGaze` | visual | `shame`, `sadness` |
-| `nervousLaugh` | vocal | `shame`, `fear` |
-| `smile` | visual | `joy`, `attraction` |
-| `laugh` | vocal | `joy` |
-| `quietVoice` | vocal | `sadness`, `fatigue` |
-| `tears` | visual | `sadness`, `joy` |
-| `grimace` | visual | `disgust`, `pain` |
-| `yawn` | visual | `fatigue`, `boredom` |
-| `slump` | visual | `fatigue`, `sadness` |
-| `slurredSpeech` | vocal | `intoxication`, `fatigue` |
+| Sinal | Nome | Canal | Causas possíveis |
+| --- | --- | --- | --- |
+| `tremor` | tremor | visual | `fear`, `cold` |
+| `shakyVoice` | voz trêmula | vocal | `fear`, `sadness` |
+| `avertedGaze` | olhar desviado | visual | `shame`, `guilt`, `fear`, `lying` |
+| `stepBack` | passo atrás | visual | `fear`, `disgust` |
+| `clenchedFists` | punhos cerrados | visual | `anger` |
+| `raisedVoice` | voz alta | vocal | `anger`, `joy` |
+| `blush` | rubor | visual | `shame`, `attraction`, `anger` |
+| `fixedStare` | olhar fixo | visual | `anger`, `jealousy`, `attraction` |
+| `lowGaze` | olhar baixo | visual | `shame`, `sadness` |
+| `nervousLaugh` | riso nervoso | vocal | `shame`, `fear` |
+| `smile` | sorriso | visual | `joy`, `attraction` |
+| `laugh` | risada | vocal | `joy` |
+| `quietVoice` | voz baixa | vocal | `sadness`, `fatigue` |
+| `tears` | lágrimas | visual | `sadness`, `joy` |
+| `grimace` | careta | visual | `disgust`, `pain` |
+| `yawn` | bocejo | visual | `fatigue`, `boredom` |
+| `slump` | ombros caídos | visual | `fatigue`, `sadness` |
+| `slurredSpeech` | fala arrastada | vocal | `intoxication`, `fatigue` |
 
 **Emissão** (stream `signal`). A cada tick, para cada causa com intensidade `i ≥ 5000` e cada
 sinal ligado a ela:

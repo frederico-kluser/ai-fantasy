@@ -1,12 +1,14 @@
 # Atos de conversa
 
-> **Especificação v1.2 — 2026-11-09.** Toda fala e toda ação na fatia é um **ato**: ato × tom ×
+> **Especificação v1.3 — 2026-11-23.** Toda fala e toda ação na fatia é um **ato**: ato × tom ×
 > tópico, com valores (D-13). O motor decide e resolve atos; o SOM converte a fala livre do
 > jogador num ato; o modelo de texto encena o ato. As regras gerais estão no
 > [modelo de simulação](<simulation-model.md>), cujas convenções valem aqui (`/` é divisão
 > inteira; `mulBp`; unidade `u`). Números são iniciais e calibráveis. A v1.1 trocou os "+" e "−"
 > da v1 por números, definiu os valores dos atos dos NPCs, as respostas e os vieses da decisão;
-> a v1.2 deu valência às respostas e fixou a versão falsa das mentiras e a ordem de cálculo.
+> a v1.2 deu valência às respostas e fixou a versão falsa das mentiras e a ordem de cálculo; a
+> v1.3 deu nomes de exibição aos objetos de pedido (CORE-03). As tabelas das seções 2 a 4 são
+> dados do motor ([presets](<presets.md>), seção 1).
 
 ## 1. Estrutura de um ato
 
@@ -132,17 +134,17 @@ ou quando é um segredo de Y (`SECRET` em que Y é autor ou ofensor).
 
 **Objetos de `REQUEST` e `OFFER`** e as vontades que cada um toca:
 
-| Objeto | Vontade de quem recebe | Vontade de quem dá |
-| --- | --- | --- |
-| `HELP` | `physical_safety` | `care` |
-| `INFORMATION` | `curiosity` | `influence` |
-| `ITEM` | `material_security` | `care` |
-| `MONEY` | `material_security` | `influence` |
-| `COMPANY` | `company` | `company` |
-| `FAVOR` | `purpose` | `influence` |
-| `PROMISE` | `predictability` | `intimacy` |
-| `SECRECY` (guardar segredo) | `dignity` | `intimacy` |
-| `DATE` (encontro) | `desire` | `desire` |
+| Objeto | Nome | Vontade de quem recebe | Vontade de quem dá |
+| --- | --- | --- | --- |
+| `HELP` | ajuda | `physical_safety` | `care` |
+| `INFORMATION` | informação | `curiosity` | `influence` |
+| `ITEM` | objeto | `material_security` | `care` |
+| `MONEY` | dinheiro | `material_security` | `influence` |
+| `COMPANY` | companhia | `company` | `company` |
+| `FAVOR` | favor | `purpose` | `influence` |
+| `PROMISE` | promessa | `predictability` | `intimacy` |
+| `SECRECY` | guardar segredo | `dignity` | `intimacy` |
+| `DATE` | encontro | `desire` | `desire` |
 
 ## 5. Valores
 
