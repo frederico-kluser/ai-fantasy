@@ -88,12 +88,12 @@ describe("hasLineOfSight (simulation-model §3.1)", () => {
   });
 
   it.each([
-    ["a closed door", ".D.", false],
-    ["an open door", ".d.", true],
-    ["a window", ".=.", true],
-    ["rough ground", ".,.", true],
-    ["floor", "...", true],
-  ])("given %s between two cells when checking sight then seeing is %s", (_, row, sees) => {
+    ["a closed door", false, ".D."],
+    ["an open door", true, ".d."],
+    ["a window", true, ".=."],
+    ["rough ground", true, ".,."],
+    ["floor", true, "..."],
+  ])("given %s between two cells when checking sight then seeing is %s", (_, sees, row) => {
     expect(hasLineOfSight(gridOf([row]), 0, 2)).toBe(sees);
   });
 

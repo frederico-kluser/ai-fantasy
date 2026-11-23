@@ -43,6 +43,16 @@ const OFFSETS: readonly (readonly [dx: number, dy: number])[] = [
 /** Pending costs span at most 3 values: the current one plus a step of 1 or 2 ticks. */
 const BUCKETS = 3;
 
+/**
+ * The cell whose ticks a relaxed step costs: the cell it enters. Walking FROM the
+ * source, the step goes from `cell` into `next`; measuring TO the source, the
+ * walk goes the other way, from `next` into `cell`.
+ */
+const ENTERED: Readonly<Record<FieldDirection, (cell: number, next: number) => number>> = {
+  FROM: (_cell, next) => next,
+  TO: (cell) => cell,
+};
+
 /** The ticks to enter each cell of the grid, by its type. */
 export function enterTicksOf(grid: Grid): Uint8Array {
   return Uint8Array.from(grid.cells, (type) => CELL_RULES[type].enterTicks);
@@ -138,8 +148,7 @@ function relaxAround(
     if (next === NONE) {
       continue;
     }
-    // Walking forward, the step enters `next`; measuring TO the source, it enters `cell`.
-    const reached = base + itemAt(ground.ticks, direction === "TO" ? cell : next);
+    const reached = base + itemAt(ground.ticks, ENTERED[direction](cell, next));
     const known = itemAt(cost, next);
     if (known === UNREACHED || reached < known) {
       cost[next] = reached;

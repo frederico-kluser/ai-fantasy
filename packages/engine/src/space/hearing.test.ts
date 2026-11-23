@@ -71,25 +71,25 @@ describe("voiceRange: walls, doors and windows between (simulation-model §8.2)"
   });
 
   it.each([
-    ["a wall", ".#.", 0],
-    ["a closed door", ".D.", 0],
-    ["a window", ".=.", 4],
-    ["two windows", ".==.", 4],
-    ["a window and a wall", ".=#.", 0],
-    ["an open door", ".d.", 8],
-    ["a low obstacle", ".o.", 8],
-    ["rough ground", ".,.", 8],
-  ])("given normal speech through %s when computing range then it is %i", (_, row, range) => {
+    ["a wall", 0, ".#."],
+    ["a closed door", 0, ".D."],
+    ["a window", 4, ".=."],
+    ["two windows", 4, ".==."],
+    ["a window and a wall", 0, ".=#."],
+    ["an open door", 8, ".d."],
+    ["a low obstacle", 8, ".o."],
+    ["rough ground", 8, ".,."],
+  ])("given normal speech through %s when computing range then it is %i", (_, range, row) => {
     expect(voiceRange(gridOf([row]), QUIET_NORMAL, 0, row.length - 1)).toBe(range);
   });
 
   it.each([
-    ["a wall", ".#", 0],
-    ["a closed door", ".D", 0],
-    ["a window", ".=", 1],
+    ["a wall", 0, ".#"],
+    ["a closed door", 0, ".D"],
+    ["a window", 1, ".="],
   ])(
     "given a whisper past a corner with %s beside it when computing range then it is %i",
-    (_, top, range) => {
+    (_, range, top) => {
       const grid = gridOf([top, ".."]);
 
       expect(voiceRange(grid, WHISPER, cellAt(grid, 0, 0), cellAt(grid, 1, 1))).toBe(range);
