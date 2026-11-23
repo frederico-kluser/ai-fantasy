@@ -7,12 +7,11 @@
  * {@link IGNORED_ROW} (simulation-model §10).
  */
 import type { ActId } from "../presets/acts.ts";
-import type { OutcomeBand } from "./label.ts";
+import { REQUESTER_ROWS } from "./requests.ts";
 import {
   bondTerm as bond,
   driveTerm as drive,
   emotionTerm as emotion,
-  type AnswerView,
   type AppraisalRow,
   type EffectTerm,
   type RowContext,
@@ -30,8 +29,6 @@ const DESIRED = 5000;
 const FEARED = 5000;
 /** Perceived sincerity from which an offer or an apology is believed. */
 const SINCERE = 5000;
-/** The objects of a request that touch the material security (dialogue-acts §8.3). */
-const MATERIAL: readonly string[] = ["MONEY", "ITEM"];
 
 /** The highest magnitude of a valence (dialogue-acts §7.2: "Valências ficam em −3..+3"). */
 export const VALENCE_MAX = 3;
@@ -41,18 +38,6 @@ const plainTell = (c: RowContext) => !c.newFact && !c.secret && !c.badFact;
 const fond = (c: RowContext) => Math.max(c.bond.affection, c.bond.attraction) >= DEAR;
 const feared = (c: RowContext) => c.bond.fearOf >= FEARED;
 const toneIs = (tone: RowContext["tone"]) => (c: RowContext) => c.tone === tone;
-
-/** The request answered, when the act answers one of `acts` with a band in `bands`. */
-function answering(acts: readonly ActId[], bands: readonly OutcomeBand[] | null = null) {
-  return (c: RowContext): c is RowContext & { readonly answer: AnswerView } =>
-    c.answer !== null &&
-    acts.includes(c.answer.act) &&
-    (bands === null || (c.answer.band !== null && bands.includes(c.answer.band)));
-}
-
-const REQUESTS: readonly ActId[] = ["REQUEST", "OFFER", "APOLOGIZE", "THREATEN"];
-const ACCEPTED: readonly OutcomeBand[] = ["ENTHUSIASTIC", "ACCEPT", "PARTIAL"];
-const REFUSED: readonly OutcomeBand[] = ["REFUSE", "HARD_REFUSE"];
 
 const CHAT_INTERESTING: readonly EffectTerm[] = [
   emotion("joy", 1),
@@ -200,90 +185,6 @@ const TALK_ROWS: readonly AppraisalRow[] = [
   },
 ];
 
-/** dialogue-acts §7.1 (`ACCEPT` and `REFUSE`) and §8.3 "No autor do pedido". */
-const ANSWER_ROWS: readonly AppraisalRow[] = [
-  { act: "ACCEPT", when: answering(REQUESTS, ["ENTHUSIASTIC"]), valence: 3, effects: [] },
-  { act: "ACCEPT", when: answering(REQUESTS, ["ACCEPT"]), valence: 2, effects: [] },
-  { act: "ACCEPT", when: answering(REQUESTS, ["PARTIAL"]), valence: 1, effects: [] },
-  {
-    act: "ACCEPT",
-    when: answering(["REQUEST"], ACCEPTED),
-    valence: 0,
-    effects: [
-      drive("RECEIVER", -3),
-      drive("influence", -2),
-      emotion("joy", 2),
-      bond("affection", 1),
-      bond("dependence", 1),
-    ],
-  },
-  {
-    act: "ACCEPT",
-    when: answering(["REQUEST"], ["ENTHUSIASTIC"]),
-    valence: 0,
-    effects: [emotion("joy", 1)],
-  },
-  {
-    act: "ACCEPT",
-    when: answering(["OFFER"], ACCEPTED),
-    valence: 0,
-    effects: [drive("GIVER", -3), drive("purpose", -2), emotion("joy", 2)],
-  },
-  {
-    act: "ACCEPT",
-    when: (c) => answering(["OFFER"], ACCEPTED)(c) && MATERIAL.includes(c.answer.object ?? ""),
-    valence: 0,
-    effects: [drive("material_security", 1)],
-  },
-  {
-    act: "ACCEPT",
-    when: answering(["APOLOGIZE"], ACCEPTED),
-    valence: 0,
-    effects: [emotion("guilt", -2), drive("intimacy", -1)],
-  },
-  {
-    act: "ACCEPT",
-    when: answering(["THREATEN"], ACCEPTED),
-    valence: 0,
-    effects: [drive("influence", -3)],
-  },
-  {
-    act: "REFUSE",
-    when: answering(REQUESTS, REFUSED),
-    valence: -1,
-    effects: [
-      drive("influence", 2),
-      drive("REQUESTED", 1),
-      emotion("anger", 1),
-      emotion("sadness", 1),
-    ],
-  },
-  {
-    act: "REFUSE",
-    when: answering(["OFFER"], REFUSED),
-    valence: 0,
-    effects: [drive("purpose", 1)],
-  },
-  {
-    act: "REFUSE",
-    when: answering(REQUESTS, ["HARD_REFUSE"]),
-    valence: 0,
-    effects: [bond("resentment", 2), drive("dignity", 1)],
-  },
-  {
-    act: "REFUSE",
-    when: answering(["ASK"]),
-    valence: -1,
-    effects: [emotion("anger", 1), bond("trust", -1), drive("curiosity", 1)],
-  },
-  {
-    act: "REFUSE",
-    when: answering(["ACCUSE"]),
-    valence: -1,
-    effects: [emotion("anger", 1), bond("trust", -1), drive("justice", 1)],
-  },
-];
-
 /** dialogue-acts §7.1, from `FAREWELL` to the end of the table. */
 const PRESENCE_ROWS: readonly AppraisalRow[] = [
   { act: "FAREWELL", valence: 0, effects: [drive("company", 1)] },
@@ -371,7 +272,7 @@ const PRESENCE_ROWS: readonly AppraisalRow[] = [
 /** The whole table, in the order of dialogue-acts §7.1. */
 export const APPRAISAL_ROWS: readonly AppraisalRow[] = [
   ...TALK_ROWS,
-  ...ANSWER_ROWS,
+  ...REQUESTER_ROWS,
   ...PRESENCE_ROWS,
 ];
 

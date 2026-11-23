@@ -7,6 +7,7 @@ import type { ActRules } from "../../src/acts/rules.ts";
 import { toBp } from "../../src/domain/bp.ts";
 import type { CharacterId, FactId } from "../../src/domain/ids.ts";
 import type { ActFact, HistoryFact } from "../../src/memory/fact.ts";
+import type { Presets } from "../../src/presets/catalogs.ts";
 import { loadPresets } from "../../src/presets/load.ts";
 import { createDrawer, type Drawer, type ForcedDraw } from "../../src/rng/drawer.ts";
 import { createRngState } from "../../src/rng/state.ts";
@@ -18,6 +19,15 @@ export function defaultRules(): ActRules {
     throw new Error("test rules: the default presets do not load");
   }
   return { acts: presets.value.acts, tones: presets.value.tones };
+}
+
+/** The request objects of the default presets. */
+export function defaultObjects(): Presets["requestObjects"] {
+  const presets = loadPresets();
+  if (!presets.ok) {
+    throw new Error("test objects: the default presets do not load");
+  }
+  return presets.value.requestObjects;
 }
 
 /** A label with the overrides given: a NEUTRAL CHAT about small talk to nobody, at NORMAL volume. */
