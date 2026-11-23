@@ -24,7 +24,8 @@ export default defineConfig({
   webServer: {
     command: "npm run start",
     url: `${E2E_ORIGIN}/api/health`,
-    env: { PORT: String(E2E_PORT) },
+    // An empty key counts as absent: the E2E never uses a real OpenRouter key (testing-strategy §9).
+    env: { PORT: String(E2E_PORT), OPENROUTER_API_KEY: "" },
     reuseExistingServer: !isCi,
     timeout: 180_000,
   },

@@ -1,11 +1,13 @@
+import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 
 import { afterAll, describe, expect, it, onTestFinished, vi } from "vitest";
 
-import { defaultMainOptions, main, type MainResult } from "./main.ts";
+import { capturedLog, configFor, FAKE_KEY, fileError, jsonLines } from "../test/support.ts";
+import { defaultMainOptions, listenFailure, main, type MainResult } from "./main.ts";
 import type { PathsResult } from "./paths.ts";
 import { listeningAddresses, startServer } from "./server.ts";
 
@@ -18,7 +20,7 @@ afterAll(() => {
   rmSync(scratch, { recursive: true, force: true });
 });
 
-/** Repository paths for a test: a scratch root, an `.env` and a site folder. */
+/** Repository paths for a test: a scratch root (its `data/` included), an `.env` and a site folder. */
 function paths(envFile: string, webDistDir: string = emptySite): PathsResult {
   return { ok: true, value: { root: scratch, envFile, webDistDir } };
 }
@@ -27,7 +29,10 @@ const NO_ENV = paths(join(scratch, "missing.env"));
 
 /** A port that was free a moment ago: listen on 0, read the port, close. */
 async function freePort(): Promise<number> {
-  const probe = await startServer({ port: 0, webDistDir: emptySite });
+  const probe = await startServer({
+    config: configFor({ PORT: "0", DATA_DIR: scratch }),
+    webDistDir: emptySite,
+  });
   const ports = listeningAddresses(probe).map((address) => address.port);
   await probe.close();
   return Math.max(...ports);
@@ -91,6 +96,25 @@ describe("server entry point", () => {
     expect(await response.text()).toBe("<title>main-site-marker</title>");
   });
 
+  it("given the repository root when running main then sessions are saved in its data folder", async () => {
+    const result = closeAfterTest(
+      await main({ env: { PORT: "0" }, paths: NO_ENV, log: () => undefined }),
+    );
+    assert.ok(result.ok);
+    const port = Math.max(...listeningAddresses(result.app).map((address) => address.port));
+
+    await fetch(`http://127.0.0.1:${String(port)}/api/sessions/campaigns/main-test`, {
+      method: "PUT",
+      headers: { "content-type": "application/json" },
+      body: '{"formatVersion":1}',
+    });
+    const saved: unknown = JSON.parse(
+      readFileSync(join(scratch, "data", "campaigns", "main-test", "campaign.json"), "utf8"),
+    );
+
+    expect(saved).toEqual({ formatVersion: 1 });
+  });
+
   it("given an invalid PORT when running main then it fails with an error and a solution", async () => {
     const lines: string[] = [];
 
@@ -103,10 +127,54 @@ describe("server entry point", () => {
     expect({ result, lines }).toEqual({
       result: { ok: false, app: undefined },
       lines: [
-        'Erro: PORT inválido: "abc" (use um inteiro de 0 a 65535) — Solução: corrija PORT no ambiente ou no .env (padrão 4318).',
+        'Erro: PORT inválido: "abc" (use um inteiro de 0 a 65535) — Solução: corrija PORT no ambiente ou no .env (vazio = valor padrão).',
       ],
     });
   });
+
+  it("given a port already in use when running main then it says so with a solution and starts nothing", async () => {
+    const other = await startServer({
+      config: configFor({ PORT: "0", DATA_DIR: scratch }),
+      webDistDir: emptySite,
+    });
+    onTestFinished(async () => {
+      await other.close();
+    });
+    const port = Math.max(...listeningAddresses(other).map((address) => address.port));
+    const lines: string[] = [];
+
+    const result = await main({
+      env: { PORT: String(port) },
+      paths: NO_ENV,
+      log: (line) => lines.push(line),
+    });
+
+    expect({ result, lines }).toEqual({
+      result: { ok: false, app: undefined },
+      lines: [
+        `Erro: a porta ${String(port)} de 127.0.0.1 já está em uso — Solução: feche o programa que a usa (outro npm start ou npm run dev, por exemplo) ou escolha outra porta em PORT, no ambiente ou no .env.`,
+      ],
+    });
+  });
+
+  it("given a port the system refuses (EACCES) when explaining the failure then the line names the Hyper-V reserved ranges", () => {
+    expect(listenFailure(fileError("EACCES"), 50_000)).toBe(
+      "Erro: sem permissão para escutar na porta 50000 de 127.0.0.1 — Solução: escolha outra porta em PORT, no ambiente ou no .env (no Windows, o Hyper-V reserva faixas de portas: veja netsh interface ipv4 show excludedportrange protocol=tcp).",
+    );
+  });
+
+  it.each([
+    ["another error code", fileError("EADDRNOTAVAIL"), "EADDRNOTAVAIL"],
+    ["an error without a code", new Error("strange"), "desconhecido"],
+    ["something that is not an error", "strange", "desconhecido"],
+  ])(
+    "given %s when explaining a listen failure then the line names the code and a solution",
+    (_case, error, code) => {
+      expect(listenFailure(error, 4318)).toBe(
+        `Erro: o servidor não conseguiu escutar em 127.0.0.1:4318 (código ${code}) — Solução: confira PORT, no ambiente ou no .env, e se outro programa usa a porta.`,
+      );
+    },
+  );
 
   it("given no repository around the server when running main then it says so and starts nothing", async () => {
     const lines: string[] = [];
@@ -123,7 +191,39 @@ describe("server entry point", () => {
     });
   });
 
-  it("given the process when building the default options then they use its environment and this repository", () => {
+  it("given a key in the environment when running main then no printed line contains it", async () => {
+    const lines: string[] = [];
+
+    closeAfterTest(
+      await main({
+        env: { PORT: "0", OPENROUTER_API_KEY: FAKE_KEY },
+        paths: NO_ENV,
+        log: (line) => lines.push(line),
+      }),
+    );
+
+    expect({ printed: lines.length, hasKey: lines.join("\n").includes(FAKE_KEY) }).toEqual({
+      printed: 1,
+      hasKey: false,
+    });
+  });
+
+  it("given a log stream when the server handles a request then the request goes to that stream", async () => {
+    const log = capturedLog();
+    const result = closeAfterTest(
+      await main({ env: { PORT: "0" }, paths: NO_ENV, log: () => undefined, logStream: log }),
+    );
+    assert.ok(result.ok);
+    const port = Math.max(...listeningAddresses(result.app).map((address) => address.port));
+
+    await fetch(`http://127.0.0.1:${String(port)}/api/health`);
+
+    expect(jsonLines(log.lines)).toContainEqual(
+      expect.objectContaining({ msg: "request completed", res: { statusCode: 200 } }),
+    );
+  });
+
+  it("given the process when building the default options then they use its environment, this repository and stdout", () => {
     const root = gitTopLevel();
 
     expect(defaultMainOptions()).toMatchObject({
@@ -132,6 +232,7 @@ describe("server entry point", () => {
         ok: true,
         value: { root, webDistDir: join(root, "apps", "web", "dist"), envFile: join(root, ".env") },
       },
+      logStream: process.stdout,
     });
   });
 
