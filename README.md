@@ -96,6 +96,12 @@ npm run check                    # os gates do CI, na mesma ordem (ver abaixo)
 | `npm run docs:lint` | markdownlint da documentação |
 | `npm run governance` | arquivos obrigatórios e espelho `CLAUDE.md` ↔ `AGENTS.md` |
 
+Configuração: todas as variáveis do `.env.example` são opcionais (vazio vale o padrão); um valor
+inválido impede o servidor de subir e mostra `Erro: … — Solução: …`. Campanhas e fatias gravadas
+ficam em `data/`, fora do git (outra pasta com `DATA_DIR`). O servidor só atende o próprio site em
+`127.0.0.1`/`localhost` e recusa pedidos de outros sites ([arquitetura](<docs/architecture/overview.md>),
+seções 5 e 10).
+
 `npm run check` roda localmente, na ordem do CI, tudo o que os jobs `docs`, `node`, `e2e` e
 `mutation` rodam, menos dois passos que só o CI faz: os links da documentação (lychee) e as
 mensagens dos commits (job `build`; na máquina, o hook `commit-msg` e o `oss-gate.sh` fazem esse

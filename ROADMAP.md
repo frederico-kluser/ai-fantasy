@@ -126,7 +126,7 @@ uma tarefa atualiza esta tabela no próprio PR.
 | [SOC-04](<docs/planning/prompts/SOC-04.md>) | Decisão e turnos | F3 | SOC-03 | ⏳ pendente |
 | [SOC-05](<docs/planning/prompts/SOC-05.md>) | Passo do motor, sessão e replay | F3 | SOC-04 | ⏳ pendente |
 | [SOC-06](<docs/planning/prompts/SOC-06.md>) | Personalidade que muda e continuidade entre fatias | F3 | SOC-05 | ⏳ pendente |
-| [SRV-01](<docs/planning/prompts/SRV-01.md>) | Servidor local | F4 | FND-01 | ⏳ pendente |
+| [SRV-01](<docs/planning/prompts/SRV-01.md>) | Servidor local | F4 | FND-01 | ✅ concluída (#18) |
 | [WEB-01](<docs/planning/prompts/WEB-01.md>) | Site base e playground manual | F4 | FND-01, CORE-05 | ⏳ pendente |
 | [WEB-02](<docs/planning/prompts/WEB-02.md>) | Cena e controles (sem IA) | F4 | WEB-01, SOC-05, AI-01 | ⏳ pendente |
 | [WEB-03](<docs/planning/prompts/WEB-03.md>) | Inspetor e sessões | F4 | WEB-02, SRV-01, SOC-06 | ⏳ pendente |

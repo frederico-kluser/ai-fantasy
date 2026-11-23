@@ -1,6 +1,8 @@
 /**
- * The local server (overview §5): Fastify on 127.0.0.1, serving the API routes
- * and, when it was built, the site from `apps/web/dist`.
+ * The local server (overview §5): Fastify on 127.0.0.1 with the typed
+ * configuration, the protection against other sites (overview §10), JSON errors,
+ * `GET /api/health`, the session routes, the built site from `apps/web/dist` and
+ * an extension point for the routes of later tasks.
  */
 import { existsSync } from "node:fs";
 import type { AddressInfo } from "node:net";
@@ -8,7 +10,13 @@ import { join } from "node:path";
 
 import fastifyStatic from "@fastify/static";
 import Fastify from "fastify";
-import type { FastifyInstance } from "fastify";
+import type { FastifyInstance, FastifyPluginAsync, FastifyPluginCallback } from "fastify";
+
+import type { ServerConfig } from "./config.ts";
+import { handleClientError, handleError, handleNotFound } from "./errors.ts";
+import { localOnly } from "./local-guard.ts";
+import { sessionRoutes } from "./session-routes.ts";
+import { createSessionStore } from "./session-store.ts";
 
 /**
  * The only address the server listens on. It is a constant on purpose: nothing
@@ -16,40 +24,100 @@ import type { FastifyInstance } from "fastify";
  */
 export const HOST = "127.0.0.1";
 
-/** Default port of the local server; `PORT` overrides it (ai-integration §3). */
-export const DEFAULT_PORT = 4318;
+/**
+ * Log paths pino replaces with `[Redacted]`: credentials never reach the log,
+ * even if a serializer starts writing the request headers.
+ */
+const LOG_REDACT_PATHS = ["req.headers.authorization", "req.headers.cookie"] as const;
+
+/** Where the log lines go (pino writes one JSON object per line). */
+export interface LogDestination {
+  readonly write: (line: string) => void;
+}
+
+/** Options every {@link ServerPlugin} receives. */
+export interface ServerPluginOptions {
+  readonly config: ServerConfig;
+}
+
+/**
+ * A Fastify plugin that adds routes to the server, registered after the core
+ * routes with the configuration in its options. The AI routes (AI-02, AI-03),
+ * the test mode with fake ports and the evaluation routes (EVAL-01) come in this
+ * way; the protection, the body limit and the JSON errors apply to them too.
+ */
+export type ServerPlugin =
+  FastifyPluginCallback<ServerPluginOptions> | FastifyPluginAsync<ServerPluginOptions>;
 
 /** Options of {@link buildApp}. */
 export interface AppOptions {
+  readonly config: ServerConfig;
   /** Folder of the built site (`apps/web/dist`, see `repositoryPaths`). */
   readonly webDistDir: string;
+  /** Extra routes; see {@link ServerPlugin}. */
+  readonly plugins?: readonly ServerPlugin[] | undefined;
+  /** Where the log goes, at `config.logLevel`; without it the server logs nothing (tests). */
+  readonly logger?: LogDestination | undefined;
 }
 
-/** Options of {@link startServer}. */
-export interface StartOptions extends AppOptions {
-  /** TCP port; `0` lets the system pick a free one. */
-  readonly port: number;
+/**
+ * Fastify logger options: off without a destination (tests stay silent);
+ * otherwise pino at `config.logLevel`, writing to `destination`, with the
+ * credentials redacted.
+ */
+export function loggerOptions(config: ServerConfig, destination: LogDestination | undefined) {
+  if (destination === undefined) {
+    return false;
+  }
+  return { level: config.logLevel, redact: [...LOG_REDACT_PATHS], stream: destination };
+}
+
+function serveSite(app: FastifyInstance, webDistDir: string): void {
+  if (existsSync(join(webDistDir, "index.html"))) {
+    void app.register(fastifyStatic, { root: webDistDir });
+  }
 }
 
 /**
  * Builds the Fastify app without listening, so tests can use `app.inject`.
  *
- * Routes: `GET /api/health` answers `{ status: "ok" }`; the built site is served
- * from `webDistDir` when it has an `index.html`.
+ * Every request first goes through the local protection (403); bodies are
+ * limited to `config.bodyLimitBytes` (`config.sessionBodyLimitBytes` for the
+ * session saves) and errors are JSON. Routes: `GET /api/health` answers
+ * `{ status: "ok", aiKeyConfigured }`, the session routes live under
+ * `/api/sessions`, the built site is served from `webDistDir` when it has an
+ * `index.html`, then come the `plugins`.
  */
 export function buildApp(options: AppOptions): FastifyInstance {
-  const app = Fastify();
-  app.get("/api/health", () => ({ status: "ok" }));
-  if (existsSync(join(options.webDistDir, "index.html"))) {
-    void app.register(fastifyStatic, { root: options.webDistDir });
-  }
+  const { config } = options;
+  const app = Fastify({
+    bodyLimit: config.bodyLimitBytes,
+    logger: loggerOptions(config, options.logger),
+    // Malformed URLs and over-long parameters are answered before routing: JSON errors too.
+    frameworkErrors: handleError,
+    // So are the errors of the HTTP parser (malformed request, headers too large, timeout).
+    clientErrorHandler: handleClientError,
+  });
+  app.addHook("onRequest", localOnly(config.port));
+  app.setErrorHandler(handleError);
+  app.setNotFoundHandler(handleNotFound);
+  app.get("/api/health", () => ({ status: "ok", aiKeyConfigured: config.aiApiKey !== undefined }));
+  void app.register(sessionRoutes, {
+    prefix: "/api/sessions",
+    store: createSessionStore(config.dataDir),
+    bodyLimit: config.sessionBodyLimitBytes,
+  });
+  serveSite(app, options.webDistDir);
+  (options.plugins ?? []).forEach((plugin) => {
+    void app.register(plugin, { config });
+  });
   return app;
 }
 
-/** Builds the app and listens on {@link HOST} at `options.port`. */
-export async function startServer(options: StartOptions): Promise<FastifyInstance> {
+/** Builds the app and listens on {@link HOST} at `options.config.port`. */
+export async function startServer(options: AppOptions): Promise<FastifyInstance> {
   const app = buildApp(options);
-  await app.listen({ host: HOST, port: options.port });
+  await app.listen({ host: HOST, port: options.config.port });
   return app;
 }
 

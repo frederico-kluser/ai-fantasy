@@ -22,9 +22,14 @@ test("given the web app when opening the start page then the title and the sente
   ).toBeVisible();
 });
 
-test("given the local server when calling /api/health then it answers ok", async ({ request }) => {
+test("given the local server without a key when calling /api/health then it answers ok and no key", async ({
+  request,
+}) => {
   const response = await request.get("/api/health");
   const body: unknown = await response.json();
 
-  expect({ status: response.status(), body }).toEqual({ status: 200, body: { status: "ok" } });
+  expect({ status: response.status(), body }).toEqual({
+    status: 200,
+    body: { status: "ok", aiKeyConfigured: false },
+  });
 });

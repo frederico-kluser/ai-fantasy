@@ -100,9 +100,16 @@ propriedades com fast-check (seed fixa no CI para reproduzir falhas):
 
 ## 9. Servidor
 
-- Sobe em memória numa porta livre de `127.0.0.1`.
+- Sobe em memória (`inject`) ou numa porta livre de `127.0.0.1`, sempre com uma pasta de dados
+  temporária e um ambiente montado no teste, nunca o `process.env`.
 - Confere que nenhuma resposta contém a chave, que pedidos grandes demais são recusados e que ids
   de sessão inválidos não acessam fora de `data/`.
+- Uma chave falsa e marcante (`sk-or-v1-TEST-ONLY-…`) percorre todas as rotas com o log capturado
+  em `trace`: nem a resposta nem o log a contêm.
+- A proteção de `Host` e `Origin` é testada por `inject` e por socket real (sem `Host`, com `Host`
+  estranho e com `..` cru no caminho).
+- O E2E sobe o servidor com `OPENROUTER_API_KEY` vazia (que vale como ausente): nenhum teste usa a
+  chave real da máquina.
 - Os adaptadores usam um `fetch` falso; nenhum teste chama o OpenRouter.
 
 ## 10. E2E (Playwright)
