@@ -1,10 +1,13 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
+import { parseEnv } from "node:util";
 
 import { describe, expect, it } from "vitest";
 
 import { DEFAULT_PORT, loadConfig, type ServerConfig } from "./config.ts";
+import { repositoryPaths } from "./paths.ts";
 import { Secret } from "./secret.ts";
 
 /** A repository root for the tests; nothing is written there. */
@@ -12,7 +15,7 @@ const ROOT = resolve(tmpdir(), "ai-fantasy-config-repository");
 const FAKE_KEY = "sk-or-v1-TEST-ONLY-config-0123456789";
 
 /** The configuration read from `env` with the test repository root. */
-function load(env: Readonly<Record<string, string>>) {
+function load(env: Readonly<Record<string, string | undefined>>) {
   return loadConfig(env, ROOT);
 }
 
@@ -67,6 +70,14 @@ describe("defaults (ai-integration §3, overview §5)", () => {
     const empty = Object.fromEntries(VARIABLES.map((name) => [name, ""]));
 
     expect(load(empty)).toStrictEqual(load({}));
+  });
+
+  it("given the .env.example of the repository when loading it then it is valid and holds the defaults", () => {
+    const paths = repositoryPaths();
+    assert.ok(paths.ok);
+    const example = parseEnv(readFileSync(join(paths.value.root, ".env.example"), "utf8"));
+
+    expect(load(example)).toStrictEqual(load({}));
   });
 
   it("given the default port when reading it then it is 4318", () => {

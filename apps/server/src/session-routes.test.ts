@@ -530,6 +530,14 @@ describe("session body limit (SESSION_BODY_LIMIT_BYTES)", () => {
     }).toEqual({ size: 257, status: 413, body: TOO_LARGE, slices: false });
   });
 
+  it("given a campaign above the global limit but within the session limit when saving then it is accepted", async () => {
+    const { app } = testApp(LIMITS);
+
+    const response = await putCampaign(app, "tavern", { formatVersion: 1, pad: "x".repeat(150) });
+
+    expect(response.statusCode).toBe(204);
+  });
+
   it("given a campaign above the session limit when saving then the server answers 413", async () => {
     const { app } = testApp(LIMITS);
 

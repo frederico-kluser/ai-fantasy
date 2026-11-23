@@ -81,6 +81,19 @@ describe("atomic writes (temporary file in the same folder, then rename)", () =>
     });
   });
 
+  it("given a temporary path that already exists when writing then nothing is overwritten and the error is raised", async () => {
+    const folder = temporaryFolder();
+    const temporary = writeTree(folder, ".campaign.json.taken.tmp", "someone else's file");
+
+    await expect(
+      writeFileAtomically(join(folder, "campaign.json"), "{}\n", temporary),
+    ).rejects.toThrow();
+    expect({ files: readdirSync(folder), kept: readFileSync(temporary, "utf8") }).toEqual({
+      files: [".campaign.json.taken.tmp"],
+      kept: "someone else's file",
+    });
+  });
+
   it("given a target that cannot be replaced when writing then the error is raised and no temporary file is left", async () => {
     const folder = temporaryFolder();
     writeTree(folder, "campaign.json/inside.txt", "a folder where the file should be");

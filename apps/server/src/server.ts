@@ -28,7 +28,7 @@ export const HOST = "127.0.0.1";
  * Log paths pino replaces with `[Redacted]`: credentials never reach the log,
  * even if a serializer starts writing the request headers.
  */
-export const LOG_REDACT_PATHS = ["req.headers.authorization", "req.headers.cookie"] as const;
+const LOG_REDACT_PATHS = ["req.headers.authorization", "req.headers.cookie"] as const;
 
 /** Where the log lines go (pino writes one JSON object per line). */
 export interface LogDestination {
@@ -60,7 +60,12 @@ export interface AppOptions {
   readonly logger?: LogDestination | undefined;
 }
 
-function loggerOptions(config: ServerConfig, destination: LogDestination | undefined) {
+/**
+ * Fastify logger options: off without a destination (tests stay silent);
+ * otherwise pino at `config.logLevel`, writing to `destination`, with the
+ * credentials redacted.
+ */
+export function loggerOptions(config: ServerConfig, destination: LogDestination | undefined) {
   if (destination === undefined) {
     return false;
   }

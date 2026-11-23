@@ -39,7 +39,8 @@ export function trustedHosts(port: number): ReadonlySet<string> {
 /** Why `request` is refused, or `undefined` when it may go on; `port` is where it arrived. */
 function refusal(request: FastifyRequest, port: number): ApiError | undefined {
   const hosts = trustedHosts(port);
-  if (!hosts.has((request.headers.host ?? "").toLowerCase())) {
+  // An absent Host becomes "undefined", which is never trusted.
+  if (!hosts.has(String(request.headers.host).toLowerCase())) {
     return API_ERRORS.forbiddenHost;
   }
   const origin = request.headers.origin;

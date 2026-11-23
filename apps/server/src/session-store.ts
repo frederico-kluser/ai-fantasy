@@ -10,6 +10,8 @@ import { mkdir, readdir, readFile, rename, rm, stat, writeFile } from "node:fs/p
 import { basename, dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import type { PlatformPath } from "node:path";
 
+import { z } from "zod";
+
 import { sessionId, type SessionId } from "./session-format.ts";
 
 /** A campaign with its slices, as `GET /api/sessions/campaigns` lists it. */
@@ -71,33 +73,41 @@ export function resolveInside(
   return target;
 }
 
+/** A new temporary file next to `path`: `.<name>.<uuid>.tmp`, never a valid session file name. */
+function temporaryPathFor(path: string): string {
+  return join(dirname(path), `.${basename(path)}.${randomUUID()}.tmp`);
+}
+
 /**
- * Writes `content` to `path` atomically: first to a temporary file in the same
- * folder (flushed to disk), then renamed over `path`. Readers see the old file
- * or the new one, never half of it. On failure the temporary file is removed and
- * the error is raised.
+ * Writes `content` to `path` atomically: first to a new temporary file in the
+ * same folder (created exclusively and flushed to disk), then renamed over
+ * `path`. Readers see the old file or the new one, never half of it. On failure
+ * the temporary file is removed and the error is raised; an existing file at
+ * `temporary` is never overwritten.
  */
-export async function writeFileAtomically(path: string, content: string | Buffer): Promise<void> {
-  const temporary = join(dirname(path), `.${basename(path)}.${randomUUID()}.tmp`);
+export async function writeFileAtomically(
+  path: string,
+  content: string | Buffer,
+  temporary: string = temporaryPathFor(path),
+): Promise<void> {
   await writeFile(temporary, content, { flag: "wx", flush: true });
   try {
     await rename(temporary, path);
   } catch (error) {
-    await rm(temporary, { force: true });
+    await unlessMissing(rm(temporary), undefined);
     throw error;
   }
 }
 
-function isMissing(error: unknown): boolean {
-  return error instanceof Error && "code" in error && error.code === "ENOENT";
-}
+/** A file system error saying that a file or folder does not exist. */
+const missingEntry = z.object({ code: z.literal("ENOENT") });
 
 /** `fallback` when `promise` fails because a file or folder does not exist. */
 async function unlessMissing<T, F>(promise: Promise<T>, fallback: F): Promise<T | F> {
   try {
     return await promise;
   } catch (error) {
-    if (isMissing(error)) {
+    if (missingEntry.safeParse(error).success) {
       return fallback;
     }
     throw error;

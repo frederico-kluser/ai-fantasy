@@ -12,7 +12,7 @@ import {
   testRoutes,
   writeTree,
 } from "../test/support.ts";
-import { HOST, listeningAddresses, LOG_REDACT_PATHS, startServer } from "./server.ts";
+import { HOST, listeningAddresses, loggerOptions, startServer } from "./server.ts";
 
 const ROUTE_NOT_FOUND = { error: { code: "NOT_FOUND", message: "Rota não encontrada." } };
 const INTERNAL = {
@@ -311,8 +311,18 @@ describe("log (LOG_LEVEL, pino with redaction)", () => {
     });
   });
 
-  it("given the redaction paths when reading them then they are the authorization and cookie headers", () => {
-    expect(LOG_REDACT_PATHS).toEqual(["req.headers.authorization", "req.headers.cookie"]);
+  it("given no log destination when building the logger options then logging is off (tests stay silent)", () => {
+    expect(loggerOptions(configFor({}), undefined)).toBe(false);
+  });
+
+  it("given a log destination when building the logger options then they hold the level, the redactions and the destination", () => {
+    const log = capturedLog();
+
+    expect(loggerOptions(configFor({ LOG_LEVEL: "debug" }), log)).toEqual({
+      level: "debug",
+      redact: ["req.headers.authorization", "req.headers.cookie"],
+      stream: log,
+    });
   });
 
   it("given a plugin that logs the request headers when credentials are sent then they are redacted", async () => {

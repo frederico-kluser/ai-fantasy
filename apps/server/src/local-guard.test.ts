@@ -218,19 +218,23 @@ describe("Origin of requests that change state (no other site spends the key)", 
     expect(response.statusCode).toBe(200);
   });
 
-  it("given a GET from a foreign site when requesting then it is served without CORS headers", async () => {
-    const { app } = testApp();
+  it.each(["GET", "HEAD"] as const)(
+    "given a %s from a foreign site when requesting then it is served without CORS headers",
+    async (method) => {
+      const { app } = testApp();
 
-    const response = await app.inject({
-      url: "/api/health",
-      headers: { host: LOCAL_HOST, origin: "http://evil.example" },
-    });
+      const response = await app.inject({
+        method,
+        url: "/api/health",
+        headers: { host: LOCAL_HOST, origin: "http://evil.example" },
+      });
 
-    expect({
-      status: response.statusCode,
-      cors: response.headers["access-control-allow-origin"],
-    }).toEqual({ status: 200, cors: undefined });
-  });
+      expect({
+        status: response.statusCode,
+        cors: response.headers["access-control-allow-origin"],
+      }).toEqual({ status: 200, cors: undefined });
+    },
+  );
 
   it("given a CORS preflight from a foreign site when requesting then nothing allows it", async () => {
     const { app } = testApp({}, { plugins: [testRoutes] });
