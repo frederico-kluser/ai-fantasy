@@ -23,6 +23,7 @@ export {
   isAroused,
   type BoredomSource,
   type EmotionDeltas,
+  type EmotionShifts,
   type EmotionTickInput,
   type Emotions,
 } from "./emotions.ts";
@@ -56,6 +57,7 @@ export {
   type PerceptionValues,
 } from "./perception.ts";
 export {
+  refreshBaselines,
   tagValences,
   type AgeBand,
   type Association,

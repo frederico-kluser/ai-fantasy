@@ -37,6 +37,7 @@ import {
 } from "../../src/character/drives.ts";
 import {
   emotionsTick,
+  type EmotionShifts,
   type EmotionTickInput,
   type Emotions,
 } from "../../src/character/emotions.ts";
@@ -79,6 +80,16 @@ export function someEmotions(overrides: Partial<Record<EmotionId, number>> = {})
   const entries = EMOTION_IDS.map((id): [EmotionId, Bp] => [id, toBp(overrides[id] ?? 0)]);
   // Every emotion id has just been given a value.
   return Object.fromEntries(entries) as Emotions;
+}
+
+/** History shifts of the baselines at 0, with the overrides given. */
+export function someShifts(overrides: Partial<Record<EmotionId, number>> = {}): EmotionShifts {
+  const entries = EMOTION_IDS.map((id): [EmotionId, BipolarBp] => [
+    id,
+    toBipolarBp(overrides[id] ?? 0),
+  ]);
+  // Every emotion id has just been given a value.
+  return Object.fromEntries(entries) as EmotionShifts;
 }
 
 /** The emotions after `ticks` ticks with the same baselines and input. */
@@ -249,6 +260,7 @@ export function aCharacter(
     tendencies: someTraits(),
     // Every aptitude id has just been given a value.
     aptitudes: Object.fromEntries(aptitudes) as CharacterState["aptitudes"],
+    baselineShifts: someShifts(),
     baselines: someEmotions(),
     emotions: someEmotions(),
     body: aBody(),
@@ -283,6 +295,7 @@ export function rangeProblems(state: CharacterState): string[] {
     ...outOfRange("traits", state.traits, -10000),
     ...outOfRange("tendencies", state.tendencies, -10000),
     ...outOfRange("aptitudes", state.aptitudes, 0),
+    ...outOfRange("baselineShifts", state.baselineShifts, -10000),
     ...outOfRange("baselines", state.baselines, 0),
     ...outOfRange("emotions", state.emotions, 0),
     ...outOfRange("body", needs, 0),

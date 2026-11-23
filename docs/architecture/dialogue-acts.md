@@ -24,11 +24,14 @@ interface ActLabel {
   isFalse: boolean;                   // marca de mentira (seção 5)
   object?: RequestObjectId;           // o que se pede ou oferece (só REQUEST e OFFER)
   destination?: number;               // índice da célula (y × W + x); só MOVE
+  blamed?: CharacterId;               // quem a mentira culpa (seção 5); só com isFalse
 }
 ```
 
 Os tipos vivem em `packages/engine/src/acts/label.ts` e valem para o motor e para o pacote de IA.
-Os alvos vão em ordem crescente de id.
+Os alvos vão em ordem crescente de id. `blamed` só vale com `isFalse`: é a pessoa que a versão
+falsa aponta como ofensor (seção 5; do jogador, a pergunta `blamed` da seção 11); sem ele, a
+mentira nega (ninguém é o ofensor).
 
 Interrupção não é escolhida: o motor a marca quando acontece ([modelo de
 simulação](<simulation-model.md>), seção 11). Um ato com `targets = []` é ouvido normalmente, mas
@@ -105,7 +108,7 @@ Ao ler errado, o ouvinte sorteia entre as confusões típicas do tom. Peso de um
 | Tipo | Significado | Referência |
 | --- | --- | --- |
 | `PERSON` | uma pessoa (presente, ausente, o ouvinte ou quem fala) | id do personagem |
-| `THING` | um objeto, posse ou apego | id da associação |
+| `THING` | um objeto, posse ou apego | id da coisa (`ThingId`) |
 | `PLACE` | um lugar | tag ou o lugar da cena |
 | `EVENT` | algo que aconteceu | id do fato |
 | `SECRET` | fato marcado como segredo | id do fato |

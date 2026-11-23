@@ -4,7 +4,7 @@
  * present tags (§5.7), boredom and the body. Per-tick gains use no trait
  * factor; gains from acts belong to the acts rules (§9).
  */
-import { toBp, type Bp } from "../domain/bp.ts";
+import { toBp, type BipolarBp, type Bp } from "../domain/bp.ts";
 import {
   ASSOCIATION_FEAR_RATE,
   ASSOCIATION_JOY_RATE,
@@ -24,6 +24,14 @@ import type { Traits } from "./traits.ts";
 
 /** The intensity of every emotion of a character (or its baselines). */
 export type Emotions = { readonly [K in EmotionId]: Bp };
+
+/**
+ * The shift of each emotion baseline left by the history (presets §7), kept
+ * apart from the traits so the baselines can be recomputed when a trait
+ * crystallizes (simulation-model §13 item 5) without losing what the limit
+ * of 3000 cut. Bipolar: a history event may lower a baseline.
+ */
+export type EmotionShifts = { readonly [K in EmotionId]: BipolarBp };
 
 /** Deltas of some emotions. */
 export type EmotionDeltas = Partial<Record<EmotionId, number>>;
