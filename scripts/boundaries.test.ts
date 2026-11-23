@@ -131,7 +131,7 @@ describe("engine", () => {
     const violations = findViolations([
       file(
         "packages/engine/src/rng/draw.ts",
-        'import { div } from "../domain/math.ts";\nimport type { Bp } from "./types.ts";\nimport { z } from "zod";',
+        'import { div } from "../domain/math.ts";\nimport type { Bp } from "./types.ts";\nimport { pick } from "some-library";',
       ),
     ]);
 
