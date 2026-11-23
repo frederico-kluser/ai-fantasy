@@ -1,0 +1,45 @@
+/* Plain CSS with custom properties (ADR 0020). WEB-01 builds the real theme. */
+:root {
+  color-scheme: light dark;
+  --color-background: #f6f4f0;
+  --color-text: #1f1c19;
+  --color-muted: #5b554e;
+  --font-body: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
+  --space-m: 1rem;
+  --space-xl: 4rem;
+  --measure: 40rem;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --color-background: #16181b;
+    --color-text: #ebe7e1;
+    --color-muted: #a59f97;
+  }
+}
+
+body {
+  margin: 0;
+  background: var(--color-background);
+  color: var(--color-text);
+  font-family: var(--font-body);
+  line-height: 1.5;
+}
+
+main {
+  max-width: var(--measure);
+  margin: 0 auto;
+  padding: var(--space-xl) var(--space-m);
+}
+
+h1 {
+  margin: 0 0 var(--space-m);
+  font-size: 2.5rem;
+  line-height: 1.1;
+}
+
+p {
+  margin: 0;
+  color: var(--color-muted);
+  font-size: 1.125rem;
+}
