@@ -146,7 +146,7 @@ exceções (`NOT_MUTATED` em `scripts/mutation-changed.ts`):
 | `*.d.ts` | só tipos, nenhum código roda |
 | `scripts/**` | scripts de gate, cobertos pelo projeto `scripts` do Vitest |
 | `<pacote>/test/**`, `<pacote>/e2e/**`, `<pacote>/bench/**` | suporte de teste, specs do E2E e benchmark |
-| `*.config.{js,mjs,ts,…}`, `vitest.setup.*`, `stryker.base.mjs` | configuração das ferramentas |
+| `*.config.{js,mjs,ts,…}` e `vitest.setup.*` na raiz do repositório ou de um pacote; `stryker.base.mjs` | configuração das ferramentas (dentro de `src/`, um `*.config.ts` é código de produção e é mutado) |
 
 Código novo fora dessa lista vai para `<pacote>/src` de um pacote com `stryker.config.mjs`; uma
 exceção nova entra na lista e nesta tabela, com o motivo.
@@ -200,7 +200,8 @@ Ferramentas e versões no [ADR 0020](<../architecture/adr/0020-base-tools-and-li
 | Mutação | `stryker.config.mjs` de cada pacote | `npm run mutation:changed` (um pacote: `npm run mutation -w @ai-fantasy/engine`) |
 
 - O lint proíbe `if`, ternário, `switch`, laços e `try` em `*.test.ts(x)` e nos specs do E2E
-  (tabelas de casos vão em `it.each`); para limpar recursos use `onTestFinished` ou `afterEach`.
+  (`e2e/**/*.spec.ts`; os helpers do E2E podem ter lógica). Tabelas de casos vão em `it.each`;
+  para limpar recursos use `onTestFinished` ou `afterEach`.
 - O fast-check usa uma seed fixa (`packages/engine/vitest.setup.ts`); para outra seed num caso,
   `fc.assert(propriedade, { seed })`.
 - Os relatórios ficam fora do git: `coverage/`, `reports/` de cada pacote (mutação), `.vitest/`,
