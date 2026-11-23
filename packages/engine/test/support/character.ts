@@ -10,6 +10,8 @@ import type { CharacterId } from "../../src/domain/ids.ts";
 import { DRIVE_IDS, type DriveId } from "../../src/presets/drives.ts";
 import { BOND_AXIS_IDS, type BondAxisId, type BondLabelId } from "../../src/presets/bonds.ts";
 import type { Bond } from "../../src/character/bonds.ts";
+import type { CharacterState } from "../../src/character/state.ts";
+import { APTITUDE_IDS, type AptitudeId } from "../../src/presets/traits.ts";
 import {
   relaxPerception,
   type ApparentEmotion,
@@ -231,4 +233,125 @@ export function ticksOfPerception(
     current = relaxPerception(current, preview);
   }
   return current;
+}
+
+/** A character at `cell` with everything at 0 (aptitudes 5000), with the overrides given. */
+export function aCharacter(
+  id: number,
+  cell: number,
+  overrides: Partial<Omit<CharacterState, "id" | "cell">> = {},
+): CharacterState {
+  const aptitudes = APTITUDE_IDS.map((key): [AptitudeId, Bp] => [key, toBp(5000)]);
+  return {
+    id: id as CharacterId,
+    cell,
+    traits: someTraits(),
+    tendencies: someTraits(),
+    // Every aptitude id has just been given a value.
+    aptitudes: Object.fromEntries(aptitudes) as CharacterState["aptitudes"],
+    baselines: someEmotions(),
+    emotions: someEmotions(),
+    body: aBody(),
+    drives: someDrives(),
+    bonds: [],
+    associations: [],
+    perceptions: [],
+    memories: [],
+    threat: toBp(0),
+    ...overrides,
+  };
+}
+
+/** The entries of `record` outside `min..10000`, as `path = value`. */
+function outOfRange(path: string, record: Readonly<Record<string, number>>, min: number): string[] {
+  return Object.entries(record)
+    .filter(([, value]) => !Number.isSafeInteger(value) || value < min || value > 10000)
+    .map(([key, value]) => `${path}.${key} = ${value}`);
+}
+
+/** The problems of a character state: every value out of its scale (invariant 2 of simulation-model §18). */
+export function rangeProblems(state: CharacterState): string[] {
+  const { thermal, ...needs } = state.body;
+  const directed = Object.entries(state.drives.directed).flatMap(([drive, list]) =>
+    outOfRange(
+      `directed.${drive}`,
+      Object.fromEntries(list.map((entry) => [entry.target, entry.deficit])),
+      0,
+    ),
+  );
+  return [
+    ...outOfRange("traits", state.traits, -10000),
+    ...outOfRange("tendencies", state.tendencies, -10000),
+    ...outOfRange("aptitudes", state.aptitudes, 0),
+    ...outOfRange("baselines", state.baselines, 0),
+    ...outOfRange("emotions", state.emotions, 0),
+    ...outOfRange("body", needs, 0),
+    ...outOfRange("body", { thermal }, -10000),
+    ...outOfRange("weights", state.drives.weights, 0),
+    ...outOfRange("deficits", state.drives.deficits, 0),
+    ...directed,
+    ...state.bonds.flatMap((bond) => outOfRange(`bond.${bond.target}`, bond.axes, 0)),
+    ...outOfRange("state", { threat: state.threat }, 0),
+  ];
+}
+
+const anyBp = fc.integer({ min: 0, max: 10000 });
+const anyBipolar = fc.integer({ min: -10000, max: 10000 });
+
+function bpRecord<K extends string>(
+  ids: readonly K[],
+  value: fc.Arbitrary<number>,
+): fc.Arbitrary<Record<K, number>> {
+  // One value per id: the record has exactly the keys given.
+  return fc.record(Object.fromEntries(ids.map((id) => [id, value])));
+}
+
+/** Up to 3 random associations with tags that may be present in the test scenes. */
+function arbitraryAssociations(): fc.Arbitrary<CharacterState["associations"]> {
+  const tag = fc.constantFrom<"forest" | "dark" | "storm" | "crowd">(
+    "forest",
+    "dark",
+    "storm",
+    "crowd",
+  );
+  return fc.array(
+    fc.record({ tag, valence: anyBipolar }).map(({ tag: chosen, valence }) => ({
+      subject: { kind: "TAG" as const, tag: chosen },
+      valence: toBipolarBp(valence),
+    })),
+    { maxLength: 3 },
+  );
+}
+
+/** A random character with id `id` at `cell`, with bonds toward the ids `others`. */
+export function arbitraryCharacter(
+  id: number,
+  cell: number,
+  others: readonly number[],
+): fc.Arbitrary<CharacterState> {
+  const bond = (target: number) =>
+    bpRecord(BOND_AXIS_IDS, anyBp).map((axes) => aBond(target, axes));
+  const needIds = ["fatigue", "hunger", "thirst", "bladder", "pain", "intoxication"] as const;
+  return fc
+    .record({
+      traits: bpRecord(TRAIT_IDS, anyBipolar),
+      tendencies: bpRecord(TRAIT_IDS, anyBipolar),
+      baselines: bpRecord(EMOTION_IDS, fc.integer({ min: 0, max: 3000 })),
+      emotions: bpRecord(EMOTION_IDS, anyBp),
+      needs: bpRecord(needIds, anyBp),
+      thermal: anyBipolar,
+      drives: arbitraryDrives(),
+      bonds: fc.tuple(...others.map(bond)),
+      associations: arbitraryAssociations(),
+    })
+    .map(({ needs, thermal, traits, tendencies, baselines, emotions, ...rest }) =>
+      aCharacter(id, cell, {
+        ...rest,
+        traits: someTraits(traits),
+        tendencies: someTraits(tendencies),
+        baselines: someEmotions(baselines),
+        emotions: someEmotions(emotions),
+        body: aBody({ ...needs, thermal }),
+      }),
+    );
 }
