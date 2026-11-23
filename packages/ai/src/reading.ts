@@ -60,12 +60,23 @@ export interface PlayerReading {
   readonly answers: ReadAnswers;
 }
 
-function answer(answers: ReadAnswers, id: string): Extract<ReadAnswer, { type: "choice" }> {
+type AnswerType = ReadAnswer["type"];
+
+function typed<T extends AnswerType>(
+  answers: ReadAnswers,
+  id: string,
+  type: T,
+): Extract<ReadAnswer, { type: T }> {
   const found = answers[id];
-  if (found?.type !== "choice") {
-    throw new Error(`the answer to ${id} is not a validated choice`);
+  if (found?.type !== type) {
+    throw new Error(`the answer to ${id} is not a validated ${type}`);
   }
-  return found;
+  // Narrowed by the check above: `found.type` is `T`.
+  return found as Extract<ReadAnswer, { type: T }>;
+}
+
+function answer(answers: ReadAnswers, id: string): Extract<ReadAnswer, { type: "choice" }> {
+  return typed(answers, id, "choice");
 }
 
 function pick<T extends string>(answers: ReadAnswers, id: string, options: readonly T[]): T {
@@ -90,7 +101,7 @@ function targetsOf(input: PlayerLineInput, key: string): ActTargets {
 }
 
 function moveOrApproach(act: ActId, targets: ActTargets): ActId {
-  return act === "MOVE" && targets !== "GROUP" && targets.length === 1 ? "APPROACH" : act;
+  return act === "MOVE" && Array.isArray(targets) && targets.length === 1 ? "APPROACH" : act;
 }
 
 function topicOf(input: PlayerLineInput, answers: ReadAnswers): Topic | undefined {
@@ -105,7 +116,7 @@ function topicOf(input: PlayerLineInput, answers: ReadAnswers): Topic | undefine
 
 function extras(input: PlayerLineInput, act: ActId, answers: ReadAnswers): Partial<ActLabel> {
   const object = pick(answers, "object", [...REQUEST_OBJECT_IDS, "NONE"]);
-  const isFalse = answers["isFalse"]?.type === "noul" && answers["isFalse"].yes;
+  const isFalse = typed(answers, "isFalse", "noul").yes;
   const blamed = isFalse ? personByKey(input.people, answer(answers, "blamed").choice) : undefined;
   return {
     ...((act === "REQUEST" || act === "OFFER") && object !== "NONE" ? { object } : {}),
@@ -126,18 +137,16 @@ function candidateOf(
 ): Candidate {
   const targets = targetsOf(input, answer(answers, "target").choice);
   const act = moveOrApproach(read, targets);
-  const speech = presets.acts.find(({ id }) => id === act)?.speech === true;
+  const speech = presets.acts.some(({ id, speech }) => id === act && speech);
   const topic = speech ? topicOf(input, answers) : { type: "NONE" as const };
-  const intensity = answers["intensity"]?.type === "score" ? answers["intensity"].intensity : 0;
   const label: ActLabel = {
     act,
     tone: pick(answers, "tone", TONE_IDS),
     targets,
     topic: topic ?? { type: "NONE" },
-    // The score answer was validated; its intensity is already bp.
-    intensity: intensity as Bp,
+    intensity: typed(answers, "intensity", "score").intensity,
     volume: pick(answers, "volume", VOLUMES),
-    isFalse: answers["isFalse"]?.type === "noul" && answers["isFalse"].yes,
+    isFalse: typed(answers, "isFalse", "noul").yes,
     ...extras(input, act, answers),
   };
   const gaps: ReadingGap[] = [

@@ -197,4 +197,10 @@ describe("validateAnswers (ai-integration §4.2)", () => {
 
     expect(result).toMatchObject({ value: { isFalse: { probability: 4000, yes: false } } });
   });
+
+  it("given a score distribution on levels 2 and 10 when validating then it is accepted", () => {
+    const intensity = { type: "score", score: 6, probabilities: { "2": 0.5, "10": 0.5 } };
+
+    expect(validateAnswers(QUESTIONS, { ...VALID, intensity }).ok).toBe(true);
+  });
 });

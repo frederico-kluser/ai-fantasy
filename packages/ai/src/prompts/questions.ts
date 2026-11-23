@@ -29,6 +29,10 @@ export const QUESTION_ID_PATTERN = /^[A-Za-z0-9_.-]{1,96}$/;
 
 const instructionsSchema = z.string().min(1);
 
+function between(count: number, low: number, high: number): boolean {
+  return count >= low && count <= high;
+}
+
 const noulSchema = z.strictObject({
   type: z.literal("noul"),
   instructions: instructionsSchema,
@@ -40,11 +44,7 @@ const choiceSchema = z.strictObject({
   instructions: instructionsSchema,
   criteria: z
     .record(z.string().min(1), z.string().min(1).nullable())
-    .refine((options) => Object.keys(options).length >= 2, "a choice has at least 2 options")
-    .refine(
-      (options) => Object.keys(options).length <= MAX_CHOICE_OPTIONS,
-      `a choice has at most ${MAX_CHOICE_OPTIONS} options`,
-    ),
+    .refine((options) => between(Object.keys(options).length, 2, MAX_CHOICE_OPTIONS)),
 });
 
 const scoreSchema = z.strictObject({
@@ -70,11 +70,7 @@ export const decisionCallSchema = z.strictObject({
   state: z.json(),
   questions: z
     .record(z.string().regex(QUESTION_ID_PATTERN), questionSchema)
-    .refine((questions) => Object.keys(questions).length >= 1, "a call has at least 1 question")
-    .refine(
-      (questions) => Object.keys(questions).length <= MAX_QUESTIONS_PER_CALL,
-      `a call has at most ${MAX_QUESTIONS_PER_CALL} questions`,
-    ),
+    .refine((questions) => between(Object.keys(questions).length, 1, MAX_QUESTIONS_PER_CALL)),
   sessionId: z.string().min(1).max(MAX_SESSION_ID_LENGTH).optional(),
 });
 
@@ -91,7 +87,7 @@ export interface DecisionCall {
 /** A question with its id, in build order. */
 export type QuestionEntry = readonly [id: string, question: Question];
 
-/** Why a call is not well formed: the path of the first problem. */
+/** Why a call is not well formed: the paths of the problems, joined by " | ". */
 export interface CallError {
   readonly code: "INVALID_CALL";
   readonly path: string;
@@ -100,15 +96,15 @@ export interface CallError {
 /**
  * Checks a call against the rules of the route and of the project.
  *
- * @returns the call, or `INVALID_CALL` with the path of the first problem.
+ * @returns the call, or `INVALID_CALL` with the paths of the problems, joined by " | ".
  */
 export function checkDecisionCall(input: unknown): Result<DecisionCall, CallError> {
   const parsed = decisionCallSchema.safeParse(input);
   if (parsed.success) {
     return ok(parsed.data);
   }
-  const [issue] = parsed.error.issues;
-  return err({ code: "INVALID_CALL", path: (issue?.path ?? []).join(".") });
+  const path = parsed.error.issues.map((issue) => issue.path.join("."));
+  return err({ code: "INVALID_CALL", path: path.join(" | ") });
 }
 
 /**

@@ -90,9 +90,10 @@ describe("createFakeTextModel (ai-integration §8)", () => {
   });
 
   it("given scripted lines when the fake renders then they cycle by call index", async () => {
-    const fake = createFakeTextModel({ lines: ["a", "b"] });
+    const fake = createFakeTextModel({ lines: ["a", "b", "c"] });
 
     const replies = [
+      await fake.renderLine(REQUEST),
       await fake.renderLine(REQUEST),
       await fake.renderLine(REQUEST),
       await fake.renderLine(REQUEST),
@@ -101,6 +102,7 @@ describe("createFakeTextModel (ai-integration §8)", () => {
     expect(replies.map((reply) => (reply as { value: { line: unknown } }).value.line)).toEqual([
       "a",
       "b",
+      "c",
       "a",
     ]);
   });
@@ -114,5 +116,17 @@ describe("createFakeTextModel (ai-integration §8)", () => {
       { ok: false, error: { kind: "REFUSED", message: "no" } },
       [REQUEST],
     ]);
+  });
+});
+
+describe("FAKE_USAGE", () => {
+  it("given the fakes when reading their usage then it is a fake model with nothing spent", () => {
+    expect(FAKE_USAGE).toEqual({
+      model: "fake",
+      inputTokens: 0,
+      outputTokens: 0,
+      costUsd: 0,
+      latencyMs: 0,
+    });
   });
 });

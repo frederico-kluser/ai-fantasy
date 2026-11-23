@@ -200,4 +200,28 @@ describe("readPlayerAnswers (dialogue-acts §11)", () => {
       read({ target: { type: "noul", probability: 0, yes: false } as ReadAnswer }),
     ).toThrow("the answer to target is not a validated choice");
   });
+
+  it("given the act OTHER when reading then there are no gaps", () => {
+    expect(read({ act: choice("OTHER") }).gaps).toEqual([]);
+  });
+
+  it("given a missing target answer when reading then it throws", () => {
+    const rest = Object.fromEntries(Object.entries(answers()).filter(([id]) => id !== "target"));
+
+    expect(() => readPlayerAnswers(playerLineInput(), presets(), rest)).toThrow(
+      "the answer to target is not a validated choice",
+    );
+  });
+
+  it("given an isFalse answer of another type when reading then it throws", () => {
+    expect(() => read({ isFalse: choice("YES") })).toThrow(
+      "the answer to isFalse is not a validated noul",
+    );
+  });
+
+  it("given an intensity answer of another type when reading then it throws", () => {
+    expect(() => read({ intensity: choice("HIGH") })).toThrow(
+      "the answer to intensity is not a validated score",
+    );
+  });
 });

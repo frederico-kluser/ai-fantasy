@@ -215,3 +215,29 @@ describe("buildBondCalls (presets §10 step 4)", () => {
     expect(BOND_PAIRS_PER_CALL).toBe(3);
   });
 });
+
+describe("premise calls and the session", () => {
+  const input = { premise: PREMISE, characterLines: lines(3), sessionId: "s-9" };
+
+  it("given a session id when building character and bond calls then each carries it", () => {
+    const calls = [...buildCharacterCalls(input, presets()), ...buildBondCalls(input, presets())];
+
+    expect(calls.map((call) => call.sessionId)).toEqual(["s-9", "s-9", "s-9"]);
+  });
+
+  it("given no session id when building the scene call then it has none", () => {
+    expect(buildSceneCall({ premise: PREMISE, characterLines: [] }, presets())).not.toHaveProperty(
+      "sessionId",
+    );
+  });
+
+  it("given 3 characters when building bond questions then the pairs are 0-1, 0-2 and 1-2", () => {
+    const calls = buildBondCalls(input, presets());
+
+    expect(Object.keys(calls[0]?.questions ?? {}).filter((id) => id.endsWith(".bond"))).toEqual([
+      "p0_1.bond",
+      "p0_2.bond",
+      "p1_2.bond",
+    ]);
+  });
+});

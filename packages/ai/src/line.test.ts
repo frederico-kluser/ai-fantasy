@@ -102,7 +102,8 @@ describe("validateLine (ai-integration §5.3)", () => {
     ['Ele disse: "Vamos".'],
     ["Graças a Deus, senhor. O Senhor é bom."],
     ["Dona Otávio e Seu Otávio, Sr. Otávio."],
-    ["Eu sei. NÃO grite."],
+    ["Eu sei, NÃO grite."],
+    ["Eu vi o iPhone dele."],
     ["(Calma.) Tudo bem."],
   ])("given %j when validating then the capitalized words are accepted", (fala) => {
     expect(validateLine({ fala, gesto: "" }, KNOWN).ok).toBe(true);
@@ -113,5 +114,39 @@ describe("validateLine (ai-integration §5.3)", () => {
       code: "UNKNOWN_NAME",
       detail: "Pedro",
     });
+  });
+
+  it.each([
+    ["Deus"],
+    ["Senhor"],
+    ["Senhora"],
+    ["Dona"],
+    ["Dom"],
+    ["Seu"],
+    ["Sr"],
+    ["Sra"],
+    ["Doutor"],
+    ["Doutora"],
+    ["Mestre"],
+  ])("given the form of address %s mid-sentence when validating then it is accepted", (word) => {
+    expect(validateLine({ fala: `Bom dia, ${word}.`, gesto: "" }, KNOWN).ok).toBe(true);
+  });
+
+  it("given a single capital letter mid-sentence when validating then it is a name", () => {
+    expect(errorOf({ fala: "Vi o X ontem.", gesto: "" })).toEqual({
+      code: "UNKNOWN_NAME",
+      detail: "X",
+    });
+  });
+
+  it("given a name after an earlier sentence when validating then it is still checked", () => {
+    expect(errorOf({ fala: "Fui lá. Vi o Pedro.", gesto: "" })).toEqual({
+      code: "UNKNOWN_NAME",
+      detail: "Pedro",
+    });
+  });
+
+  it("given a gesture of 120 characters when validating then it passes", () => {
+    expect(validateLine({ fala: "Oi.", gesto: "a".repeat(MAX_GESTO_LENGTH) }, KNOWN).ok).toBe(true);
   });
 });

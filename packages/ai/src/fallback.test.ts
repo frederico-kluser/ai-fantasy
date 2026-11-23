@@ -67,4 +67,21 @@ describe("fallbackLine (ai-integration §5.3)", () => {
   it.each([[0.5], [Number.NaN]])("given the index %s when asking then it throws", (index) => {
     expect(() => fallbackLine("GREET", "WARM", index)).toThrow(RangeError);
   });
+
+  it("given every speech template then it speaks; every silent one only gestures", () => {
+    const shapes = Object.entries(FALLBACK_LINES).flatMap(([act, byTone]) =>
+      Object.values(byTone).flatMap((templates) =>
+        templates.map(([fala, gesto]) => [act, fala === "", gesto === ""]),
+      ),
+    );
+    const silent = new Set(ACT_IDS.slice(14));
+
+    expect(shapes).toEqual(shapes.map(([act]) => [act, silent.has(act as never), false]));
+  });
+
+  it("given an index that is not an integer when asking then the error says so", () => {
+    expect(() => fallbackLine("GREET", "WARM", 0.5)).toThrow(
+      "the fallback index must be a safe integer, got 0.5",
+    );
+  });
 });

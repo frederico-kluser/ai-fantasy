@@ -79,10 +79,9 @@ export function entityKey(index: number): string {
   return `ref_${index + 1}`;
 }
 
-/** People by increasing id, each once. */
+/** People by increasing id (a repeated id becomes one option: option keys are unique). */
 export function byId(people: readonly Person[]): Person[] {
-  const sorted = [...people].sort((a, b) => compareIds(a.id, b.id));
-  return sorted.filter((entry, index) => index === 0 || sorted[index - 1]?.id !== entry.id);
+  return [...people].sort((a, b) => compareIds(a.id, b.id));
 }
 
 function peopleOptions(people: readonly Person[]): Options {

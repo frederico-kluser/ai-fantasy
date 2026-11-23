@@ -137,4 +137,25 @@ describe("checkDecisionCall", () => {
       error: { code: "INVALID_CALL", path: "questions.bad id" },
     });
   });
+
+  it("given 16 questions when checking a call then it passes", () => {
+    expect(checkDecisionCall({ state: "s", questions: Object.fromEntries(entries(16)) }).ok).toBe(
+      true,
+    );
+  });
+
+  it("given an empty session id when checking then it is rejected", () => {
+    expect(checkDecisionCall({ state: "s", questions: { rain: NOUL }, sessionId: "" }).ok).toBe(
+      false,
+    );
+  });
+
+  it("given two problems when checking then the error names both paths", () => {
+    const result = checkDecisionCall({ state: "s", questions: { "bad id": NOUL }, extra: 1 });
+
+    expect(result).toEqual({
+      ok: false,
+      error: { code: "INVALID_CALL", path: "questions.bad id | " },
+    });
+  });
 });
