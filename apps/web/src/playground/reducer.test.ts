@@ -407,6 +407,17 @@ describe("playgroundReducer: several derived pairs", () => {
     expect(state.derived.map(({ a, b }) => [a, b])).toStrictEqual([[0, 3]]);
   });
 
+  it("given two derived pairs with the same second side locked when unlocking one then the other stays", () => {
+    const state = run(
+      generate(CLAN),
+      { type: "lockDerived", a: 0, b: 3, locked: true },
+      { type: "lockDerived", a: 2, b: 3, locked: true },
+      { type: "lockDerived", a: 0, b: 3, locked: false },
+    );
+
+    expect(state.derived.map(({ a, b }) => [a, b])).toStrictEqual([[2, 3]]);
+  });
+
   it("given a pair sharing only its second side with a derived pair when locking then nothing changes", () => {
     const first = generate(CLAN);
 

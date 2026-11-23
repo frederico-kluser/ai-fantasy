@@ -4,13 +4,7 @@
  * throws: a bad request, a rejected input or an engine failure are answers.
  * Pure, so it runs the same in the worker, in process and in the tests.
  */
-import {
-  DOMINANT_DRIVE_WEIGHT,
-  DRIVE_IDS,
-  generateCast,
-  type Cast,
-  type Presets,
-} from "@ai-fantasy/engine";
+import { dominantDrives, generateCast, type Cast, type Presets } from "@ai-fantasy/engine";
 import { z } from "zod";
 
 import { itemAt } from "./list.ts";
@@ -33,7 +27,7 @@ export function castViewOf(cast: Cast): CastView {
       return {
         id: identity.id,
         name: identity.name,
-        dominantDrives: DRIVE_IDS.filter((id) => draft.weights[id] >= DOMINANT_DRIVE_WEIGHT),
+        dominantDrives: dominantDrives(itemAt(cast.characters, index).drives),
         associations: draft.associations.map((association) => ({
           tag: association.subject.tag,
           valence: association.valence,
