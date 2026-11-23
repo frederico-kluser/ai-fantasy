@@ -142,6 +142,38 @@ describe("checkSceneSetup (presets §10.1)", () => {
     ]);
   });
 
+  it.each([
+    ["version", 2],
+    ["startMinute", 1440],
+    ["startMinute", -1],
+  ] as const)("given %s %i when checking then the schema refuses it", (field, value) => {
+    const problems = errorOf(checkSceneSetup(PRESETS, { ...aSetup(), [field]: value }));
+
+    expect(problems.map((problem) => problem.path)).toStrictEqual([field]);
+  });
+
+  it.each([0, 1439])(
+    "given the start minute %i when checking then it is accepted",
+    (startMinute) => {
+      expect(checkSceneSetup(PRESETS, aSetup({ startMinute })).ok).toBe(true);
+    },
+  );
+
+  it.each([
+    [{ castSeed: 4294967296, sceneSeed: 0 }, "seeds.castSeed"],
+    [{ castSeed: 0, sceneSeed: 4294967296 }, "seeds.sceneSeed"],
+  ])("given the seeds %j when checking then the seed past 2^32 − 1 is refused", (seeds, path) => {
+    const problems = errorOf(checkSceneSetup(PRESETS, { ...aSetup(), seeds }));
+
+    expect(problems.map((problem) => problem.path)).toStrictEqual([path]);
+  });
+
+  it("given the largest seeds when checking then they are accepted", () => {
+    const seeds = { castSeed: 4294967295, sceneSeed: 4294967295 };
+
+    expect(checkSceneSetup(PRESETS, aSetup({ seeds })).ok).toBe(true);
+  });
+
   it("given junk when checking then the schema problems come back with their paths", () => {
     const problems = errorOf(checkSceneSetup(PRESETS, { ...aSetup(), weather: "acid", cast: 3 }));
 

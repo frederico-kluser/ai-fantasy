@@ -149,6 +149,50 @@ describe("handleRequest (engine worker protocol)", () => {
     });
   });
 
+  it.each([
+    [{ castSeed: 4294967296, sceneSeed: 0 }, "seeds.castSeed"],
+    [{ castSeed: 0, sceneSeed: -1 }, "seeds.sceneSeed"],
+  ])("given the seeds %j when handling then the request is refused at %s", (seeds, path) => {
+    const response = handleRequest(PRESETS, {
+      v: 1,
+      id: 2,
+      kind: "generateCast",
+      input: FAMILY,
+      seeds,
+    });
+
+    expect(response).toMatchObject({
+      id: 2,
+      ok: false,
+      error: { code: "BAD_REQUEST", problems: [{ path }] },
+    });
+  });
+
+  it("given the largest seeds when handling then the cast is generated", () => {
+    const seeds = { castSeed: 4294967295, sceneSeed: 4294967295 };
+
+    expect(
+      handleRequest(PRESETS, { v: 1, id: 2, kind: "generateCast", input: FAMILY, seeds }).ok,
+    ).toBe(true);
+  });
+
+  it("given a request with id -1 when handling then it is refused with no id", () => {
+    const response = handleRequest(PRESETS, { v: 1, id: -1, kind: "checkSetup", setup: {} });
+
+    expect(response).toMatchObject({
+      id: null,
+      ok: false,
+      error: { code: "BAD_REQUEST", problems: [{ path: "id" }] },
+    });
+  });
+
+  it("given a request with id 0 when handling then it is answered with id 0", () => {
+    expect(handleRequest(PRESETS, { v: 1, id: 0, kind: "checkSetup", setup: {} })).toMatchObject({
+      id: 0,
+      error: { code: "SETUP_REJECTED" },
+    });
+  });
+
   it("given a request with a bad seed when handling then the problem names the seed", () => {
     const response = handleRequest(PRESETS, {
       v: 1,
