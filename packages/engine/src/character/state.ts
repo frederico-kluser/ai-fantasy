@@ -5,7 +5,7 @@
  * keyed by id, so the canonical serialization (§15) has an explicit order.
  */
 import type { Bp, BipolarBp } from "../domain/bp.ts";
-import type { CharacterId, ThingId } from "../domain/ids.ts";
+import type { CharacterId, FactId, ThingId } from "../domain/ids.ts";
 import type { FactCopy } from "../memory/copy.ts";
 import type { CharacterArchetypeId } from "../presets/character-archetypes.ts";
 import type { AssociationTagId } from "../presets/tags.ts";
@@ -61,15 +61,27 @@ export interface CharacterState {
   readonly perceptions: readonly Perception[];
   /** Copies of the facts the character knows, sorted by fact id (simulation-model §12). */
   readonly memories: readonly FactCopy[];
+  /**
+   * The history facts whose effects on this character as side B were applied
+   * after it learned of them (presets §7: "esperam até B receber uma cópia do
+   * fato e então se aplicam uma vez"), sorted by fact id; empty at generation.
+   */
+  readonly historyApplied: readonly FactId[];
   /** The threat of the last tick (simulation-model §6), read by the leave rule and the signals. */
   readonly threat: Bp;
 }
 
-/** Age bands (presets §10): presentation only. */
-export type AgeBand = "CHILD" | "TEEN" | "YOUNG" | "ADULT" | "ELDER";
+/** The age bands of presets §10, in order: presentation only. */
+export const AGE_BANDS = ["CHILD", "TEEN", "YOUNG", "ADULT", "ELDER"] as const;
 
-/** Registers of speech (presets §10): presentation only. */
-export type SpeechRegister = "FORMAL" | "COLLOQUIAL" | "RUSTIC" | "CULTURED" | "ARCHAIC";
+/** An age band (presets §10): presentation only. */
+export type AgeBand = (typeof AGE_BANDS)[number];
+
+/** The registers of speech of presets §10, in order: presentation only. */
+export const SPEECH_REGISTERS = ["FORMAL", "COLLOQUIAL", "RUSTIC", "CULTURED", "ARCHAIC"] as const;
+
+/** A register of speech (presets §10): presentation only. */
+export type SpeechRegister = (typeof SPEECH_REGISTERS)[number];
 
 /**
  * How a character is presented (simulation-model §4, invariant 3): free text

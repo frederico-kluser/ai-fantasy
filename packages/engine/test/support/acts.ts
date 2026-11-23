@@ -30,6 +30,15 @@ export function defaultObjects(): Presets["requestObjects"] {
   return presets.value.requestObjects;
 }
 
+/** The history events of the default presets. */
+export function defaultHistoryEvents(): Presets["historyEvents"] {
+  const presets = loadPresets();
+  if (!presets.ok) {
+    throw new Error("test history: the default presets do not load");
+  }
+  return presets.value.historyEvents;
+}
+
 /** A label with the overrides given: a NEUTRAL CHAT about small talk to nobody, at NORMAL volume. */
 export function aLabel(overrides: Partial<ActLabel> = {}): ActLabel {
   return {

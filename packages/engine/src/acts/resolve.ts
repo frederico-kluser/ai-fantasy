@@ -187,10 +187,12 @@ function resolveValid(input: ResolveInput, author: CharacterState): ActResolutio
  *
  * 1. `validateAct` and `isInterruption` (5.1);
  * 2. `perceiveAct`, then `readTone` for each `DIRECT` listener in id order (5.2);
- * 3. the consequences of the act as each listener read it (5.3, SOC-03), then
- *    `settleObligations` and `createObligations`;
- * 4. `recordAct`, with the `appraisal` the consequences give (offenders,
- *    importances, who believed a lie) (5.4);
+ * 3. `appraiseAct`, the consequences of the act as each listener read it
+ *    (5.3; its `characters` carry the deltas), then `settleObligations` and
+ *    `createObligations`;
+ * 4. `recordAct`, with the `record` of the appraisal (offenders, importances,
+ *    who believed a lie, the band of an answer) (5.4), then
+ *    `applyDeferredHistory` for whoever just learned a secret it suffered;
  * 5. the tendencies of the author (5.5, SOC-06);
  * 6. `movementOf` (5.6).
  *

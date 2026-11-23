@@ -1,6 +1,6 @@
 # Modelo de simulação — Hermeneutic Core
 
-> **Especificação v1.9 — 2026-11-23.** As **regras** deste documento são contrato do motor. Os
+> **Especificação v1.10 — 2026-11-23.** As **regras** deste documento são contrato do motor. Os
 > **números** (taxas, limiares, pesos) são valores iniciais e calibráveis: mudar um número exige
 > teste atualizado e nota no PR, não decisão nova. Mudar uma regra exige ADR. Produto em
 > [`docs/product.md`](<../product.md>); atos, tabelas de efeito e vieses em
@@ -17,8 +17,8 @@
 > (CORE-04); a v1.7 fixou os sorteios da escuta, as respostas às obrigações e a gravação de
 > um ato em fatos e cópias (SOC-01); a v1.8 fixou a ordem e as finalidades dos sorteios dos sinais,
 > quem pode notar, a ordem dos pesos da interpretação e o que conta como atualização da percepção
-> (SOC-02); a v1.9 fixou a composição das consequências e o que a avaliação passa à gravação
-> (SOC-03).
+> (SOC-02); a v1.9 fixou o contador de tentativa da stream `generation` (CORE-05); a v1.10 fixou
+> a composição das consequências e o que a avaliação passa à gravação (SOC-03).
 
 ## 1. Princípios
 
@@ -172,12 +172,14 @@ haver zero ou um personagem do jogador; com zero, a cena é só observada.
 | Percepção do momento | 5.5, um registro por presente | não |
 | Associações | 5.7 | sim |
 | Memórias | cópias de fatos (seção 12) | só as memórias marcantes |
+| Efeitos de história aplicados | fatos de história cujos efeitos adiados já valeram para ele ([presets](<presets.md>), seção 7) | sim |
 | Obrigações, destino de movimento e contadores da fatia (silêncio, repetições, cumprimentos, objetivo da cena) | seções 8, 10 e 11 | não |
 
 **Estado × identidade.** O **estado** do personagem (o que as regras leem e o hash cobre) tem a
 posição, traços, tendências, aptidões, deslocamentos de base da história, linhas de base,
 emoções, corpo, vontades, laços,
-associações, percepções, memórias e a ameaça do último tick (seção 6). A **identidade** (nome,
+associações, percepções, memórias, os fatos de história cujos efeitos adiados já se aplicaram
+(ordenados por id) e a ameaça do último tick (seção 6). A **identidade** (nome,
 pronomes, descrição, faixa etária, papel, registro de fala e o arquétipo de origem, para
 exibição) é
 apresentação, fica fora do hash e nenhuma regra a lê. Toda coleção por pessoa (vontades
@@ -971,7 +973,10 @@ uma a uma, em inteiros:
 - **Streams:** uma por finalidade — `generation`, `setup`, `turn`, `choice`, `signal`,
   `perception`, `resolution`, `leave`. A seed do elenco alimenta só `generation` (personagens,
   laços, história); a seed da cena alimenta as demais, e `setup` sorteia os valores de abertura
-  (estado do dia e posições). Assim se varia uma sem mexer na outra.
+  (estado do dia e posições). Assim se varia uma sem mexer na outra. Gerar o elenco de novo
+  mantendo os travados usa a mesma seed do elenco com um **contador de tentativa** `n`: a stream
+  `generation` da tentativa `n` nasce de `hash32(castSeed, "generation#<n>")`, e a tentativa 0 é
+  a stream normal ([presets](<presets.md>), seção 10.1).
 - **`hash32(seed, nome)`:** FNV-1a de 32 bits sobre os bytes UTF-8 de `"<seed>:<nome>"`, com a
   seed em decimal sem zeros à esquerda (por exemplo, `"42:turn"`). Os bytes UTF-8 são os do
   codificador WHATWG (`TextEncoder`): um surrogate sozinho vira U+FFFD.
