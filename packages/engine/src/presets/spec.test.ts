@@ -97,7 +97,7 @@ describe("presets.md catalogs × preset data (CORE-03 acceptance)", () => {
   });
 
   it("given the drives of the history events when reading presets §7 then each is marked dirigida exactly when it is directed", () => {
-    const directed = new Map(DRIVES.map((drive) => [drive.id, drive.directed]));
+    const directed = new Map<string, boolean>(DRIVES.map((drive) => [drive.id, drive.directed]));
     const marks = specEventDriveMarks();
 
     expect(marks).toHaveLength(6);
