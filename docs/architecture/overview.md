@@ -118,8 +118,11 @@ da campanha), posições e estados do dia.
 
 ## 4. Pacote de IA (`packages/ai`)
 
-- **Portas:** `SystemOnePort` (`readPlayerLine`, `mapPremise`, `mapCharacter`, `mapBonds`) e
-  `TextModelPort` (`renderLine`).
+- **Portas:** `SystemOnePort` (`decide`: uma chamada de até 16 perguntas) e `TextModelPort`
+  (`renderLine`), assíncronas, com `Result` de falha tipada e o uso de cada chamada (modelo
+  resolvido, tokens, custo e tempo). Sobre a porta, funções puras montam as chamadas
+  (`buildPlayerLineCall`, `buildSceneCall`, `buildCharacterCalls`, `buildBondCalls`) e leem as
+  respostas (`readPlayerLine` = montar, perguntar, validar e ler o ato candidato).
 - **Parte pura:** construção das perguntas do SOM e do pacote de encenação, conversão de
   probabilidades para bp, validação das respostas, falas prontas por ato e tom, falsos
   determinísticos das duas portas.

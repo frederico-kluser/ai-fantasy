@@ -83,7 +83,7 @@ Ids de modelo só existem na configuração; o código usa nomes de papel (seç�
 - Cabeçalho `Authorization: Bearer <chave>`, JSON UTF-8.
 - No máximo **16 perguntas por chamada** (regra do projeto); acima disso, várias chamadas.
 - Uma pergunta atômica por decisão. `choice` não exaustivo leva `OTHER` ou `NONE`.
-- `score` usa régua de 2 a 10 com situações concretas.
+- `score` usa régua de 2 a 10 com situações concretas: 9 níveis, do mais baixo ao mais alto.
 - Não usar `box`.
 - O texto do usuário vai no `state` como está. A língua das instruções (português ou inglês) é
   uma escolha a medir na tarefa AI-02: começar em inglês e comparar.
@@ -100,6 +100,36 @@ Ids de modelo só existem na configuração; o código usa nomes de papel (seç�
 - **Validação fechada:** número não finito, distribuição incoerente, opção inexistente ou HTTP 200
   com `error` = falha. Falha nunca vira ato: a interface cai para o menu de atos.
 
+Detalhes fixados na AI-01 (`packages/ai/src/answers.ts` e `convert.ts`):
+
+- **Forma neutra da porta.** A `SystemOnePort` devolve as respostas na forma do fio, com uma
+  diferença: o `score` já vem na régua do projeto, de 2 a 10. O fio devolve o índice do nível
+  (0..8) e o adaptador (AI-02) soma 2 ao `score` e às chaves de `probabilities` antes de
+  devolver. Assim, `intensidade = clamp(Math.round((score − 2) × 1250), 0, 10000)`; a entrada é
+  limitada à faixa antes de multiplicar (2 → 0, 7,3 → 6625, 10 → 10000).
+- **Validação fechada, pergunta por pergunta**, contra as perguntas enviadas: resposta que não é
+  objeto, pergunta sem resposta, resposta a pergunta não feita, campo desconhecido, `type`
+  trocado, `noul`, `confidence` ou probabilidade fora de [0, 1], `score` fora de [2, 10], número
+  não finito e opção (ou chave de `probabilities`) que não foi oferecida = falha. A primeira falha
+  encontrada vai para o registro com o código e a pergunta.
+- **Distribuição coerente** (decisão do orquestrador na revisão da AI-01; `choice` e `score`): o fio
+  pode listar só parte das opções, então a soma das probabilidades listadas, arredondada para bp,
+  tem de ser maior que 0 e no máximo 10200 (1,02); a massa que falta é das opções não listadas.
+  Num `choice`, a opção escolhida tem de estar listada com a maior probabilidade (empate vale).
+  Num `score`, que é média ponderada e não um nível, vale só a regra da soma. Fora disso, a
+  distribuição é incoerente = falha. A AI-02 confirma a regra com gravações reais.
+- **Maior probabilidade** de uma pergunta (`top`): a maior das `probabilities`; sem
+  distribuição, a `confidence`; sem as duas, 0 (cai na confirmação).
+- **Fala do jogador → ato candidato** (`reading.ts`), pelas regras da
+  [seção 11 dos atos](<dialogue-acts.md>): `NOBODY` ⇒ `targets = []`; `GROUP` ⇒ `"GROUP"`;
+  `MOVE` com um alvo ⇒ `APPROACH`, sem alvo (ou com `GROUP`) ⇒ lacuna `DESTINATION`; `object` só
+  em `REQUEST` e `OFFER` e diferente de `NONE`; `blamed` só com `isFalse` e diferente de `NONE` e de `OTHER` (alguém fora da lista conta
+  como sem culpado);
+  ato sem fala ⇒ tópico `NONE`; `SMALL_TALK` dispensa referência; os outros tipos exigem um
+  `topicRef` do mesmo tipo, senão o tópico fica `NONE` com a lacuna `TOPIC`. Com `OTHER` não há
+  candidato. Confirmação: confiança abaixo de 7000 bp, `OTHER` ou qualquer lacuna. A validação
+  do candidato contra a cena é do motor (SOC-01).
+
 ### 4.3 Conjuntos de perguntas
 
 | Uso | Perguntas | Onde está a lista |
@@ -111,6 +141,25 @@ Ids de modelo só existem na configuração; o código usa nomes de papel (seç�
 
 O `state` leva só o necessário: o texto, os presentes (id e nome), a cena em palavras e, para a
 fala do jogador, os fatos que o personagem do jogador conhece (no máximo 12, os mais salientes).
+
+Chaves e lotes fixados na AI-01 (`packages/ai/src/prompts/`):
+
+- **Fala do jogador** (uma chamada, 10 perguntas): as opções de `target` e `blamed` são
+  `char_<id>` (por id crescente, rubrica = nome), mais `GROUP` e `NOBODY` em `target` e `NONE` e
+  `OTHER` em `blamed`, para nenhuma pergunta ficar com menos de 2 opções numa cena de estranhos; as de `topicRef`, `ref_1…ref_n` na ordem das
+  entidades salientes recebidas (rubrica = descrição). O `state` leva `line`, `speaker`,
+  `present`, `scene`, `knownFacts` (os 12 primeiros) e `topics`.
+- **Cena:** `place`, `naturalTag`, `weather`, `dayPhase`, `playerPresent` e, sem linhas de
+  personagem, `characterCount` (`"2"`…`"8"`).
+- **Personagens:** `c<i>.archetype`, `c<i>.ageBand`, `c<i>.drive1`, `c<i>.drive2`,
+  `c<i>.dayState`, `c<i>.association` (`fear_<tag>`, `attachment_<tag>` ou `NONE`) e
+  `c<i>.register` (`FORMAL`, `COLLOQUIAL`, `RUSTIC`, `CULTURED`, `ARCHAIC`); `i` é a posição da
+  linha, a partir de 0.
+- **Laços:** todo par de personagens com linha, `p<a>_<b>` com `a < b`: `bond` (os não
+  direcionais pelo id; os direcionais como `<id>.ab`, A = primeiro, e `<id>.ba`, A = segundo),
+  `event1`, `event1By` (`FIRST`/`SECOND`), `event2` e `event2By`.
+- Instruções em inglês; as rubricas das opções são os nomes dos catálogos (pt-BR). A comparação
+  de línguas fica para a AI-02.
 
 ### 4.4 Confirmação (D-20)
 
@@ -158,6 +207,9 @@ Números de estado **nunca** vão no pacote: tudo é convertido em palavras por 
 { "fala": "texto, até 400 caracteres", "gesto": "texto, até 120 caracteres, pode ser vazio" }
 ```
 
+Tamanhos contados em caracteres (pontos de código), depois de tirar os espaços das pontas. A
+`fala` pode ser vazia quando há `gesto` (atos sem fala); as duas vazias são recusadas.
+
 ### 5.3 Validação e caminho alternativo
 
 1. Esquema e tamanho.
@@ -168,6 +220,33 @@ Números de estado **nunca** vão no pacote: tudo é convertido em palavras por 
 5. Falhou: uma nova tentativa com instrução reforçada; falhou de novo, ou o modelo recusou, ou
    estourou o tempo: **fala de modelo pronto** (template por ato e tom, em `packages/ai`), marcada
    como alternativa no registro.
+
+Regras testáveis da AI-01 (`packages/ai/src/line.ts`) para os passos 2 e 3, com os limites
+conhecidos:
+
+- **Mecânica:** qualquer algarismo (de qualquer escrita), o sinal `%` e as palavras `bp`, `tick`
+  e `ticks` (sem distinguir maiúsculas) recusam a fala. O modelo escreve números por extenso
+  ("três moedas"); "300 anos" com algarismos cai na fala pronta, um falso positivo aceito.
+- **Nomes desconhecidos:** uma palavra que começa com maiúscula é tratada como nome, salvo se
+  abre frase, se está toda em maiúsculas (grito), se está entre as exceções ou se é uma palavra de
+  um dos nomes conhecidos enviados no pedido ("Maria Clara" deixa passar "Clara").
+  - **Abre frase:** início do texto; depois de `.`, `!`, `?`, `…` ou `:`, ignorando espaços, aspas,
+    parênteses e travessões; ou logo depois de uma aspa ou travessão que abre fala citada (`"`, `“`,
+    `«`, `—`, `–`), mesmo após vírgula. O ponto de `Sr.`, `Sra.`, `Dr.` e `Dra.` não fecha frase.
+  - **Exceções (pt-BR):** `Senhor`, `Senhora`, `Sr`, `Sra`, `Dona`, `Dom`, `Seu`, `Doutor`,
+    `Doutora`, `Dr`, `Dra`, `Mestre`, `Vossa`, `Mercê`, `Excelência`, `Majestade`, `Alteza`,
+    `Padre`, `Frei`, `Irmã`, `Madre`, `Deus`, `Jesus`, `Cristo`, `Nossa`, `Santo`, `Santa`, `São`,
+    `Virgem`, `Natal`, `Páscoa`, `Carnaval`.
+  - **Nomes conhecidos:** quem chama (AI-03) inclui em `knownNames` os presentes, as pessoas dos
+    fatos conhecidos e os nomes próprios da premissa e da cena (lugares, povos, instituições).
+  - **Limites:** um nome escrito em minúscula, que abre frase ou que vem logo depois de uma aspa
+    reta `"` passa; nomes com maiúscula fora dos nomes conhecidos são recusados (falso positivo que
+    leva à fala pronta).
+- **Falas prontas** (`packages/ai/src/prompts/fallback-data.ts`): pelo menos uma por ato e tom
+  (20 × 6), em pt-BR; atos sem fala só têm gesto. O único marcador é o vocativo `, {alvo}`,
+  trocado pelo nome do alvo ou removido quando não há um. A escolha é determinística: quem chama
+  passa um índice inteiro e vale o template na posição `índice mod quantidade`; nada de `Math.random`. Toda
+  fala pronta passa na validação acima.
 
 ### 5.4 Cache, demora e custo
 
@@ -187,7 +266,8 @@ gravado** e nunca chama os modelos.
 
 ## 7. Prompts versionados
 
-Prompts e conjuntos de perguntas vivem em `packages/ai/src/prompts/` com `PROMPT_VERSION`. Mudar um
+Prompts, conjuntos de perguntas e falas prontas vivem em `packages/ai/src/prompts/` com
+`PROMPT_VERSION` (formato `AAAA-MM-DD.n`). Mudar um
 prompt exige rodar de novo as cenas douradas ([avaliação](<../engineering/evaluation.md>)) e anotar
 o resultado no PR.
 
