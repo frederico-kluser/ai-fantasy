@@ -247,7 +247,8 @@ item 5), a linha de base é recalculada sem perder o que o limite de 3000 tinha 
   surpresa usa 9500. O tédio não decai.
 - **Tédio** (exceção): sobe +25 por tick em que o ato em andamento não interessa ao personagem e
   +50 por tick de silêncio; cai 1000 a cada ato que lhe interessa ouvido como `DIRECT`, e 2000 se
-  esse ato for dirigido a ele com valência positiva. Um ato **interessa** a X quando X é alvo, o
+  esse ato for dirigido a ele com valência positiva (o alívio entra com as consequências do ato,
+  `appraiseAct`; [atos de conversa](<dialogue-acts.md>), seção 7.5). Um ato **interessa** a X quando X é alvo, o
   tópico é X, um presente com quem X tem afeto, ressentimento ou atração ≥ 5000, um alvo de vontade
   dirigida de X, uma tag ou coisa associada a X, ou um fato de que X tem cópia.
 

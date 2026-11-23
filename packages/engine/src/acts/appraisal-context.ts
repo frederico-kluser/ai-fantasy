@@ -121,6 +121,21 @@ export function badSubjects(
   return [...new Set([...offenders, ...owners])].sort(compareIds);
 }
 
+/**
+ * Whether an act interests `reader` (simulation-model §5.2): it is addressed
+ * to the reader (a target, or a `DIRECT` hearer of a `GROUP` act), or its
+ * topic interests it ({@link topicInterests}). The tick (SOC-05) reads it for
+ * boredom; the appraisal, for the relief of boredom.
+ */
+export function actInterests(
+  reader: CharacterState,
+  topic: Topic,
+  present: readonly CharacterId[],
+  addressed: boolean,
+): boolean {
+  return addressed || topicInterests(reader, topic, present);
+}
+
 /** Who appraises the act, about whom, and what it knows. */
 export interface ContextInput {
   readonly author: CharacterState;

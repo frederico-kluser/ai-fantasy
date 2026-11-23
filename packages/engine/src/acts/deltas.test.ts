@@ -28,6 +28,10 @@ describe("finalizeDeltas (simulation-model §9, dialogue-acts §7.1)", () => {
     expect(finalizeDeltas([bondDelta(1000), bondDelta(800)])).toEqual([bondDelta(1500)]);
   });
 
+  it("given sources of opposite signs on one axis when finalizing then they sum first and the cap comes after", () => {
+    expect(finalizeDeltas([bondDelta(-1800), bondDelta(400)])).toEqual([bondDelta(-1400)]);
+  });
+
   it("given a bond delta below -1500 when applying then it is capped", () => {
     expect(finalizeDeltas([bondDelta(-2400)])).toEqual([bondDelta(-1500)]);
   });

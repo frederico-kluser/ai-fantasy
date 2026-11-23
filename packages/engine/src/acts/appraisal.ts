@@ -16,6 +16,8 @@ import { div } from "../domain/math.ts";
 import type { ActFact, Fact } from "../memory/fact.ts";
 import { involvedIn, type RecordAppraisal } from "../memory/record.ts";
 import type { Drawer } from "../rng/drawer.ts";
+import { BOREDOM_RELIEF, BOREDOM_RELIEF_ADDRESSED } from "../domain/constants.ts";
+import { actInterests } from "./appraisal-context.ts";
 import { effectUnit } from "./appraisal-effects.ts";
 import { authorDeltas, ignoringDeltas, interruptionDeltas } from "./appraisal-actor.ts";
 import {
@@ -202,6 +204,30 @@ function readingsOf(scene: ActScene, input: AppraisalInput, direct: readonly Lis
   return { addressees, targets, witnesses, real };
 }
 
+/**
+ * The relief of boredom (simulation-model §5.2): each `DIRECT` hearer the act
+ * interests (see `actInterests`) loses 1000 of boredom (`BOREDOM_RELIEF`), or
+ * 2000 (`BOREDOM_RELIEF_ADDRESSED`) when the act is addressed to it with the
+ * valence it read ≥ 1; never below 0.
+ */
+function boredomDeltas(
+  input: AppraisalInput,
+  direct: readonly ListenerView[],
+  targets: readonly Valence[],
+): StateDelta[] {
+  const present = input.characters.map((character) => character.id);
+  return direct.flatMap((view) => {
+    const hearer = stateOf(input, view.id);
+    const target = targets.find((entry) => entry.id === view.id);
+    const interests = actInterests(hearer, input.label.topic, present, target !== undefined);
+    const relief = (target?.valence ?? 0) >= 1 ? BOREDOM_RELIEF_ADDRESSED : BOREDOM_RELIEF;
+    const delta = -Math.min(hearer.emotions.boredom, relief);
+    return interests
+      ? [{ kind: "EMOTION" as const, who: view.id, emotion: "boredom" as const, delta }]
+      : [];
+  });
+}
+
 /** The importance of the new fact for the author and every one who perceived it (simulation-model §12). */
 function importances(
   input: AppraisalInput,
@@ -261,6 +287,7 @@ export function appraiseAct(drawer: Drawer, input: AppraisalInput): Appraisal {
     ...interruptionDeltas(scene, interrupted(input)),
     ...ignoringDeltas(input.characters, ignoredBy(input)),
     ...lieOutcomeDeltas(lie.outcomes, input.author),
+    ...boredomDeltas(input, direct, targets),
   ]);
   const band = scene.answer?.view.band ?? null;
   return {

@@ -722,7 +722,7 @@ describe("appraiseAct: importance and ranges (simulation-model §12 and §18)", 
 describe("appraiseAct: edges (mutation review)", () => {
   const plain = [aCharacter(1, 0), aCharacter(2, 1), aCharacter(3, 2)];
 
-  it("given an act without a row in an AGGRESSIVE tone when appraising then the tone adds no extras", () => {
+  it("given an AGGRESSIVE REQUEST when appraising then its row of valence 0 takes the tone: valence -2, fear, anger, hostility and an offender", () => {
     const input = anInput(
       {
         act: "REQUEST",
@@ -731,6 +731,35 @@ describe("appraiseAct: edges (mutation review)", () => {
         object: "HELP",
         topic: { type: "PERSON", person: y },
       },
+      [heard(2, "DIRECT", "AGGRESSIVE")],
+      plain,
+    );
+    const appraisal = appraiseAct(aDrawer(), input);
+
+    expect(appraisal.valences).toEqual([{ id: y, valence: -2 }]);
+    expect(appraisal.deltas).toEqual([
+      { kind: "EMOTION", who: y, emotion: "fear", delta: U },
+      { kind: "EMOTION", who: y, emotion: "anger", delta: U },
+      { kind: "PERCEPTION", who: y, toward: z, value: "perceivedHostility", delta: 2000 },
+    ]);
+    expect(appraisal.record.offenders).toEqual([z]);
+  });
+
+  it("given an IRONIC ASK when appraising then its row takes the extras of the tone", () => {
+    const input = anInput(
+      { act: "ASK", tone: "IRONIC", targets: [y], topic: { type: "SMALL_TALK" } },
+      [heard(2, "DIRECT", "IRONIC")],
+      plain,
+    );
+    const deltas = deltasOf(input);
+
+    expect(amount(deltas, y, "resentment")).toBe(U / 2);
+    expect(amount(deltas, y, "respect")).toBe(-U / 2);
+  });
+
+  it("given an ACCEPT that answers nothing, in an AGGRESSIVE tone, when appraising then without any row the tone adds nothing", () => {
+    const input = anInput(
+      { act: "ACCEPT", tone: "AGGRESSIVE", targets: [y], topic: { type: "PERSON", person: z } },
       [heard(2, "DIRECT", "AGGRESSIVE")],
       plain,
     );
@@ -1181,5 +1210,124 @@ describe("appraiseAct: edges (mutation review)", () => {
     );
 
     expect(appraiseAct(aDrawer(), input).record.offenders).toEqual([z]);
+  });
+});
+
+describe("appraiseAct: boredom relief (simulation-model §5.2)", () => {
+  function bored(
+    id: number,
+    cell: number,
+    boredom: number,
+    more: Parameters<typeof aCharacter>[2] = {},
+  ) {
+    return aCharacter(id, cell, {
+      ...more,
+      emotions: { ...aCharacter(id, cell).emotions, boredom: toBp(boredom) },
+    });
+  }
+
+  it.each([
+    ["a GREET (valence +1)", "GREET", -2000],
+    ["a TEASE (valence -1)", "TEASE", -1000],
+    ["a REQUEST (valence 0)", "REQUEST", -1000],
+  ] as const)(
+    "given a bored target of %s when appraising then its boredom falls as the rule says",
+    (_case, act, relief) => {
+      const input = anInput(
+        { act, targets: [y], topic: { type: "PERSON", person: y }, object: "HELP" },
+        [heard(2, "DIRECT", "NEUTRAL")],
+        [aCharacter(1, 0), bored(2, 1, 3000)],
+      );
+
+      expect(amount(deltasOf(input), y, "boredom")).toBe(relief);
+    },
+  );
+
+  it("given a target with little boredom when appraising then the relief stops at 0", () => {
+    const input = anInput(
+      { act: "GREET", targets: [y], topic: { type: "PERSON", person: y } },
+      [heard(2, "DIRECT", "NEUTRAL")],
+      [aCharacter(1, 0), bored(2, 1, 500)],
+    );
+
+    expect(amount(deltasOf(input), y, "boredom")).toBe(-500);
+  });
+
+  it("given a GROUP GREET when appraising then each DIRECT hearer is addressed and relieved by 2000", () => {
+    const input = anInput(
+      { act: "GREET", targets: "GROUP", topic: { type: "SMALL_TALK" } },
+      [heard(2, "DIRECT", "NEUTRAL")],
+      [aCharacter(1, 0), bored(2, 1, 3000)],
+    );
+
+    expect(amount(deltasOf(input), y, "boredom")).toBe(-2000);
+  });
+
+  it("given a GREET read as AGGRESSIVE by a bored target when appraising then the valence it read gives only 1000", () => {
+    const input = anInput(
+      { act: "GREET", targets: [y], topic: { type: "PERSON", person: y } },
+      [heard(2, "DIRECT", "AGGRESSIVE")],
+      [aCharacter(1, 0), bored(2, 1, 3000)],
+    );
+
+    expect(amount(deltasOf(input), y, "boredom")).toBe(-1000);
+  });
+
+  it.each([
+    ["about itself", { type: "PERSON", person: w }, -1000],
+    ["about small talk", { type: "SMALL_TALK" }, undefined],
+  ] as const)(
+    "given a bored witness of a CHAT %s when appraising then its boredom falls only if the topic interests it",
+    (_case, topic, relief) => {
+      const input = anInput(
+        { act: "CHAT", targets: [y], topic },
+        [heard(2, "DIRECT", "NEUTRAL"), heard(3, "DIRECT", "NEUTRAL")],
+        [aCharacter(1, 0), aCharacter(2, 1), bored(3, 2, 3000)],
+      );
+
+      expect(amount(deltasOf(input), w, "boredom")).toBe(relief);
+    },
+  );
+
+  it("given a bored character who only saw a CHAT about itself when appraising then its boredom stays", () => {
+    const input = anInput(
+      { act: "CHAT", targets: [y], topic: { type: "PERSON", person: w } },
+      [heard(2, "DIRECT", "NEUTRAL"), perceived(3, "SEEN")],
+      [aCharacter(1, 0), aCharacter(2, 1), bored(3, 9, 3000)],
+    );
+
+    expect(amount(deltasOf(input), w, "boredom")).toBeUndefined();
+  });
+});
+
+describe("appraiseAct: order of calculation (dialogue-acts §7.2)", () => {
+  it("given an AGGRESSIVE TEASE when appraising then the extras are exactly one unit, added after the multiplier", () => {
+    const input = anInput(
+      { act: "TEASE", tone: "AGGRESSIVE", targets: [y], topic: { type: "PERSON", person: y } },
+      [heard(2, "DIRECT", "AGGRESSIVE")],
+      [aCharacter(1, 0), aCharacter(2, 1)],
+    );
+    const deltas = deltasOf(input);
+
+    expect(amount(deltas, y, "fear")).toBe(U);
+    expect(amount(deltas, y, "anger")).toBe(mulBp(2 * U, 15000) + U);
+  });
+
+  it("given an AGGRESSIVE THREATEN at intensity 10000 when appraising then trust sums its sources and stops at -1500", () => {
+    const input = anInput(
+      {
+        act: "THREATEN",
+        tone: "AGGRESSIVE",
+        targets: [y],
+        topic: { type: "PERSON", person: y },
+        intensity: toBp(10000),
+      },
+      [heard(2, "DIRECT", "AGGRESSIVE")],
+      [aCharacter(1, 0), aCharacter(2, 1)],
+    );
+    const deltas = deltasOf(input);
+
+    expect(amount(deltas, y, "trust")).toBe(-1500);
+    expect(amount(deltas, y, "resentment")).toBe(mulBp(2 * 400, 15000));
   });
 });
