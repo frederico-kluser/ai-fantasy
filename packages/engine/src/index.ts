@@ -5,3 +5,7 @@
  * This file only re-exports; code lives in the modules next to it.
  */
 export { ENGINE_NAME } from "./meta.ts";
+export * from "./domain/index.ts";
+export * from "./rng/index.ts";
+export { canonicalize } from "./session/canonical.ts";
+export { hashState } from "./session/hash.ts";
