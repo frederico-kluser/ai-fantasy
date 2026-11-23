@@ -9,7 +9,6 @@ import { isAbsolute, join, resolve } from "node:path";
 
 import { z } from "zod";
 
-import { REPO_ROOT } from "./paths.ts";
 import type { Result } from "./result.ts";
 import { Secret } from "./secret.ts";
 
@@ -172,20 +171,18 @@ function errorLines(
   return [...new Set(lines)].join("\n");
 }
 
-/** The repository root, asked only when `DATA_DIR` needs it (empty or relative). */
-function repositoryRoot(): string {
-  return REPO_ROOT;
-}
-
-/** `DATA_DIR` as an absolute path: empty means `data/` at the repository root. */
-function dataDirFrom(value: string | undefined): string {
+/**
+ * `DATA_DIR` as an absolute path: empty means `data/` at the repository root
+ * (git-ignored) and a relative path is resolved from the root, never from the cwd.
+ */
+function dataDirFrom(value: string | undefined, repositoryRoot: string): string {
   if (value === undefined) {
-    return join(repositoryRoot(), "data");
+    return join(repositoryRoot, "data");
   }
-  return isAbsolute(value) ? value : resolve(repositoryRoot(), value);
+  return isAbsolute(value) ? value : resolve(repositoryRoot, value);
 }
 
-function toServerConfig(env: z.output<typeof ENVIRONMENT>): ServerConfig {
+function toServerConfig(env: z.output<typeof ENVIRONMENT>, repositoryRoot: string): ServerConfig {
   return {
     aiApiKey: env.OPENROUTER_API_KEY,
     systemOneModel: env.AI_SOM_MODEL,
@@ -195,7 +192,7 @@ function toServerConfig(env: z.output<typeof ENVIRONMENT>): ServerConfig {
     aiTimeoutMs: env.AI_TIMEOUT_MS,
     aiBudgetUsdPerConversation: env.AI_BUDGET_USD_PER_CONVERSATION,
     port: env.PORT,
-    dataDir: dataDirFrom(env.DATA_DIR),
+    dataDir: dataDirFrom(env.DATA_DIR, repositoryRoot),
     bodyLimitBytes: env.BODY_LIMIT_BYTES,
     sessionBodyLimitBytes: env.SESSION_BODY_LIMIT_BYTES,
     logLevel: env.LOG_LEVEL,
@@ -205,15 +202,18 @@ function toServerConfig(env: z.output<typeof ENVIRONMENT>): ServerConfig {
 /**
  * Reads the configuration from `env` (in production, `process.env`).
  *
+ * @param repositoryRoot the repository root (`repositoryPaths().value.root`):
+ *   home of the default data folder and base of a relative `DATA_DIR`.
  * @returns the configuration, or one `Erro: … — Solução: …` line per invalid
  *   variable, in the order of `.env.example`. The key is never part of an error.
  */
 export function loadConfig(
   env: Readonly<Record<string, string | undefined>>,
+  repositoryRoot: string,
 ): Result<ServerConfig> {
   const parsed = ENVIRONMENT.safeParse(presentValues(env));
   if (!parsed.success) {
     return { ok: false, error: errorLines(parsed.error.issues, env) };
   }
-  return { ok: true, value: toServerConfig(parsed.data) };
+  return { ok: true, value: toServerConfig(parsed.data, repositoryRoot) };
 }

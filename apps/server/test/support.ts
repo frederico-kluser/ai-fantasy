@@ -49,9 +49,15 @@ export function treeOf(root: string): string[] {
     .sort();
 }
 
+/**
+ * A repository root for tests that is not the repository: a test that forgets
+ * `DATA_DIR` can never write into the real `data/` folder.
+ */
+export const TEST_REPOSITORY_ROOT = join(tmpdir(), "ai-fantasy-test-repository");
+
 /** The configuration read from `env` (no `process.env`); the test fails if it is invalid. */
 export function configFor(env: Readonly<Record<string, string>>): ServerConfig {
-  const result = loadConfig(env);
+  const result = loadConfig(env, TEST_REPOSITORY_ROOT);
   assert.ok(result.ok, "the test configuration is invalid");
   return result.value;
 }

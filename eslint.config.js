@@ -21,7 +21,8 @@ import tseslint from "typescript-eslint";
 
 const CODE_FILES = ["**/*.{ts,tsx,js,mjs,cjs}"];
 const TS_FILES = ["**/*.{ts,tsx}"];
-const TEST_FILES = ["**/*.test.{ts,tsx}", "**/e2e/**/*.ts"];
+/** Unit and component tests plus E2E specs; E2E helpers are ordinary code. */
+const TEST_FILES = ["**/*.test.{ts,tsx}", "**/e2e/**/*.spec.ts"];
 
 const ENGINE_SOURCE = ["packages/engine/src/**/*.ts"];
 /** Engine production code and its tests (the benchmark may measure time). */

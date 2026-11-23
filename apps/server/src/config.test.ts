@@ -1,5 +1,4 @@
 import assert from "node:assert/strict";
-import { spawnSync } from "node:child_process";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 
@@ -8,12 +7,14 @@ import { describe, expect, it } from "vitest";
 import { DEFAULT_PORT, loadConfig, type ServerConfig } from "./config.ts";
 import { Secret } from "./secret.ts";
 
-/** The repository root as git sees it: independent from how the server finds it. */
-function gitTopLevel(): string {
-  const run = spawnSync("git", ["rev-parse", "--show-toplevel"], { encoding: "utf8" });
-  return resolve(run.stdout.trim());
-}
+/** A repository root for the tests; nothing is written there. */
+const ROOT = resolve(tmpdir(), "ai-fantasy-config-repository");
 const FAKE_KEY = "sk-or-v1-TEST-ONLY-config-0123456789";
+
+/** The configuration read from `env` with the test repository root. */
+function load(env: Readonly<Record<string, string>>) {
+  return loadConfig(env, ROOT);
+}
 
 /** Every variable the configuration reads, in the order errors are reported. */
 const VARIABLES = [
@@ -32,7 +33,7 @@ const VARIABLES = [
 ] as const;
 
 function loaded(env: Readonly<Record<string, string>>): ServerConfig {
-  const result = loadConfig(env);
+  const result = load(env);
   assert.ok(result.ok);
   return result.value;
 }
@@ -43,7 +44,7 @@ function errorLine(name: string, raw: string, expected: string): string {
 
 describe("defaults (ai-integration §3, overview §5)", () => {
   it("given an empty environment when loading the config then every default applies", () => {
-    expect(loadConfig({})).toStrictEqual({
+    expect(load({})).toStrictEqual({
       ok: true,
       value: {
         aiApiKey: undefined,
@@ -54,7 +55,7 @@ describe("defaults (ai-integration §3, overview §5)", () => {
         aiTimeoutMs: 15_000,
         aiBudgetUsdPerConversation: undefined,
         port: 4318,
-        dataDir: join(gitTopLevel(), "data"),
+        dataDir: join(ROOT, "data"),
         bodyLimitBytes: 1_048_576,
         sessionBodyLimitBytes: 33_554_432,
         logLevel: "info",
@@ -65,7 +66,7 @@ describe("defaults (ai-integration §3, overview §5)", () => {
   it("given every variable set to an empty value when loading the config then the defaults apply", () => {
     const empty = Object.fromEntries(VARIABLES.map((name) => [name, ""]));
 
-    expect(loadConfig(empty)).toStrictEqual(loadConfig({}));
+    expect(load(empty)).toStrictEqual(load({}));
   });
 
   it("given the default port when reading it then it is 4318", () => {
@@ -133,7 +134,7 @@ describe("values from the environment", () => {
 
   it("given a relative DATA_DIR when loading the config then it is resolved from the repository root", () => {
     expect(loaded({ DATA_DIR: "custom/sessions" }).dataDir).toBe(
-      resolve(gitTopLevel(), "custom", "sessions"),
+      resolve(ROOT, "custom", "sessions"),
     );
   });
 
@@ -157,7 +158,7 @@ describe("values from the environment", () => {
     ["LOG_LEVEL", "trace", "logLevel", "trace"],
     ["LOG_LEVEL", "fatal", "logLevel", "fatal"],
   ])("given %s=%j at a limit when loading the config then %s is %j", (name, raw, field, value) => {
-    expect(loadConfig({ [name]: raw })).toMatchObject({ ok: true, value: { [field]: value } });
+    expect(load({ [name]: raw })).toMatchObject({ ok: true, value: { [field]: value } });
   });
 });
 
@@ -207,7 +208,7 @@ describe("invalid values (errors as `Erro: … — Solução: …`)", () => {
   ])(
     "given %s=%j when loading the config then it is an error with the solution",
     (name, raw, expected) => {
-      expect(loadConfig({ [name]: raw })).toEqual({
+      expect(load({ [name]: raw })).toEqual({
         ok: false,
         error: errorLine(name, raw, expected),
       });
@@ -215,7 +216,7 @@ describe("invalid values (errors as `Erro: … — Solução: …`)", () => {
   );
 
   it("given several invalid variables when loading the config then each one is reported on its own line, in a fixed order", () => {
-    const result = loadConfig({ LOG_LEVEL: "loud", PORT: "x", AI_TIMEOUT_MS: "0" });
+    const result = load({ LOG_LEVEL: "loud", PORT: "x", AI_TIMEOUT_MS: "0" });
 
     expect(result).toEqual({
       ok: false,
@@ -228,7 +229,7 @@ describe("invalid values (errors as `Erro: … — Solução: …`)", () => {
   });
 
   it("given a key and an invalid variable when loading the config then the error does not contain the key", () => {
-    const result = loadConfig({ OPENROUTER_API_KEY: FAKE_KEY, PORT: "x" });
+    const result = load({ OPENROUTER_API_KEY: FAKE_KEY, PORT: "x" });
 
     expect(JSON.stringify(result).includes(FAKE_KEY)).toBe(false);
   });

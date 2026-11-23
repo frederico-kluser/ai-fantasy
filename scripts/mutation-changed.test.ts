@@ -124,6 +124,29 @@ describe("what is mutated (testing-strategy §12)", () => {
     expect(plan([file])).toEqual({ targets: new Map(), uncovered: [] });
   });
 
+  it("given production modules named like tool configs inside src when planning then they are mutated", () => {
+    expect(
+      plan([
+        "apps/server/src/ai.config.ts",
+        "packages/engine/src/presets/catalog.config.ts",
+        "packages/engine/src/vitest.setup.ts",
+      ]),
+    ).toEqual({
+      targets: new Map([
+        ["apps/server", ["src/ai.config.ts"]],
+        ["packages/engine", ["src/presets/catalog.config.ts", "src/vitest.setup.ts"]],
+      ]),
+      uncovered: [],
+    });
+  });
+
+  it("given a config file in a nested folder outside src when planning then it is uncovered", () => {
+    expect(plan(["packages/engine/tools/build.config.ts"])).toEqual({
+      targets: new Map(),
+      uncovered: ["packages/engine/tools/build.config.ts"],
+    });
+  });
+
   it("given code of a package without a Stryker config when planning then it is uncovered", () => {
     expect(plan(["apps/tools/src/x.ts"])).toEqual({
       targets: new Map(),

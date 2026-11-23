@@ -507,6 +507,15 @@ describe("tests have no logic (testing-strategy §2)", () => {
     expect(ids).toContain("no-restricted-syntax");
   });
 
+  it("given an E2E helper with a loop when linting then lint passes", async () => {
+    const ids = await untypedRuleIds(
+      "export function names(count: number): string[] {\n  const all: string[] = [];\n  for (let index = 0; index < count; index += 1) {\n    all.push(`name-${String(index)}`);\n  }\n  return all;\n}\n",
+      "apps/web/e2e/fixtures.ts",
+    );
+
+    expect(ids).toEqual([]);
+  });
+
   it("given logic in an E2E spec when linting then lint fails", async () => {
     const ids = await untypedRuleIds(
       'import { test } from "@playwright/test";\n\ntest("given x when y then z", () => {\n  if (Date.now() > 0) {\n    return;\n  }\n});\n',

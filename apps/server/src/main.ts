@@ -1,20 +1,21 @@
 /**
  * Entry point of the local server: `node apps/server/src/main.ts` (Node.js 24
- * runs TypeScript by stripping types). Loads the `.env` of the repository root,
- * reads the typed configuration and listens on 127.0.0.1.
+ * runs TypeScript by stripping types). Locates the repository, loads its `.env`,
+ * reads the typed configuration and listens on 127.0.0.1, serving the built site.
  */
 import { ENGINE_NAME } from "@ai-fantasy/engine";
 import type { FastifyInstance } from "fastify";
 
 import { loadConfig } from "./config.ts";
 import { loadEnvFileIfPresent } from "./env.ts";
-import { ROOT_ENV_FILE } from "./paths.ts";
+import { repositoryPaths, type PathsResult } from "./paths.ts";
 import { listeningAddresses, startServer, type LogDestination } from "./server.ts";
 
 /** What {@link main} needs from the outside world. */
 export interface MainOptions {
   readonly env: Readonly<Record<string, string | undefined>>;
-  readonly envFile: string;
+  /** Where the repository is (its `.env`, built site and data folder), or why it was not found. */
+  readonly paths: PathsResult;
   /** Lines for people: where the server listens, or why it did not start. */
   readonly log: (line: string) => void;
   /** The server log (pino JSON lines, at `LOG_LEVEL`); without it nothing is logged. */
@@ -27,29 +28,34 @@ export type MainResult =
   | { readonly ok: false; readonly app: undefined };
 
 /**
- * Starts the server from the environment and logs where it listens. An invalid
- * configuration logs one `Erro: … — Solução: …` line per variable and does not
- * start the server.
+ * Starts the server from the environment and logs where it listens. A missing
+ * repository or an invalid configuration logs `Erro: … — Solução: …` lines (one
+ * per invalid variable) and starts nothing.
  */
 export async function main(options: MainOptions): Promise<MainResult> {
-  loadEnvFileIfPresent(options.envFile);
-  const config = loadConfig(options.env);
+  if (!options.paths.ok) {
+    options.log(options.paths.error);
+    return { ok: false, app: undefined };
+  }
+  const { root, envFile, webDistDir } = options.paths.value;
+  loadEnvFileIfPresent(envFile);
+  const config = loadConfig(options.env, root);
   if (!config.ok) {
     options.log(config.error);
     return { ok: false, app: undefined };
   }
-  const app = await startServer({ config: config.value, logger: options.logStream });
+  const app = await startServer({ config: config.value, webDistDir, logger: options.logStream });
   for (const { address, port } of listeningAddresses(app)) {
     options.log(`AI Fantasy (${ENGINE_NAME}): servidor local em http://${address}:${String(port)}`);
   }
   return { ok: true, app };
 }
 
-/** The real outside world: the process environment, the root `.env`, the console and stdout. */
+/** The real outside world: the process environment, this repository, the console and stdout. */
 export function defaultMainOptions(): MainOptions {
   return {
     env: process.env,
-    envFile: ROOT_ENV_FILE,
+    paths: repositoryPaths(),
     log: (line) => {
       console.log(line);
     },

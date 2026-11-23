@@ -15,7 +15,6 @@ import type { FastifyInstance, FastifyPluginAsync, FastifyPluginCallback } from 
 import type { ServerConfig } from "./config.ts";
 import { handleError, handleNotFound } from "./errors.ts";
 import { localOnly } from "./local-guard.ts";
-import { WEB_DIST_DIR } from "./paths.ts";
 import { sessionRoutes } from "./session-routes.ts";
 import { createSessionStore } from "./session-store.ts";
 
@@ -53,10 +52,10 @@ export type ServerPlugin =
 /** Options of {@link buildApp}. */
 export interface AppOptions {
   readonly config: ServerConfig;
+  /** Folder of the built site (`apps/web/dist`, see `repositoryPaths`). */
+  readonly webDistDir: string;
   /** Extra routes; see {@link ServerPlugin}. */
   readonly plugins?: readonly ServerPlugin[] | undefined;
-  /** Folder of the built site; defaults to `apps/web/dist`. */
-  readonly webDistDir?: string | undefined;
   /** Where the log goes, at `config.logLevel`; without it the server logs nothing (tests). */
   readonly logger?: LogDestination | undefined;
 }
@@ -101,7 +100,7 @@ export function buildApp(options: AppOptions): FastifyInstance {
     store: createSessionStore(config.dataDir),
     bodyLimit: config.sessionBodyLimitBytes,
   });
-  serveSite(app, options.webDistDir ?? WEB_DIST_DIR);
+  serveSite(app, options.webDistDir);
   (options.plugins ?? []).forEach((plugin) => {
     void app.register(plugin, { config });
   });
