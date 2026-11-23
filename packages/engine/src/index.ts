@@ -17,3 +17,4 @@ export * from "./character/index.ts";
 export * from "./context/index.ts";
 export * from "./memory/index.ts";
 export * from "./generation/index.ts";
+export * from "./signals/index.ts";
