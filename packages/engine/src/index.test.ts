@@ -126,6 +126,7 @@ describe("engine entry point", () => {
       "pressureOf",
       "proximity",
       "proximityOf",
+      "refreshBaselines",
       "relax",
       "relaxPerception",
       "retell",

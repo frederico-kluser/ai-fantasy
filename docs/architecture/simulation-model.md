@@ -171,7 +171,8 @@ haver zero ou um personagem do jogador; com zero, a cena é só observada.
 | Obrigações, destino de movimento e contadores da fatia (silêncio, repetições, cumprimentos, objetivo da cena) | seções 8, 10 e 11 | não |
 
 **Estado × identidade.** O **estado** do personagem (o que as regras leem e o hash cobre) tem a
-posição, traços, tendências, aptidões, linhas de base, emoções, corpo, vontades, laços,
+posição, traços, tendências, aptidões, deslocamentos de base da história, linhas de base,
+emoções, corpo, vontades, laços,
 associações, percepções, memórias e a ameaça do último tick (seção 6). A **identidade** (nome,
 pronomes, descrição, faixa etária, papel, registro de fala e o arquétipo de origem, para
 exibição) é
@@ -228,7 +229,10 @@ cristaliza), limitada a `0..3000`:
 | `anger` | `500 + temper / 10` |
 | demais | 0 |
 
-Os acontecimentos de história somam deslocamentos à linha de base (presets, seção 7).
+Os acontecimentos de história somam deslocamentos à linha de base (presets, seção 7). O estado
+guarda esses deslocamentos por emoção (bipolares, sem limite) e a linha de base é sempre
+derivada: `clamp(fórmula + deslocamento, 0, 3000)`. Assim, quando um traço cristaliza (seção 13,
+item 5), a linha de base é recalculada sem perder o que o limite de 3000 tinha cortado.
 
 **A cada tick**, primeiro o decaimento e depois os ganhos do tick (associações, tédio, corpo):
 
