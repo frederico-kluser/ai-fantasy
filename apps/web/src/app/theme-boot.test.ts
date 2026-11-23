@@ -1,11 +1,8 @@
-import { readFileSync } from "node:fs";
-
 import { afterEach, describe, expect, it, vi } from "vitest";
 
+// The page of the site as text (Vite's `?raw`), to run its boot script as the browser does.
+import PAGE from "../../index.html?raw";
 import { THEME_KEY } from "./theme.ts";
-
-/** The page of the site, read from the package (also inside the Stryker sandbox). */
-const PAGE = readFileSync(new URL("../../index.html", import.meta.url), "utf8");
 
 /** The inline script of the page head: the first `<script>` without attributes. */
 const BOOT = /<script>([\s\S]*?)<\/script>/.exec(PAGE)?.[1] ?? "";
