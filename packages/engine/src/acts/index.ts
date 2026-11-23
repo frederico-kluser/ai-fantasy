@@ -59,4 +59,12 @@ export {
   type ObligationUpdate,
 } from "./obligations.ts";
 export { movementOf, type MovementInput, type MovementOutcome } from "./movement.ts";
-export { resolveAct, type ActResolution, type ListenerView, type ResolveInput } from "./resolve.ts";
+export {
+  resolveAct,
+  type ActResolution,
+  type ListenerView,
+  type OwnDraws,
+  type ResolveInput,
+  type ResolveScene,
+  type SharedDrawer,
+} from "./resolve.ts";

@@ -16,8 +16,8 @@ import { recordAct } from "../memory/record.ts";
 import {
   createDrawer,
   type DrawMode,
-  type DrawRecord,
   type Drawer,
+  type DrawerResult,
   type ForcedDraw,
 } from "../rng/drawer.ts";
 import type { RngState } from "../rng/state.ts";
@@ -36,8 +36,8 @@ import { actEntry, actTicks, type ActRules } from "./rules.ts";
 import { readerView, readTone, type ToneReading } from "./tone.ts";
 import { validateAct, type ActError } from "./validate.ts";
 
-/** The act to resolve and the scene it happens in. */
-export interface ResolveInput {
+/** The act to resolve and the scene it happens in, without the draws. */
+export interface ResolveScene {
   readonly rules: ActRules;
   readonly grid: Grid;
   /** The noise and the sight range of the tick (simulation-model §3.2 and §6). */
@@ -54,11 +54,22 @@ export interface ResolveInput {
   readonly obligations: readonly Obligation[];
   /** Whether the author is leaving the slice (its `FAREWELL` heads for an exit). */
   readonly leaving: boolean;
-  /** The draw streams and how draws resolve (simulation-model §15). */
+}
+
+/** The draw streams and how draws resolve: `resolveAct` opens the drawer of `tick` (simulation-model §15). */
+export interface OwnDraws {
   readonly rng: RngState;
   readonly mode: DrawMode;
   readonly forced: readonly ForcedDraw[];
 }
+
+/** A drawer the caller already opened for this tick (one drawer per tick), and finishes itself. */
+export interface SharedDrawer {
+  readonly drawer: Drawer;
+}
+
+/** The act to resolve: the scene, and either the draw streams or an open drawer. */
+export type ResolveInput = ResolveScene & (OwnDraws | SharedDrawer);
 
 /** One who perceived the act: its perspective and, for a `DIRECT` listener, its reading of the tone. */
 export interface ListenerView {
@@ -86,9 +97,12 @@ export interface ActResolution {
   /** The author's obligations the act answered or ignored. */
   readonly ended: readonly EndedObligation[];
   readonly movement: MovementOutcome;
-  /** The draw streams after the act, and the records of its draws. */
-  readonly rng: RngState;
-  readonly records: readonly DrawRecord[];
+  /**
+   * The draw streams after the act and the records of its draws, when
+   * `resolveAct` opened the drawer; `null` when the caller passed its own drawer
+   * (the caller's `finish()` gives them).
+   */
+  readonly draws: DrawerResult | null;
 }
 
 function authorOf(input: ResolveInput): CharacterState {
@@ -122,14 +136,19 @@ function readListeners(
   });
 }
 
+/** The drawer of the tick, and the one opened here (to finish), if any. */
+function drawerOf(input: ResolveInput): { readonly drawer: Drawer; readonly own: Drawer | null } {
+  if ("drawer" in input) {
+    return { drawer: input.drawer, own: null };
+  }
+  const own = createDrawer(input.rng, { tick: input.tick, mode: input.mode, forced: input.forced });
+  return { drawer: own, own };
+}
+
 /** Steps 5.2 to 5.4 and 5.6 of a valid act. */
 function resolveValid(input: ResolveInput, author: CharacterState): ActResolution {
   const others = input.characters.filter((character) => character.id !== author.id);
-  const drawer = createDrawer(input.rng, {
-    tick: input.tick,
-    mode: input.mode,
-    forced: input.forced,
-  });
+  const { drawer, own } = drawerOf(input);
   const perceived = perceiveAct(drawer, {
     grid: input.grid,
     now: input.now,
@@ -142,7 +161,6 @@ function resolveValid(input: ResolveInput, author: CharacterState): ActResolutio
   const recorded = recordAct({ ...input, perceived });
   const settled = settleObligations(input.obligations, author.id, input.label);
   const created = createObligations(input.rules, { ...input, fact: recorded.fact.id, perceived });
-  const { rng, records } = drawer.finish();
   return {
     ticks: actTicks(input.rules, input.label),
     interruption: isInterruption(input.obligations, input.facts, author.id),
@@ -151,15 +169,32 @@ function resolveValid(input: ResolveInput, author: CharacterState): ActResolutio
     obligations: [...settled.pending, ...created],
     ended: settled.ended,
     movement: movementOf({ ...input, from: author.cell, others }),
-    rng,
-    records,
+    draws: own === null ? null : own.finish(),
   };
 }
 
 /**
  * Resolves the act of `input.author` (simulation-model §16 steps 5.1, 5.2,
  * 5.4, 5.6 and the obligations of 5.3). The draws (`HEAR_FRAGMENT`,
- * `TONE_MISREAD`, `TONE_CONFUSION`) go to one drawer opened at `input.tick`.
+ * `TONE_MISREAD`, `TONE_CONFUSION`) go to the drawer of `input.tick`: the one
+ * the caller passes (`drawer`, one drawer per tick, finished by the caller), or
+ * one opened here from `rng`, `mode` and `forced` (then `draws` gives the next
+ * state and the records).
+ *
+ * It is a composition of the exported steps, which the appraisal (SOC-03) and
+ * the scene step (SOC-05) can call one by one to put the consequences between
+ * them, on the same drawer:
+ *
+ * 1. `validateAct` and `isInterruption` (5.1);
+ * 2. `perceiveAct`, then `readTone` for each `DIRECT` listener in id order (5.2);
+ * 3. the consequences of the act as each listener read it (5.3, SOC-03), then
+ *    `settleObligations` and `createObligations`;
+ * 4. `recordAct`, with the `appraisal` the consequences give (offenders,
+ *    importances, who believed a lie) (5.4);
+ * 5. the tendencies of the author (5.5, SOC-06);
+ * 6. `movementOf` (5.6).
+ *
+ * Here step 3 has no consequences and step 4 records the neutral values.
  *
  * @returns the resolution, or the validation error; an invalid act draws nothing.
  * @throws RangeError if the author is not among the characters present.

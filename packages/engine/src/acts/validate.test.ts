@@ -306,6 +306,13 @@ describe("describeActError", () => {
 describe("validateAct: values (dialogue-acts §1)", () => {
   it.each<[string, ActLabel, ActErrorCode | "OK"]>([
     ["a negative intensity", aLabel({ intensity: -1 as Bp }), "BAD_INTENSITY"],
+    ["a zero intensity", aLabel({ intensity: toBp(0) }), "OK"],
+    ["a GREET about small talk", aLabel({ act: "GREET", targets: ids(2) }), "OK"],
+    [
+      "a FAREWELL to the GROUP about small talk",
+      aLabel({ act: "FAREWELL", targets: "GROUP" }),
+      "OK",
+    ],
     ["the top intensity", aLabel({ intensity: toBp(10000) }), "OK"],
     ["a blame without a lie", aLabel({ blamed: idOf(3) }), "BLAME_WITHOUT_LIE"],
     ["a lie that blames someone", aLabel({ isFalse: true, blamed: idOf(3) }), "OK"],

@@ -93,6 +93,19 @@ describe("perceiveAct: speech (simulation-model §8.2)", () => {
     expect(result.map((seen) => seen.id)).toStrictEqual(ids(3, 4, 5));
   });
 
+  it("given others passed out of id order when resolving then perspectives and draws come in increasing id order", () => {
+    const drawer = aDrawer();
+    const others = [
+      { id: idOf(5), cell: 12 },
+      { id: idOf(4), cell: 1 },
+      { id: idOf(3), cell: 13 },
+    ];
+    const result = perceiveAct(drawer, { ...scene({}, {}), others });
+
+    expect(drawer.finish().records.map((record) => record.target)).toStrictEqual(ids(3, 5));
+    expect(result.map((seen) => seen.id)).toStrictEqual(ids(3, 4, 5));
+  });
+
   it("given a wall between when speaking normally then the listener behind it does not hear", () => {
     const grid = gridOf(["..#.."]);
     const drawer = aDrawer();

@@ -902,9 +902,11 @@ Em cada **ponto de decisão** (fim de um ato ou de um tick de silêncio), na ord
   5.4): o fato ganha o próximo id e guarda o rótulo real (o tom real, não o lido). O autor guarda
   uma cópia `DIRECT`; cada um que percebeu o ato, uma cópia com a sua perspectiva. Num `TELL`
   sobre um fato, a cópia `TOLD` usa a fidelidade **atual** da cópia de quem conta (antes de ela
-  voltar ao pico por contar de novo) e leva a versão de quem conta, falsa ou não. Até a avaliação
-  (SOC-03) preencher, o fato de um ato não tem ofensores nem marca de segredo, e a importância de
-  cada cópia é a sem deltas: 3000 para quem está no fato (o autor, um alvo — no `GROUP`, quem
+  voltar ao pico por contar de novo) e leva a versão de quem conta, falsa ou não. Até a SOC-03,
+  um `TELL` com `isFalse` também dá a cada ouvinte sem cópia a versão de quem conta; a crença na
+  mentira (quem acredita recebe a versão falsa, com `blamed` como ofensor ou ninguém) chega com a
+  SOC-03, que a passa à gravação. Até a avaliação (SOC-03) preencher, o fato de um ato não tem
+  ofensores nem marca de segredo, e a importância de cada cópia é a sem deltas: 3000 para quem está no fato (o autor, um alvo — no `GROUP`, quem
   ouviu `DIRECT` — ou a pessoa do tópico; num fato de história, A e B) e 0 para os demais.
 - **Ninguém cita o que não sabe:** o pacote enviado ao modelo de texto só leva fatos de que o
   falante tem cópia (ver [integração de IA](<ai-integration.md>)).
