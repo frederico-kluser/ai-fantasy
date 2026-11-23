@@ -60,11 +60,17 @@ export interface CharacterState {
   readonly threat: Bp;
 }
 
-/** Age bands (presets §10): presentation only. */
-export type AgeBand = "CHILD" | "TEEN" | "YOUNG" | "ADULT" | "ELDER";
+/** The age bands of presets §10, in order: presentation only. */
+export const AGE_BANDS = ["CHILD", "TEEN", "YOUNG", "ADULT", "ELDER"] as const;
 
-/** Registers of speech (presets §10): presentation only. */
-export type SpeechRegister = "FORMAL" | "COLLOQUIAL" | "RUSTIC" | "CULTURED" | "ARCHAIC";
+/** An age band (presets §10): presentation only. */
+export type AgeBand = (typeof AGE_BANDS)[number];
+
+/** The registers of speech of presets §10, in order: presentation only. */
+export const SPEECH_REGISTERS = ["FORMAL", "COLLOQUIAL", "RUSTIC", "CULTURED", "ARCHAIC"] as const;
+
+/** A register of speech (presets §10): presentation only. */
+export type SpeechRegister = (typeof SPEECH_REGISTERS)[number];
 
 /**
  * How a character is presented (simulation-model §4, invariant 3): free text

@@ -78,20 +78,35 @@ export function mapStreams<T>(build: (name: StreamName) => T): Record<StreamName
 }
 
 /**
+ * The name the `generation` stream is seeded with for cast attempt `attempt`
+ * (simulation-model §15, presets §10.1): `generation` for attempt 0, then
+ * `generation#<n>`.
+ */
+function castStreamName(attempt: number): string {
+  if (!Number.isSafeInteger(attempt) || attempt < 0) {
+    throw new RangeError(`a cast attempt must be a safe integer ≥ 0, got ${attempt}`);
+  }
+  return attempt === 0 ? CAST_STREAM : `${CAST_STREAM}#${attempt}`;
+}
+
+/**
  * The state of a new session: every stream seeded from its seed and name, and
- * the sequence at 0.
+ * the sequence at 0. Regenerating the cast with its locked parts uses the same
+ * cast seed with the attempt counter: attempt `n ≥ 1` seeds `generation` from
+ * `"generation#<n>"`; the scene streams never depend on it.
  *
  * @throws RangeError if a seed is not an integer in `0..2^32 − 1` (validate input
- * from outside with {@link isSeed} first).
+ * from outside with {@link isSeed} first), or the attempt is not a safe integer ≥ 0.
  */
-export function createRngState(seeds: RngSeeds): RngState {
+export function createRngState(seeds: RngSeeds, attempt = 0): RngState {
   const castSeed = requireSeed(seeds.castSeed);
   const sceneSeed = requireSeed(seeds.sceneSeed);
+  const castName = castStreamName(attempt);
   return {
     nextSeq: 0,
     streams: mapStreams((name) => {
-      const seed = name === CAST_STREAM ? castSeed : sceneSeed;
-      return sfc32Words(seedSfc32(hash32(seed, name)));
+      const [seed, seedName] = name === CAST_STREAM ? [castSeed, castName] : [sceneSeed, name];
+      return sfc32Words(seedSfc32(hash32(seed, seedName)));
     }),
   };
 }
