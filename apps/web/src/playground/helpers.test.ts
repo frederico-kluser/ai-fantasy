@@ -5,7 +5,7 @@ import { withEvent } from "./BondFields.tsx";
 import { associationOf } from "./CastFields.tsx";
 import { oneOf } from "./fields.tsx";
 import { gridOf, gridRows, standingCells } from "./grid.ts";
-import { displayName, nameIn } from "./labels.ts";
+import { displayName, nameIn, withOther } from "./labels.ts";
 import { cellOf } from "./PositionFields.tsx";
 
 describe("form helpers", () => {
@@ -63,6 +63,16 @@ describe("form helpers", () => {
       "neblina",
       "acid",
     ]);
+  });
+
+  it.each([
+    ["medo de B", "medo de Joca"],
+    ["traiu B com outra pessoa, às escondidas", "traiu Joca com outra pessoa, às escondidas"],
+    ["Bia e B", "Bia e Joca"],
+    ["B e B", "Joca e Joca"],
+    ["afeto", "afeto"],
+  ])("given the catalog name %j when naming the other person then it reads %j", (text, named) => {
+    expect(withOther(text, "Joca")).toBe(named);
   });
 
   it("given a name or none when displaying then the name or the place in the cast shows", () => {

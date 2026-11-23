@@ -15,7 +15,7 @@ import { PRESETS } from "../engine/presets.ts";
 import type { BondDraftData } from "../engine/protocol.ts";
 import { LockField } from "./CastFields.tsx";
 import { InputField, oneOf, optionsOf, picker, SelectField, type Option } from "./fields.tsx";
-import { displayName } from "./labels.ts";
+import { displayName, nameIn, withOther } from "./labels.ts";
 import type { BondForm, EventForm, PlaygroundState } from "./model.ts";
 import type { BondChanges, PlaygroundAction } from "./reducer.ts";
 
@@ -151,7 +151,7 @@ function AxisFields({
         BOND_AXIS_IDS.map((axis) => (
           <InputField
             key={`${side}.${axis}`}
-            label={`${PRESETS.bondAxes.find((entry) => entry.id === axis)?.name ?? axis}, ${from} → ${to}`}
+            label={`${withOther(nameIn(PRESETS.bondAxes, axis), to)}, ${from} → ${to}`}
             type="number"
             min={0}
             max={10000}

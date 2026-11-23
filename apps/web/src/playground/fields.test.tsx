@@ -366,7 +366,7 @@ describe("bond fields", () => {
     const dispatch = spy();
     render(<BondFields state={{ ...DUO, generated: viewOf(DUO) }} dispatch={dispatch} />);
 
-    change("medo de B, Ana → Bia", "77", card("Laço 1"));
+    change("medo de Bia, Ana → Bia", "77", card("Laço 1"));
 
     expect(dispatch.mock.calls).toStrictEqual([
       [{ type: "editBondAxis", index: 0, side: "aToB", axis: "fearOf", value: 77 }],

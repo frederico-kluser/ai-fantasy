@@ -43,6 +43,14 @@ export const DAY_PHASE_NAMES: Readonly<Record<DayPhase, string>> = {
   LATE_NIGHT: "fim da noite",
 };
 
+/**
+ * A catalog name with its placeholder `B` (presets §6 and §7: "medo de B",
+ * "traiu B com outra pessoa") replaced by the name of the other person.
+ */
+export function withOther(text: string, other: string): string {
+  return text.replace(/\bB\b/g, other);
+}
+
 /** How a character is called in the form: its name, or its place in the cast. */
 export function displayName(name: string, index: number): string {
   const trimmed = name.trim();

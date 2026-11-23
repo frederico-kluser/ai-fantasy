@@ -97,7 +97,7 @@ describe("generated cast", () => {
     render(<GeneratedCast state={stateWith({})} dispatch={vi.fn()} />);
 
     expect(screen.getByText(/^Gancho de tensão/).textContent).toBe(
-      "Gancho de tensão: Bia → Ana, traiu B com outra pessoa, às escondidas (em segredo).",
+      "Gancho de tensão: Bia → Ana, traiu Ana com outra pessoa, às escondidas (em segredo).",
     );
   });
 

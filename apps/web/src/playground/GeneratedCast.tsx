@@ -8,7 +8,7 @@ import type { Dispatch, JSX } from "react";
 import { PRESETS } from "../engine/presets.ts";
 import type { CastView } from "../engine/protocol.ts";
 import { LockField } from "./CastFields.tsx";
-import { displayName, nameIn } from "./labels.ts";
+import { displayName, nameIn, withOther } from "./labels.ts";
 import type { DerivedForm, PlaygroundState } from "./model.ts";
 import type { PlaygroundAction } from "./reducer.ts";
 
@@ -70,7 +70,7 @@ function Hook({ view }: Props): JSX.Element | null {
   return (
     <p>
       {`Gancho de tensão: ${nameAt(names, author)} → ${nameAt(names, subject)}, `}
-      {`${nameIn(PRESETS.historyEvents, event)}${hidden}.`}
+      {`${withOther(nameIn(PRESETS.historyEvents, event), nameAt(names, subject))}${hidden}.`}
     </p>
   );
 }
