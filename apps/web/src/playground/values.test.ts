@@ -21,7 +21,7 @@ describe("time of the scene", () => {
     expect(minuteOf(time)).toBe(minute);
   });
 
-  it.each(["", "24:00", "12:60", "ab:cd", "12", "12:5", "-1:00", "1:2:3"])(
+  it.each(["", "24:00", "12:60", "ab:cd", "12", "12:5", "-1:00", "1:2:3", "12:345", "123:45"])(
     "given %j when reading then it is not a time",
     (time) => {
       expect(minuteOf(time)).toBeNull();

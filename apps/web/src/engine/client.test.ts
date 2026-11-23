@@ -139,6 +139,22 @@ describe("engine client", () => {
     expect(await pending).toMatchObject({ ok: false, error: { code: "SETUP_REJECTED" } });
   });
 
+  it("given an answer without an id when it arrives then no pending request takes it", async () => {
+    const { port, emit } = aManualPort();
+    const client = createEngineClient(port);
+    const first = client.checkSetup(aSetup());
+    const second = client.checkSetup(aSetup());
+
+    emit("message", { v: 1, id: null, ok: false, error: { code: "BAD_REQUEST", problems: [] } });
+    emit("message", { v: 1, id: 1, ok: false, error: { code: "SETUP_REJECTED", problems: [] } });
+    emit("message", { v: 1, id: 0, ok: false, error: { code: "SETUP_REJECTED", problems: [] } });
+
+    expect([await first, await second]).toMatchObject([
+      { error: { code: "SETUP_REJECTED" } },
+      { error: { code: "SETUP_REJECTED" } },
+    ]);
+  });
+
   it("given a worker error when requests are pending then each fails as a value", async () => {
     const { port, emit } = aManualPort();
     const client = createEngineClient(port);

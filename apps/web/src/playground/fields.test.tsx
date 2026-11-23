@@ -194,6 +194,30 @@ describe("cast fields", () => {
     ]);
   });
 
+  it("given a generated cast when showing a character then its lock is enabled", () => {
+    render(<CastFields state={{ ...DUO, generated: viewOf(DUO) }} dispatch={spy()} />);
+
+    expect(
+      within(card("Personagem 1")).getByLabelText<HTMLInputElement>("Travar valores sorteados")
+        .disabled,
+    ).toBe(false);
+  });
+
+  it("given a locked character and nothing generated when showing it then its lock is enabled", () => {
+    const draft = viewOf(DUO).drafts.characters[0] ?? null;
+    render(
+      <CastFields
+        state={{ ...DUO, characters: [{ ...newCharacter("elder"), name: "R", locked: draft }] }}
+        dispatch={spy()}
+      />,
+    );
+
+    expect(
+      within(card("Personagem 1")).getByLabelText<HTMLInputElement>("Travar valores sorteados")
+        .disabled,
+    ).toBe(false);
+  });
+
   it("given nothing generated when showing a character then its lock is disabled", () => {
     render(<CastFields state={DUO} dispatch={spy()} />);
 

@@ -48,6 +48,9 @@ const STOPPED: EngineFailure = {
   problems: [{ path: "", message: "O motor parou de responder; recarregue a página." }],
 };
 
+/** An id no request has: answers without a valid id settle nothing. */
+const NO_ID = -1;
+
 const idOnly = z.looseObject({ id: z.int().min(0) });
 
 function failed(id: number, error: EngineFailure): EngineResponse {
@@ -74,9 +77,9 @@ export function createEngineClient(port: EnginePort): EngineClient {
   let nextId = 0;
   port.addEventListener("message", (event) => {
     const parsed = engineResponseSchema.safeParse(event.data);
-    const id = parsed.success ? parsed.data.id : idOnly.safeParse(event.data).data?.id;
-    const settle = id === null || id === undefined ? undefined : pending.get(id);
-    if (id !== null && id !== undefined && settle !== undefined) {
+    const id = (parsed.success ? parsed.data.id : idOnly.safeParse(event.data).data?.id) ?? NO_ID;
+    const settle = pending.get(id);
+    if (settle !== undefined) {
       pending.delete(id);
       settle(parsed.success ? parsed.data : failed(id, OUT_OF_PROTOCOL));
     }

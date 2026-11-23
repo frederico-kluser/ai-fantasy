@@ -365,6 +365,78 @@ describe("playgroundReducer: derived pairs", () => {
   });
 });
 
+const CLAN = run(
+  initialPlayground({ ...SEEDS }),
+  { type: "addCharacter", archetype: "elder" },
+  { type: "addCharacter", archetype: "caretaker" },
+  { type: "addCharacter", archetype: "child" },
+  { type: "addCharacter", archetype: "rebel" },
+  { type: "updateCharacter", index: 0, changes: { name: "Rosa" } },
+  { type: "updateCharacter", index: 1, changes: { name: "Marta" } },
+  { type: "updateCharacter", index: 2, changes: { name: "Joca" } },
+  { type: "updateCharacter", index: 3, changes: { name: "Lia" } },
+  { type: "addBond" },
+  { type: "addBond" },
+  { type: "addBond" },
+  { type: "updateBond", index: 0, changes: { archetype: "parent_child" } },
+  { type: "updateBond", index: 1, changes: { a: 1, b: 2, archetype: "parent_child" } },
+  { type: "updateBond", index: 2, changes: { a: 1, b: 3, archetype: "parent_child" } },
+);
+
+describe("playgroundReducer: several derived pairs", () => {
+  it("given a clan when generating then the family adds three pairs", () => {
+    expect(
+      generate(CLAN)
+        .generated?.drafts.bonds.filter((entry) => entry.derived)
+        .map(({ a, b }) => [a, b]),
+    ).toStrictEqual([
+      [0, 2],
+      [0, 3],
+      [2, 3],
+    ]);
+  });
+
+  it("given two derived pairs locked when unlocking one then the other stays", () => {
+    const state = run(
+      generate(CLAN),
+      { type: "lockDerived", a: 0, b: 2, locked: true },
+      { type: "lockDerived", a: 0, b: 3, locked: true },
+      { type: "lockDerived", a: 0, b: 2, locked: false },
+    );
+
+    expect(state.derived.map(({ a, b }) => [a, b])).toStrictEqual([[0, 3]]);
+  });
+
+  it("given a pair sharing only its second side with a derived pair when locking then nothing changes", () => {
+    const first = generate(CLAN);
+
+    expect(run(first, { type: "lockDerived", a: 1, b: 3, locked: true })).toBe(first);
+  });
+
+  it("given a pair sharing only its first side with a derived pair when locking then nothing changes", () => {
+    const first = generate(CLAN);
+
+    expect(run(first, { type: "lockDerived", a: 0, b: 1, locked: true })).toBe(first);
+  });
+});
+
+describe("playgroundReducer: out of range", () => {
+  it("given the second side of a bond removed then the bond goes", () => {
+    expect(run(TRIO, { type: "removeCharacter", index: 1 }).bonds).toStrictEqual([]);
+  });
+
+  it.each([
+    { type: "editBondAxis", index: 5, side: "aToB", axis: "trust", value: 1 },
+    { type: "lockBond", index: 5, locked: true },
+    { type: "lockCharacter", index: 5, locked: true },
+    { type: "lockDerived", a: 5, b: 6, locked: true },
+  ] as const)("given a generated cast when $type names no item then nothing changes", (action) => {
+    const first = generate(TRIO);
+
+    expect(run(first, action)).toBe(first);
+  });
+});
+
 describe("playgroundReducer: scene and seeds", () => {
   it("given another cast seed when setting it then the generation starts over", () => {
     const state = run(generate(TRIO, 3), { type: "setSeeds", seeds: { castSeed: 1 } });

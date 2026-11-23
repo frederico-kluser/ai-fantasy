@@ -38,6 +38,47 @@ async function generated(): Promise<HTMLElement> {
   return screen.findByRole("heading", { name: /^Elenco gerado/ });
 }
 
+describe("manual playground: start", () => {
+  it("given a new playground when rendering then the engine is idle and both buttons work", () => {
+    renderPage();
+
+    expect([
+      screen.getByRole("button", { name: "Gerar elenco" }).hasAttribute("disabled"),
+      screen.getByRole("button", { name: "Revisar ficha" }).hasAttribute("disabled"),
+      screen.getByRole("status").textContent,
+    ]).toStrictEqual([false, false, ""]);
+  });
+
+  it("given no seeds when rendering then the seeds are drawn and shown", () => {
+    render(<PlaygroundPage engine={inProcessEngine()} />);
+
+    expect(Number(valueOf("Seed do elenco"))).toSatisfy(
+      (seed: number) => Number.isInteger(seed) && seed >= 0 && seed <= 4294967295,
+    );
+  });
+
+  it("given a request running when waiting then the page says the engine is working", async () => {
+    renderPage();
+    addCast(["Ana", "caretaker"]);
+
+    click("Gerar elenco");
+
+    expect([
+      screen.getByRole("status").textContent,
+      screen.getByRole("button", { name: "Revisar ficha" }).hasAttribute("disabled"),
+    ]).toStrictEqual(["O motor está trabalhando…", true]);
+    await generated();
+  });
+
+  it("given the form when submitting then the page does not navigate", () => {
+    renderPage();
+
+    const submitted = fireEvent.submit(screen.getByRole("form"));
+
+    expect(submitted).toBe(false);
+  });
+});
+
 describe("manual playground: validation", () => {
   it("given the manual form with no character when submitting then validation explains what is missing", async () => {
     renderPage();

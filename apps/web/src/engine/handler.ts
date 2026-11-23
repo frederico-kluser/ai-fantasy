@@ -13,6 +13,7 @@ import {
 } from "@ai-fantasy/engine";
 import { z } from "zod";
 
+import { itemAt } from "./list.ts";
 import { castProblem, checkSceneSetup } from "../playground/setup.ts";
 import {
   engineRequestSchema,
@@ -28,22 +29,23 @@ import {
 export function castViewOf(cast: Cast): CastView {
   return {
     characters: cast.identities.map((identity, index) => {
-      const draft = cast.drafts.characters[index];
-      const weights = draft?.weights;
+      const draft = itemAt(cast.drafts.characters, index);
       return {
         id: identity.id,
         name: identity.name,
-        dominantDrives: DRIVE_IDS.filter((id) => (weights?.[id] ?? 0) >= DOMINANT_DRIVE_WEIGHT),
-        associations: (draft?.associations ?? []).map((association) => ({
+        dominantDrives: DRIVE_IDS.filter((id) => draft.weights[id] >= DOMINANT_DRIVE_WEIGHT),
+        associations: draft.associations.map((association) => ({
           tag: association.subject.tag,
           valence: association.valence,
         })),
       };
     }),
     relations: cast.characters.flatMap((character) =>
-      character.bonds
-        .filter((bond) => bond.labels.length > 0)
-        .map((bond) => ({ from: character.id, to: bond.target, labels: [...bond.labels] })),
+      character.bonds.map((bond) => ({
+        from: character.id,
+        to: bond.target,
+        labels: [...bond.labels],
+      })),
     ),
     drafts: {
       characters: cast.drafts.characters.map((draft) => ({

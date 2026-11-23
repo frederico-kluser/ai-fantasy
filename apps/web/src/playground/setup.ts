@@ -30,6 +30,7 @@ import {
 } from "@ai-fantasy/engine";
 import { z } from "zod";
 
+import { itemAt } from "../engine/list.ts";
 import { problemsOf, seedsSchema, type Problem, type SetupReview } from "../engine/protocol.ts";
 
 /** Version of the setup structure. */
@@ -120,11 +121,10 @@ function setupProblems(setup: SceneSetup, count: number): Problem[] {
 
 function reviewOf(setup: SceneSetup, generation: CastGeneration, opened: OpenedScene): SetupReview {
   const characters = generation.cast.identities.map((identity, index) => {
-    const placed = opened.characters[index];
     return {
       id: identity.id,
       name: identity.name,
-      cell: cellPos(opened.grid, placed?.cell ?? 0),
+      cell: cellPos(opened.grid, itemAt(opened.characters, index).cell),
       player: setup.player === identity.id,
     };
   });
@@ -155,12 +155,14 @@ export function checkSceneSetup(presets: Presets, raw: unknown): Result<SetupRev
   if (problems.length > 0) {
     return err(problems);
   }
-  const grid = presets.places.find((place) => place.id === setup.grid)?.grid;
-  const opening = { grid: grid ?? { rows: [], exits: [], roofed: "ALL", starts: [] } };
+  const place = presets.places.find((entry) => entry.id === setup.grid);
+  if (place === undefined) {
+    return err([{ path: "grid", message: `Os presets não têm o lugar ${setup.grid}.` }]);
+  }
   const opened = openScene(
     presets,
     generated.value.cast.characters,
-    { ...opening, dayStates: generated.value.cast.dayStates, positions: setup.positions },
+    { grid: place.grid, dayStates: generated.value.cast.dayStates, positions: setup.positions },
     generated.value.rng,
   );
   return opened.ok

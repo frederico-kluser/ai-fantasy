@@ -98,6 +98,22 @@ describe("handleRequest (engine worker protocol)", () => {
     });
   });
 
+  it("given a bond with an event when generating then its draft keeps one secret mark per event", () => {
+    const response = generate(
+      aCastInput(
+        [
+          ["Ana", "merchant"],
+          ["Bia", "scholar"],
+        ],
+        [{ a: 0, b: 1, archetype: "rivals", events: [{ event: "stole", author: 0 }] }],
+      ),
+    );
+
+    expect(response).toMatchObject({
+      cast: { drafts: { bonds: [{ draft: { secrets: [expect.any(Boolean) as unknown] } }] } },
+    });
+  });
+
   it("given an invalid cast input when generating then the answer is CAST_REJECTED with the path", () => {
     const response = generate(aCastInput([["Ana", "wizard"]]));
 

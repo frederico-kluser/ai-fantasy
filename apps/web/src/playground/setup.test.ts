@@ -95,6 +95,28 @@ describe("checkSceneSetup (presets §10.1)", () => {
     );
   });
 
+  it("given a player outside the cast and extra positions when checking then the messages say so", () => {
+    const setup = aSetup({ player: 2, positions: [null, null, null] });
+
+    expect(
+      errorOf(checkSceneSetup(PRESETS, setup)).map((problem) => problem.message),
+    ).toStrictEqual([
+      "O personagem do jogador não está no elenco.",
+      "Há mais posições do que personagens.",
+    ]);
+  });
+
+  it("given presets without the place of the grid when checking then the problem names it", () => {
+    const presets = {
+      ...PRESETS,
+      places: PRESETS.places.filter((place) => place.id !== "vehicle"),
+    };
+
+    expect(errorOf(checkSceneSetup(presets, aSetup({ grid: "vehicle" })))).toStrictEqual([
+      { path: "grid", message: "Os presets não têm o lugar vehicle." },
+    ]);
+  });
+
   it("given the last character plays when checking then it is in the cast", () => {
     expect(checkSceneSetup(PRESETS, aSetup({ player: 1 })).ok).toBe(true);
   });
