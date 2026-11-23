@@ -145,6 +145,34 @@ function arbitraryMemories(facts: readonly Fact[]): fc.Arbitrary<FactCopy[]> {
   return fc.tuple(...facts.map(copy)).map((lists) => lists.flat());
 }
 
+/** A random person `id` at its drawn cell, holding random copies of `facts`. */
+function arbitraryPerson(id: number, cells: readonly number[], facts: readonly Fact[]) {
+  const others = PEOPLE.filter((other) => other !== id);
+  return fc
+    .tuple(arbitraryCharacter(id, cells[id] ?? 0, others), arbitraryMemories(facts))
+    .map(([character, memories]) => ({ ...character, memories }));
+}
+
+/** A random scene of character 1 over a record and the people present. */
+function sceneOver(cells: readonly number[], present: readonly number[], facts: readonly Fact[]) {
+  return fc
+    .record({
+      author: arbitraryPerson(1, cells, facts),
+      others: fc.tuple(...present.map((id) => arbitraryPerson(id, cells, facts))),
+      sliceStart: fc.integer({ min: 0, max: facts.length }),
+      tags: fc.subarray(["forest", "dark"] as const),
+    })
+    .map(({ author, others, sliceStart, tags }) =>
+      aDecisionScene(author, {
+        grid: openGrid(SCENE_SIDE),
+        now: { noise: toBp(0), vision: 20, presentTags: tags },
+        others,
+        facts,
+        sliceStart,
+      }),
+    );
+}
+
 /**
  * A random decision scene of character 1 on an open 9 × 9 grid, with 0 to 3
  * others (ids 0, 2 and 3) at distinct cells, random states, a random record
@@ -156,44 +184,10 @@ export function arbitraryDecisionScene(): fc.Arbitrary<DecisionScene> {
     maxLength: 4,
   });
   return fc
-    .record({
-      cells,
-      present: fc.subarray([0, 2, 3]),
-      historyCount: fc.integer({ min: 1, max: 3 }),
-    })
-    .chain(({ cells: drawn, present, historyCount }) =>
-      arbitraryHistory(historyCount).chain((history) =>
-        arbitraryActs(historyCount, historyCount).chain((acts) => {
-          const facts = [...history, ...acts];
-          const cellOf = (id: number) => drawn[id] ?? 0;
-          const person = (id: number) =>
-            fc
-              .tuple(
-                arbitraryCharacter(
-                  id,
-                  cellOf(id),
-                  [...PEOPLE].filter((other) => other !== id),
-                ),
-                arbitraryMemories(facts),
-              )
-              .map(([character, memories]) => ({ ...character, memories }));
-          return fc
-            .record({
-              author: person(1),
-              others: fc.tuple(...present.map(person)),
-              sliceStart: fc.integer({ min: 0, max: facts.length }),
-              tags: fc.subarray(["forest", "dark"] as const),
-            })
-            .map(({ author, others, sliceStart, tags }) =>
-              aDecisionScene(author, {
-                grid: openGrid(SCENE_SIDE),
-                now: { noise: toBp(0), vision: 20, presentTags: tags },
-                others,
-                facts,
-                sliceStart,
-              }),
-            );
-        }),
-      ),
+    .record({ cells, present: fc.subarray([0, 2, 3]), count: fc.integer({ min: 1, max: 3 }) })
+    .chain(({ cells: drawn, present, count }) =>
+      fc
+        .tuple(arbitraryHistory(count), arbitraryActs(count, count))
+        .chain(([history, acts]) => sceneOver(drawn, present, [...history, ...acts])),
     );
 }
