@@ -1,6 +1,6 @@
 # Modelo de simulação — Hermeneutic Core
 
-> **Especificação v1.7 — 2026-11-23.** As **regras** deste documento são contrato do motor. Os
+> **Especificação v1.8 — 2026-11-23.** As **regras** deste documento são contrato do motor. Os
 > **números** (taxas, limiares, pesos) são valores iniciais e calibráveis: mudar um número exige
 > teste atualizado e nota no PR, não decisão nova. Mudar uma regra exige ADR. Produto em
 > [`docs/product.md`](<../product.md>); atos, tabelas de efeito e vieses em
@@ -15,7 +15,9 @@
 > sinais (CORE-03); a v1.6 fixou o estado do personagem e a ordem das coleções, a leitura dentro
 > do tick, quem conta na presença, o envelhecimento da percepção e o modelo de fatos e cópias
 > (CORE-04); a v1.7 fixou os sorteios da escuta, as respostas às obrigações e a gravação de
-> um ato em fatos e cópias (SOC-01).
+> um ato em fatos e cópias (SOC-01); a v1.8 fixou a ordem e as finalidades dos sorteios dos sinais,
+quem pode notar, a ordem dos pesos da interpretação e o que conta como atualização da percepção
+(SOC-02).
 
 ## 1. Princípios
 
@@ -537,6 +539,43 @@ que é de onde vêm os mal-entendidos:
 | `cold`, `fatigue`, `pain`, `intoxication` | marca correspondente em `apparentState` |
 
 Toda causa que é emoção também vira `apparentEmotion` com intensidade 6000.
+
+Em detalhe (`signalsTick`, em `packages/engine/src/signals/tick.ts`; é o sub-passo 6.5 da seção
+16, num drawer aberto pelo chamador para o tick):
+
+- **Causas.** `attraction` é a maior `attraction(X→Y)` entre os outros presentes que X vê neste
+  tick (3.2, nas posições depois do movimento); sem ninguém à vista, 0. `lying` vale 7000 para
+  quem o chamador diz que está mentindo neste tick (o autor de um ato com `isFalse`, durante os
+  ticks dele). `selfControl` é o traço efetivo (seção 13).
+- **Emissão.** Os emissores vão em id crescente. Para cada um, os sinais vão na ordem da tabela
+  acima e, em cada sinal, as causas na ordem da lista dele; cada causa com `i ≥ 5000` faz um
+  sorteio de chance na stream `signal` com a finalidade `SIGNAL_EMIT` e o emissor como alvo (com
+  `i = 5000` a chance é 0, mas o sorteio acontece). A causa verdadeira é a de maior intensidade
+  entre as que emitiram o sinal (empate: a primeira da lista).
+- **Notar e interpretar.** Depois de todas as emissões, os observadores vão em id crescente e
+  percorrem os sinais dos **outros** na ordem em que saíram (ninguém nota os próprios). Um sinal
+  visual só chega a quem vê o emissor; um vocal, a quem está no alcance de uma fala `NORMAL` dele
+  (`DIRECT` na 8.2). Quem não é alcançado não sorteia. Quem é alcançado sorteia a chance de notar
+  (stream `perception`, finalidade `SIGNAL_NOTICE`, o observador como alvo); quem nota sorteia
+  logo em seguida a causa (`drawWeighted` na stream `perception`, finalidade `SIGNAL_INTERPRET`, o
+  observador como alvo), com os pesos na ordem da lista de causas do sinal. A distância é a de
+  Chebyshev; a fórmula de notar nunca dá menos de 2000.
+- **Pesos.** As linhas da tabela de pesos valem nessa ordem: base, `+ perceptiveness` na causa
+  verdadeira, o dobro do contexto (`cold` com o alvo térmico do emissor pela célula dele, `fatigue`
+  pela fase do tick) e, por fim, os fatores das causas ameaçadoras. O laço lido é o do observador
+  pelo emissor; `trustInOthers` é o traço efetivo. Todo peso fica ≥ 5000, então toda causa possível
+  pode sair.
+- **Efeitos.** A percepção de X sobre Y parte do registro existente (ou da prévia, sem
+  registro); cada interpretação, na ordem, soma os deltas da tabela, cada valor limitado a
+  `0..10000`; a emoção interpretada substitui a `apparentEmotion` anterior; a marca de `cold`,
+  `fatigue`, `pain` ou `intoxication` volta a 0 ticks se já existe (no mesmo lugar) ou entra no fim
+  da lista. A lista de percepções fica ordenada por id do alvo.
+- **Sem atualização.** No sub-passo 6.5, "atualização vinda de Y" é ter interpretado pelo menos um
+  sinal de Y neste tick. Todo registro de X sobre quem não teve sinal interpretado faz o `relax` e
+  o envelhecimento de 5.5, com a prévia lida dos laços e do `trustInOthers` efetivo de X.
+- **Eventos.** Cada sinal notado gera um `SignalPerceived` (forma na
+  [arquitetura](<overview.md>), seção 3.2), em ordem de observador e, dentro dele, de emissão. O
+  resultado também lista os sinais emitidos, para o inspetor.
 
 ## 8. Atos, escuta e interpretação
 

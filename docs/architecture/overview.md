@@ -111,6 +111,21 @@ interface StepResult {
 }
 ```
 
+O evento `SignalPerceived` (simulação §7, SOC-02) tem a forma:
+
+```ts
+interface SignalPerceived {
+  kind: "SignalPerceived";
+  tick: number;
+  observer: CharacterId;   // quem notou
+  emitter: CharacterId;    // de quem é o sinal
+  signal: SignalId;        // tremor, blush…
+  channel: "VISUAL" | "VOCAL";
+  trueCause: SignalCauseId;        // a causa verdadeira, para o inspetor
+  interpretedCause: SignalCauseId; // o que o observador leu; pode estar errado
+}
+```
+
 `step` resolve um ponto de decisão por chamada, na ordem da simulação §16. Se o personagem do
 jogador em `MANUAL` precisar agir, devolve `awaiting` e não avança mais até receber `PLAYER_ACT`
 (o mundo espera). `SliceSetup` escolhe lugar, horário, clima, quem participa (entre os personagens
