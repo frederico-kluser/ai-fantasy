@@ -302,3 +302,29 @@ describe("describeActError", () => {
     );
   });
 });
+
+describe("validateAct: values (dialogue-acts §1)", () => {
+  it.each<[string, ActLabel, ActErrorCode | "OK"]>([
+    ["a negative intensity", aLabel({ intensity: -1 as Bp }), "BAD_INTENSITY"],
+    ["the top intensity", aLabel({ intensity: toBp(10000) }), "OK"],
+    ["a blame without a lie", aLabel({ blamed: idOf(3) }), "BLAME_WITHOUT_LIE"],
+    ["a lie that blames someone", aLabel({ isFalse: true, blamed: idOf(3) }), "OK"],
+  ])("given %s when validating then the result is %s", (_name, label, code) => {
+    expect(codeOf(label)).toBe(code);
+  });
+
+  const ABOUT_3 = { targets: ids(2), topic: { type: "PERSON", person: idOf(3) } } as const;
+
+  it.each<[ActId, Partial<ActLabel>]>([
+    ["FAREWELL", {}],
+    ["REQUEST", { object: "HELP" }],
+    ["OFFER", { object: "HELP" }],
+    ["APOLOGIZE", {}],
+    ["THREATEN", {}],
+  ])(
+    "given a %s about someone who is not its target when validating then the person must be the target",
+    (act, extra) => {
+      expect(codeOf(aLabel({ act, ...ABOUT_3, ...extra }))).toBe("PERSON_NOT_TARGET");
+    },
+  );
+});

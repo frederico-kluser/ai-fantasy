@@ -153,6 +153,59 @@ describe("answeredObligation (simulation-model §10 table)", () => {
   });
 });
 
+describe("answeredObligation: topics of the answers (simulation-model §10)", () => {
+  const ACCUSATION = aLabel({ act: "ACCUSE", targets: ids(2), topic: aboutFact("EVENT", 0) });
+  const REQUEST = aLabel({
+    act: "REQUEST",
+    targets: ids(2),
+    topic: { type: "PERSON", person: idOf(2) },
+  });
+  const OTHER_TOPIC = aboutFact("EVENT", 3);
+
+  it.each<[string, ActLabel, ActLabel, boolean]>([
+    [
+      "an ACCEPT of a request about another topic",
+      REQUEST,
+      aLabel({ act: "ACCEPT", targets: ids(1), topic: OTHER_TOPIC }),
+      false,
+    ],
+    [
+      "a REFUSE of a request about another topic",
+      REQUEST,
+      aLabel({ act: "REFUSE", targets: ids(1), topic: OTHER_TOPIC }),
+      false,
+    ],
+    [
+      "a REFUSE of a question about another topic",
+      ASK,
+      aLabel({ act: "REFUSE", targets: ids(1), topic: OTHER_TOPIC }),
+      false,
+    ],
+    [
+      "a REFUSE of an accusation about another topic",
+      ACCUSATION,
+      aLabel({ act: "REFUSE", targets: ids(1), topic: OTHER_TOPIC }),
+      false,
+    ],
+    [
+      "a REFUSE of an accusation about its topic",
+      ACCUSATION,
+      aLabel({ act: "REFUSE", targets: ids(1), topic: ACCUSATION.topic }),
+      true,
+    ],
+    [
+      "an APOLOGIZE for an accusation about another topic",
+      ACCUSATION,
+      aLabel({ act: "APOLOGIZE", targets: ids(1), topic: { type: "PERSON", person: idOf(1) } }),
+      true,
+    ],
+  ])("given %s when answering then it answers: %s", (_name, owedLabel, answer, answered) => {
+    const pending = [anObligation(2, 1, 4, owedLabel)];
+
+    expect(answeredObligation(pending, idOf(2), answer) !== undefined).toBe(answered);
+  });
+});
+
 describe("settleObligations (simulation-model §10)", () => {
   it("given several pending when the debtor answers one then it ends ANSWERED and the others stay", () => {
     const fromOne = anObligation(2, 1, 4);

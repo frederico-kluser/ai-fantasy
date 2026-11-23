@@ -111,3 +111,26 @@ describe("movementOf (simulation-model §8.1)", () => {
     },
   );
 });
+
+describe("movementOf: labels that skipped validation", () => {
+  it("given an APPROACH to someone absent when resolving then it is a programming error", () => {
+    const approach = aLabel({ act: "APPROACH", targets: ids(3), topic: NO_TOPIC });
+
+    expect(() => movementOf(moving(approach, CORRIDOR, 0, [5]))).toThrow(RangeError);
+  });
+
+  it("given a MOVE without a destination when resolving then it is a programming error", () => {
+    const move = aLabel({ act: "MOVE", topic: NO_TOPIC });
+
+    expect(() => movementOf(moving(move, CORRIDOR, 0))).toThrow(RangeError);
+  });
+
+  it("given an APPROACH among several present when resolving then it goes next to its own target", () => {
+    const approach = aLabel({ act: "APPROACH", targets: ids(3), topic: NO_TOPIC });
+
+    expect(movementOf(moving(approach, CORRIDOR, 0, [2, 5]))).toMatchObject({
+      goal: { kind: "NEAR", target: 3 },
+      destination: 4,
+    });
+  });
+});
