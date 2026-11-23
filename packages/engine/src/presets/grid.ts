@@ -7,6 +7,7 @@
 import { z } from "zod";
 
 import { GRID_MAX } from "../domain/constants.ts";
+import type { DeepReadonly } from "./primitives.ts";
 
 /** Cell type of each character of a template row (presets §2.1, simulation-model §3.1). */
 export const GRID_LEGEND: Readonly<Record<string, string>> = {
@@ -141,3 +142,12 @@ export const gridTemplateSchema = z
       context.addIssue({ code: "custom", path: [...issue.path], message: issue.message });
     }
   });
+
+/** A grid template as written in the data, before validation. */
+export type GridTemplateInput = DeepReadonly<z.input<typeof gridTemplateSchema>>;
+
+/**
+ * A validated grid template (presets §2.1); the same shape as the `GridSpec`
+ * of the space module (`rows`, `exits`, `roofed`, `starts`).
+ */
+export type GridTemplate = DeepReadonly<z.output<typeof gridTemplateSchema>>;
