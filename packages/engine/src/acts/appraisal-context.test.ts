@@ -12,7 +12,13 @@ import { aBond, aCharacter, someDrives } from "../../test/support/character.ts";
 import { toBipolarBp, toBp } from "../domain/bp.ts";
 import type { CharacterId, ThingId } from "../domain/ids.ts";
 import { createCopy } from "../memory/copy.ts";
-import { badSubjects, rowContext, topicInterests, toldOffenders } from "./appraisal-context.ts";
+import {
+  actInterests,
+  badSubjects,
+  rowContext,
+  topicInterests,
+  toldOffenders,
+} from "./appraisal-context.ts";
 import type { Topic } from "./label.ts";
 
 const [one, two, three] = ids(1, 2, 3) as [CharacterId, CharacterId, CharacterId];
@@ -261,4 +267,19 @@ describe("rowContext (dialogue-acts §7.1)", () => {
       false,
     ]);
   });
+});
+
+describe("actInterests (simulation-model §5.2)", () => {
+  const reader = aCharacter(2, 0);
+
+  it.each<[string, boolean, Topic, boolean]>([
+    ["addressed, about small talk", true, { type: "SMALL_TALK" }, true],
+    ["not addressed, about itself", false, { type: "PERSON", person: two }, true],
+    ["not addressed, about small talk", false, { type: "SMALL_TALK" }, false],
+  ])(
+    "given an act %s when checking the interest then the result is as the rule says",
+    (_case, addressed, topic, interests) => {
+      expect(actInterests(reader, topic, ids(1, 2), addressed)).toBe(interests);
+    },
+  );
 });

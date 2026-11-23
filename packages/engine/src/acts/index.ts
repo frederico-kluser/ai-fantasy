@@ -77,7 +77,7 @@ export {
   type Valence,
 } from "./appraisal.ts";
 export { appraisalRows, APPRAISAL_ROWS, combinedValence, IGNORED_ROW } from "./appraisal-table.ts";
-export { topicInterests } from "./appraisal-context.ts";
+export { actInterests, topicInterests } from "./appraisal-context.ts";
 export { effectUnit, toneModulation, type ToneModulation } from "./appraisal-effects.ts";
 export { applyDeltas, finalizeDeltas, type StateDelta } from "./deltas.ts";
 export type { AnswerView, AppraisalRow, EffectTerm, RowContext } from "./effect-terms.ts";

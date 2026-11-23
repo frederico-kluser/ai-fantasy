@@ -73,6 +73,7 @@ describe("engine entry point", () => {
       "WEATHER_IDS",
       "acceptanceChance",
       "actEntry",
+      "actInterests",
       "actTicks",
       "addressees",
       "answeredObligation",
