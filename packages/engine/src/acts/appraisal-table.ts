@@ -7,7 +7,7 @@
  * {@link IGNORED_ROW} (simulation-model §10).
  */
 import type { ActId } from "../presets/acts.ts";
-import { REQUESTER_ROWS } from "./requests.ts";
+import { REQUESTER_ROWS } from "./request-answers.ts";
 import {
   bondTerm as bond,
   driveTerm as drive,
