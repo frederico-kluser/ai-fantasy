@@ -3,9 +3,10 @@
 Obrigado pelo interesse. Este documento explica **como** contribuir e **qual é o padrão**
 — não é uma sugestão, é o contrato que o CI e os rulesets aplicam.
 
-> **Estado atual:** fundação documental. Ainda não há código; contribuições de código começam
-> com a tarefa [FND-01](<docs/planning/prompts/FND-01.md>) do [ROADMAP](<ROADMAP.md>). Até lá são
-> bem-vindas correções de documentação, revisão das especificações e propostas de testes.
+> **Estado atual:** a base TypeScript existe (tarefa [FND-01](<docs/planning/prompts/FND-01.md>)):
+> monorepo, gates de qualidade e CI. As contribuições de código seguem as tarefas do
+> [ROADMAP](<ROADMAP.md>); correções de documentação, revisão das especificações e propostas de
+> testes são sempre bem-vindas.
 
 Ao participar, você concorda com o [Código de Conduta](CODE_OF_CONDUCT.md). Leia também o
 [produto](docs/product.md), as [regras de desenvolvimento](docs/engineering/development-rules.md),
@@ -25,7 +26,9 @@ a [estratégia de testes](docs/engineering/testing-strategy.md) e a
 
 ## Preparar o ambiente
 
-O projeto usa **Node 24** e **TypeScript** num monorepo com workspaces do npm (depois da FND-01):
+O projeto usa **Node 24** (versão em `.node-version`) e **TypeScript** num monorepo com
+workspaces do npm. Comandos e estrutura no [README](README.md#como-rodar); ferramentas no
+[ADR 0020](docs/architecture/adr/0020-base-tools-and-libraries.md).
 
 ```bash
 # 1. Fork + clone
@@ -33,19 +36,16 @@ git clone https://github.com/<seu-usuario>/ai-fantasy.git
 cd ai-fantasy
 git remote add upstream https://github.com/frederico-kluser/ai-fantasy.git
 
-# 2. Dependências e verificação completa
+# 2. Dependências, navegador do E2E e verificação completa
 npm ci
+npx playwright install chromium
 npm run check
 
 # 3. IA (opcional): copie o exemplo e preencha a sua chave do OpenRouter
 cp .env.example .env
 ```
 
-Enquanto não há código, o baseline é a validação documental:
-
-```bash
-npx markdownlint-cli2 "**/*.md"
-```
+Para mudanças só de documentação, basta `npm run docs:lint`.
 
 ## Branches: o nome é validado no servidor
 
@@ -106,11 +106,14 @@ não é revisado. Detalhes em [`docs/engineering/testing-strategy.md`](docs/engi
 ## Gates (todos verdes antes do PR)
 
 ```bash
+npm run check              # tudo abaixo, na ordem do CI
 npm run lint
 npm run typecheck
-npm run coverage   # linhas ≥ 90%, ramos ≥ 85%; motor 95/90
+npm run coverage           # linhas ≥ 90%, ramos ≥ 85%; motor 95/90
+npm run coverage:diff      # linhas novas ≥ 95%
+npm run licenses           # ADR 0019
 npm run e2e
-npm run mutation   # ≥ 80%; motor ≥ 90%
+npm run mutation:changed   # ≥ 80%; motor ≥ 90% (npm run mutation roda tudo)
 ```
 
 Além disso: TSDoc nas exportações públicas, `npm audit` sem vulnerabilidades altas e

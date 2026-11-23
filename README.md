@@ -9,9 +9,10 @@
   <img src="https://img.shields.io/badge/status-foundation-orange.svg" alt="Status: foundation">
 </p>
 
-> **Estado: fundação documental refeita em 2026-11-09.** O produto foi redefinido pelo
-> maintainer e o plano antigo foi descartado. Ainda não há código; a próxima tarefa é a
-> [FND-01](<docs/planning/prompts/FND-01.md>) do [ROADMAP](<ROADMAP.md>).
+> **Estado: base TypeScript pronta (FND-01).** O monorepo, os gates de qualidade e o CI em Node
+> existem; o motor, o servidor e o site ainda são esqueletos. As próximas tarefas são a
+> [CORE-01](<docs/planning/prompts/CORE-01.md>) e a [SRV-01](<docs/planning/prompts/SRV-01.md>)
+> do [ROADMAP](<ROADMAP.md>).
 
 ## O que é
 
@@ -68,19 +69,35 @@ com o OpenRouter. Modelos locais (LFM3) ficam para o futuro.
 
 ## Como rodar
 
-Ainda não há código. Depois da FND-01, o projeto vai rodar com Node 24:
+Requisitos: **Node.js 24** (versão em `.node-version`) e npm 11. Tudo roda em `127.0.0.1`.
 
 ```bash
-npm ci
-cp .env.example .env   # e preencha OPENROUTER_API_KEY para usar a IA
-npm run check          # tudo o que o CI roda
+npm ci                           # instala o monorepo
+cp .env.example .env             # opcional: preencha OPENROUTER_API_KEY para usar a IA
+npm run dev                      # servidor em 127.0.0.1:4318 + site com recarga em 127.0.0.1:5173
+npm start                        # compila o site e o serve pelo servidor em http://127.0.0.1:4318
+npx playwright install chromium  # uma vez, antes do primeiro E2E
+npm run check                    # tudo o que o CI roda, na ordem do CI
 ```
 
-Hoje, a única verificação é a da documentação:
+| Comando | O que faz |
+| --- | --- |
+| `npm run lint` | ESLint sem avisos e Prettier (`npm run format` corrige o formato) |
+| `npm run typecheck` | tipos de todos os pacotes e dos scripts |
+| `npm test` | testes de unidade, integração e componentes (Vitest) |
+| `npm run coverage` | testes com cobertura e limiares: 90/85 no repositório, 95/90 no motor |
+| `npm run coverage:diff` | cobertura das linhas novas contra `origin/main` (mínimo 95%) |
+| `npm run licenses` | licenças das dependências conforme o ADR 0019 |
+| `npm run e2e` | Playwright (Chromium) contra o site compilado em `127.0.0.1:4319` |
+| `npm run mutation` | mutação completa (Stryker) de todos os pacotes |
+| `npm run mutation:changed` | mutação só dos arquivos de produção mudados |
+| `npm run bench` | benchmark do motor (provisório até a SOC-05) em `reports/bench.md` |
+| `npm run build` | compila o site em `apps/web/dist` |
+| `npm run docs:lint` | markdownlint da documentação |
 
-```bash
-npx markdownlint-cli2 "**/*.md"
-```
+Estrutura: `packages/engine` (motor puro), `packages/ai` (parte pura e adaptadores do
+OpenRouter), `apps/server` (Fastify em `127.0.0.1`), `apps/web` (React + Vite) e `scripts/`
+(gates do CI). Ferramentas e versões: [ADR 0020](<docs/architecture/adr/0020-base-tools-and-libraries.md>).
 
 ## Contribuir
 
@@ -106,5 +123,5 @@ and momentary perception on every line spoken or heard — weighing place, time 
 and who is nearby — and decides outcomes with seeded probabilities. Two models reached through
 OpenRouter only translate: a System One decision model turns free text into labels, and a text
 model turns resolved acts into living dialogue. The engine is the product and is meant to power
-better NPC systems for games and mods. Status: documentation foundation; code starts with task
-FND-01.
+better NPC systems for games and mods. Status: the TypeScript monorepo, its quality gates and CI
+are in place (task FND-01); the engine comes next.

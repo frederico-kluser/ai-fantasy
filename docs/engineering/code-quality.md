@@ -20,6 +20,9 @@
 Testes podem passar de 40 linhas quando a preparação for longa; nunca podem ter lógica
 condicional.
 
+As regras vivem em `eslint.config.js` ([ADR 0020](<../architecture/adr/0020-base-tools-and-libraries.md>)),
+contam linhas sem brancos e comentários e são verificadas por `scripts/eslint-config.test.ts`.
+
 ## 2. Padrões de desenho
 
 ### Cláusulas de guarda

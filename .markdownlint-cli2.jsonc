@@ -1,7 +1,8 @@
 {
   // Configuração do markdownlint-cli2 para o ai-fantasy.
   // `config` espelha .markdownlint.json (mantido para editores e outras ferramentas);
-  // `ignores` exclui o que não é documentação nossa (conteúdo gerido e fontes históricas).
+  // `ignores` exclui o que não é documentação nossa (conteúdo gerido, fontes históricas,
+  // dependências e saídas geradas pelas ferramentas).
   "config": {
     "default": true,
     "MD003": { "style": "atx" },
@@ -20,8 +21,14 @@
     ".claude/**",
     ".github/ISSUE_TEMPLATE/**",
     ".work/**",
-    "node_modules/**",
-    "coverage/**",
+    "**/node_modules/**",
+    "**/coverage/**",
+    "**/reports/**",
+    "**/dist/**",
+    "**/.stryker-tmp/**",
+    "**/.vitest/**",
+    "playwright-report/**",
+    "test-results/**",
     "docs/studies/Avaliação e Arquitetura AI Fantasy.md",
     "docs/studies/Expansão Sistêmica Do AI Fantasy.md",
     "docs/studies/Original - Roadmap Jogo Procedural Com LFM3.md",

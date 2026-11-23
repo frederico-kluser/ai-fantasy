@@ -10,13 +10,16 @@
 - **Projeto:** AI Fantasy (`frederico-kluser/ai-fantasy`).
 - **Produto:** simulador web de conversas com NPCs que simulam pessoas. **O motor é o
   produto** e se chama **Hermeneutic Core**. Definição canônica: [`docs/product.md`](docs/product.md).
-- **Estado:** **F0 — fundação documental, refeita em 2026-11-09.** Não há código. O plano
-  antigo (região em Rust, 46 tarefas em ondas) foi descartado (D-09) e não deve ser retomado.
-- **Retomada:** a próxima tarefa é a [FND-01](docs/planning/prompts/FND-01.md). Siga o
-  [ROADMAP](ROADMAP.md) e o [guia dos agentes](docs/planning/prompts/README.md). Escrever
-  código exige pedido explícito do maintainer para a tarefa.
+- **Estado:** **F1 — base TypeScript pronta (FND-01).** Monorepo com os quatro pacotes em
+  esqueleto, gates de qualidade e CI em Node ([ADR 0020](docs/architecture/adr/0020-base-tools-and-libraries.md)).
+  O plano antigo (região em Rust, 46 tarefas em ondas) foi descartado (D-09) e não deve ser
+  retomado.
+- **Retomada:** as próximas tarefas são a [CORE-01](docs/planning/prompts/CORE-01.md) e a
+  [SRV-01](docs/planning/prompts/SRV-01.md). Siga o [ROADMAP](ROADMAP.md) e o
+  [guia dos agentes](docs/planning/prompts/README.md). Escrever código exige pedido explícito do
+  maintainer para a tarefa.
 - **Decisões:** [`docs/planning/decisions.md`](docs/planning/decisions.md) (D-09 em diante) e
-  [ADRs](docs/architecture/adr/README.md) 0013–0019.
+  [ADRs](docs/architecture/adr/README.md) 0013–0020.
 - **Licença:** código MIT; pesos de modelos não são distribuídos (ADR 0019).
 
 ## 2. Regra zero: o motor decide, os modelos só traduzem
@@ -100,26 +103,24 @@ apps/web (React + Vite) ──► packages/engine (Web Worker, puro e determiní
 
 ## 7. Comandos
 
-**Agora (documentação):**
-
-```bash
-npx markdownlint-cli2 "**/*.md"
-```
-
-**Depois da FND-01:**
+Node 24 (`.node-version`; com fnm: `fnm use 24`). Lista completa no [README](README.md#como-rodar).
 
 ```bash
 npm ci
-npm run lint
+npm run lint              # ESLint sem avisos + Prettier
 npm run typecheck
 npm run test
-npm run coverage
-npm run e2e
-npm run mutation
+npm run coverage          # limiares 90/85; motor 95/90
+npm run coverage:diff     # linhas novas ≥ 95% contra origin/main
+npm run licenses
+npm run e2e               # antes, uma vez: npx playwright install chromium
+npm run mutation          # completa; mutation:changed só nos arquivos mudados
 npm run bench
-npm run check        # tudo o que o CI roda
-npm run smoke:live   # manual, exige OPENROUTER_API_KEY; nunca no CI
+npm run docs:lint
+npm run check             # tudo o que o CI roda, na ordem do CI
 ```
+
+`npm run smoke:live` (manual, exige `OPENROUTER_API_KEY`; nunca no CI) chega com a AI-02/AI-03.
 
 Não invente comandos que ainda não existem; se faltar ferramenta, diga-o e proponha a
 instalação.

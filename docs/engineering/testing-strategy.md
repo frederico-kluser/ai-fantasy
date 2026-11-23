@@ -169,3 +169,23 @@ causa (geralmente tempo, ordem ou estado compartilhado) e só então volte a exi
 - Testes escritos antes da implementação: sim/não (por quê).
 - Suítes afetadas e resultado.
 - O que não foi testado e por quê.
+
+## 17. Onde ficam os testes e como rodar
+
+Ferramentas e versões no [ADR 0020](<../architecture/adr/0020-base-tools-and-libraries.md>).
+
+| Suíte | Arquivos | Comando |
+| --- | --- | --- |
+| Unidade, propriedades, contrato, servidor, componentes | `src/**/*.test.ts(x)` ao lado do código, em cada pacote | `npm test` (um pacote: `npm test -w @ai-fantasy/engine`) |
+| Ouro e replay | `packages/engine/test/**/*.test.ts` | `npm test` |
+| Gates e configuração (regras de lint, fronteiras, limiares, licenças, linhas novas) | `scripts/**/*.test.ts` (projeto `scripts` do Vitest) | `npx vitest run --project scripts` |
+| E2E | `apps/web/e2e/*.spec.ts` | `npm run e2e` |
+| Benchmark | `packages/engine/bench/` | `npm run bench` |
+| Mutação | `stryker.config.mjs` de cada pacote | `npm run mutation:changed` (um pacote: `npm run mutation -w @ai-fantasy/engine`) |
+
+- O lint proíbe `if`, ternário e `switch` em `*.test.ts(x)` e nos specs do E2E; para limpar
+  recursos use `onTestFinished` ou `afterEach`.
+- O fast-check usa uma seed fixa (`packages/engine/vitest.setup.ts`); para outra seed num caso,
+  `fc.assert(propriedade, { seed })`.
+- Os relatórios ficam fora do git: `coverage/`, `reports/` de cada pacote (mutação), `.vitest/`,
+  `playwright-report/` e `test-results/`.
