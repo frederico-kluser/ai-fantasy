@@ -212,6 +212,9 @@ function resolveRef(
   ref: DriveRef | null,
   sides: ReadonlyMap<DriveRef, DriveId | null>,
 ): DriveId | null {
-  // A ref that is not a request drive is a drive id.
-  return ref === null ? null : (sides.get(ref) ?? (sides.has(ref) ? null : (ref as DriveId)));
+  if (ref === null) {
+    return null;
+  }
+  // A ref that is not a request drive (not in `sides`) is a drive id.
+  return sides.has(ref) ? (sides.get(ref) ?? null) : (ref as DriveId);
 }

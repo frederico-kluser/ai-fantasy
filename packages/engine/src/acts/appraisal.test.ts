@@ -482,6 +482,78 @@ describe("ignoringDeltas (simulation-model §10)", () => {
   });
 });
 
+describe("ignoringDeltas without the creditor", () => {
+  it("given an obligation whose creditor left when appraising then nothing happens", () => {
+    const owed: Obligation = {
+      debtor: z,
+      creditor: y,
+      fact: factIdOf(0),
+      act: "ASK",
+      topic: { type: "SMALL_TALK" },
+      tick: 0,
+    };
+
+    expect(ignoringDeltas([aCharacter(1, 0)], [owed])).toEqual([]);
+  });
+});
+
+describe("appraiseAct: inputs", () => {
+  it("given a listener who is not present when appraising then it is a programming error", () => {
+    const input = anInput(
+      { act: "GREET", targets: [y] },
+      [heard(2, "DIRECT", "NEUTRAL")],
+      [aCharacter(1, 0)],
+    );
+
+    expect(() => appraiseAct(aDrawer(), input)).toThrow(RangeError);
+  });
+
+  it("given a DIRECT listener without a reading when appraising then it reads the real tone", () => {
+    const input = anInput(
+      { act: "PRAISE", tone: "WARM", targets: [y], topic: { type: "PERSON", person: y } },
+      [{ id: y, perspective: "DIRECT", reading: null }],
+      [aCharacter(1, 0), aCharacter(2, 1)],
+    );
+
+    expect(amount(deltasOf(input), y, "joy")).toBe(mulBp(2 * U, 12000));
+  });
+
+  it("given an answer to an obligation of a history fact when appraising then there is no object", () => {
+    const owed: Obligation = {
+      debtor: z,
+      creditor: y,
+      fact: factIdOf(0),
+      act: "REQUEST",
+      topic: { type: "PERSON", person: z },
+      tick: 0,
+    };
+    const input = anInput(
+      { act: "ACCEPT", targets: [y], topic: { type: "PERSON", person: z } },
+      [heard(2, "DIRECT", "NEUTRAL")],
+      [aCharacter(1, 0), aCharacter(2, 1)],
+      {
+        facts: [
+          {
+            kind: "HISTORY",
+            id: factIdOf(0),
+            event: "betrayed_trust",
+            author: y,
+            subject: z,
+            offenders: [],
+            secret: false,
+          },
+        ],
+        obligations: [owed],
+        band: "ACCEPT",
+      },
+    );
+    const deltas = deltasOf(input);
+
+    expect(amount(deltas, y, "influence")).toBe(-2 * U);
+    expect(amount(deltas, y, "material_security")).toBeUndefined();
+  });
+});
+
 describe("appraiseAct: interruption (simulation-model §11 item 4)", () => {
   it("given an act over a pending obligation of the last act when appraising then the debtor's anger and recognition rise and its respect for the interrupter falls", () => {
     const asked = anActFact(0, 3, aLabel({ act: "ASK", targets: [y] }));

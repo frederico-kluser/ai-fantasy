@@ -85,6 +85,8 @@ describe("acceptanceChance (dialogue-acts §8.1)", () => {
     ["SEDUCTIVE", 4999, -1000],
     ["IRONIC", 0, -700],
     ["AGGRESSIVE", 0, -1500],
+    ["PLAYFUL", 0, 0],
+    ["NEUTRAL", 9000, 0],
   ] as const)(
     "given a %s REQUEST to someone with attraction %i when computing the chance then the tone moves p by its adjustment",
     (tone, attraction, adjustment) => {

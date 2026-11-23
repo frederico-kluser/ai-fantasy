@@ -195,6 +195,86 @@ describe("appraisal rows (dialogue-acts §7.1)", () => {
     ]);
   });
 
+  it.each([
+    ["WARM", { affection: 4000 }, 2, "joy"],
+    ["WARM", { affection: 3999 }, -1, "disgust"],
+    ["SEDUCTIVE", { attraction: 5000 }, 2, "joy"],
+    ["SEDUCTIVE", { attraction: 4999 }, -2, "disgust"],
+    ["PLAYFUL", { affection: 5000 }, 1, "joy"],
+    ["PLAYFUL", { affection: 4999 }, -1, "anger"],
+    ["IRONIC", {}, -1, "shame"],
+    ["AGGRESSIVE", {}, -3, "fear"],
+  ] as const)(
+    "given a %s TOUCH with %j when selecting rows then the valence is %i and %s moves",
+    (tone, axes, valence, emotion) => {
+      const rows = appraisalRows("TOUCH", aContext({ tone, bond: aBond(1, axes).axes }));
+
+      expect(combinedValence(rows)).toBe(valence);
+      expect(termsOf(rows).map((term) => term.kind === "EMOTION" && term.emotion)).toContain(
+        emotion,
+      );
+    },
+  );
+
+  it("given a NEUTRAL TOUCH when selecting rows then it applies with no effect", () => {
+    const rows = appraisalRows("TOUCH", aContext());
+
+    expect([rows.length, combinedValence(rows), termsOf(rows)]).toEqual([1, 0, []]);
+  });
+
+  it.each([
+    ["FAREWELL", 6000, 0, 2],
+    ["FAREWELL", 5999, 0, 1],
+    ["WITHDRAW", 6000, -1, 2],
+    ["WITHDRAW", 5999, 0, 1],
+  ] as const)(
+    "given a %s from someone with affection %i when selecting rows then the valence is %i with %i terms",
+    (act, affection, valence, terms) => {
+      const rows = appraisalRows(act, aContext({ bond: aBond(1, { affection }).axes }));
+
+      expect([combinedValence(rows), termsOf(rows).length]).toEqual([valence, terms]);
+    },
+  );
+
+  it.each([
+    ["OFFER", 5000, 2],
+    ["OFFER", 4999, 0],
+    ["APOLOGIZE", 5000, 1],
+    ["APOLOGIZE", 4999, -1],
+  ] as const)(
+    "given an %s perceived with sincerity %i when selecting rows then the valence is %i",
+    (act, sincerity, valence) => {
+      expect(combinedValence(appraisalRows(act, aContext({ sincerity: toBp(sincerity) })))).toBe(
+        valence,
+      );
+    },
+  );
+
+  it.each([
+    [{ badFact: true }, [2, 1]],
+    [{ secret: true }, []],
+  ] as const)(
+    "given an ASK with %j when selecting rows then shame and fear are %j",
+    (flags, ks) => {
+      expect(termsOf(appraisalRows("ASK", aContext(flags))).map((term) => term.k)).toEqual(ks);
+    },
+  );
+
+  it("given a THREATEN when selecting rows then its fear carries the factor of fearOf", () => {
+    expect(termsOf(appraisalRows("THREATEN", aContext()))[0]).toEqual({
+      kind: "EMOTION",
+      emotion: "fear",
+      k: 3,
+      byFearOf: true,
+    });
+  });
+
+  it("given a PRAISE when selecting rows then it gives +2 with joy, affection, respect and recognition", () => {
+    const rows = appraisalRows("PRAISE", aContext());
+
+    expect([combinedValence(rows), termsOf(rows).length]).toEqual([2, 4]);
+  });
+
   it("given two rows of the same magnitude and opposite signs when combining then the first in table order wins", () => {
     const rows = appraisalRows("TELL", aContext({ secret: true, badFact: true }));
 

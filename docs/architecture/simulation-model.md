@@ -1,6 +1,6 @@
 # Modelo de simulação — Hermeneutic Core
 
-> **Especificação v1.8 — 2026-11-23.** As **regras** deste documento são contrato do motor. Os
+> **Especificação v1.9 — 2026-11-23.** As **regras** deste documento são contrato do motor. Os
 > **números** (taxas, limiares, pesos) são valores iniciais e calibráveis: mudar um número exige
 > teste atualizado e nota no PR, não decisão nova. Mudar uma regra exige ADR. Produto em
 > [`docs/product.md`](<../product.md>); atos, tabelas de efeito e vieses em
@@ -17,7 +17,8 @@
 > (CORE-04); a v1.7 fixou os sorteios da escuta, as respostas às obrigações e a gravação de
 > um ato em fatos e cópias (SOC-01); a v1.8 fixou a ordem e as finalidades dos sorteios dos sinais,
 > quem pode notar, a ordem dos pesos da interpretação e o que conta como atualização da percepção
-> (SOC-02).
+> (SOC-02); a v1.9 fixou a composição das consequências e o que a avaliação passa à gravação
+> (SOC-03).
 
 ## 1. Princípios
 
@@ -704,6 +705,15 @@ Depois, os efeitos **em quem agiu** (culpa por mentir, por ferir quem se ama; al
 por ferir um ofensor) e, se houve, os efeitos da **interrupção** (seção 11). Tabelas, unidade,
 multiplicadores e pedidos estão em [atos de conversa](<dialogue-acts.md>), seções 5, 7 e 8.
 
+A função de consequências (`appraiseAct`, em `packages/engine/src/acts/appraisal.ts`) é pura:
+recebe o ato real, a leitura de cada ouvinte e o estado de antes do ato (registro, cópias,
+obrigações pendentes) e devolve os deltas já somados e limitados, os personagens com eles e o
+que a gravação (seção 12) recebe. Nesta ordem: a mentira sobre um fato (detecção e crença, por
+ouvinte em ordem de id), as leituras dos alvos e das testemunhas, o ciúme, os efeitos em quem
+agiu (inclusive os de responder a um pedido), a interrupção, as obrigações que o ato ignorou
+(seção 10) e os efeitos da mentira. O sinal de traço do interruptor fica com as tendências
+(seção 13).
+
 ## 10. Decisão: escolher o ato
 
 Quando um personagem em modo `AUTO` ganha a vez:
@@ -902,12 +912,14 @@ Em cada **ponto de decisão** (fim de um ato ou de um tick de silêncio), na ord
   5.4): o fato ganha o próximo id e guarda o rótulo real (o tom real, não o lido). O autor guarda
   uma cópia `DIRECT`; cada um que percebeu o ato, uma cópia com a sua perspectiva. Num `TELL`
   sobre um fato, a cópia `TOLD` usa a fidelidade **atual** da cópia de quem conta (antes de ela
-  voltar ao pico por contar de novo) e leva a versão de quem conta, falsa ou não. Até a SOC-03,
-  um `TELL` com `isFalse` também dá a cada ouvinte sem cópia a versão de quem conta; a crença na
-  mentira (quem acredita recebe a versão falsa, com `blamed` como ofensor ou ninguém) chega com a
-  SOC-03, que a passa à gravação. Até a avaliação (SOC-03) preencher, o fato de um ato não tem
-  ofensores nem marca de segredo, e a importância de cada cópia é a sem deltas: 3000 para quem está no fato (o autor, um alvo — no `GROUP`, quem
-  ouviu `DIRECT` — ou a pessoa do tópico; num fato de história, A e B) e 0 para os demais.
+  voltar ao pico por contar de novo) e leva a versão de quem conta, falsa ou não. Num `TELL` com
+  `isFalse`, a avaliação (`appraiseAct`, seção 9) decide quem acreditou: só esses recebem a cópia
+  `TOLD`, com a versão falsa (`blamed` como ofensor, ou ninguém). A avaliação passa também os
+  ofensores do fato, a importância de cada cópia e a faixa de uma resposta a pedido. Sem ela
+  (gravação avulsa), um `TELL` com `isFalse` dá a cada ouvinte sem cópia a versão de quem conta, o
+  fato não tem ofensores nem faixa, e a importância de cada cópia é a sem deltas: 3000 para quem
+  está no fato (o autor, um alvo — no `GROUP`, quem ouviu `DIRECT` — ou a pessoa do tópico; num
+  fato de história, A e B) e 0 para os demais. Um fato de ato nunca é segredo.
 - **Ninguém cita o que não sabe:** o pacote enviado ao modelo de texto só leva fatos de que o
   falante tem cópia (ver [integração de IA](<ai-integration.md>)).
 

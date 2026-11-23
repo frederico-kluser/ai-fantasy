@@ -32,6 +32,13 @@ describe("requestDrives (dialogue-acts §4 and §8.3)", () => {
     },
   );
 
+  it.each([
+    ["a REQUEST without object", view("REQUEST", null)],
+    ["a question", view("ASK", null)],
+  ])("given %s when resolving the requested drive then it is dropped", (_case, answer) => {
+    expect(requestDrives(answer, OBJECTS)("REQUESTED")).toBeNull();
+  });
+
   it("given no answer when resolving then every request drive is dropped", () => {
     const drives = requestDrives(null, OBJECTS);
 
