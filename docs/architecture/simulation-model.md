@@ -1,6 +1,6 @@
 # Modelo de simulação — Hermeneutic Core
 
-> **Especificação v1.6 — 2026-11-23.** As **regras** deste documento são contrato do motor. Os
+> **Especificação v1.7 — 2026-11-23.** As **regras** deste documento são contrato do motor. Os
 > **números** (taxas, limiares, pesos) são valores iniciais e calibráveis: mudar um número exige
 > teste atualizado e nota no PR, não decisão nova. Mudar uma regra exige ADR. Produto em
 > [`docs/product.md`](<../product.md>); atos, tabelas de efeito e vieses em
@@ -14,7 +14,8 @@
 > (CORE-02); a v1.5 tabelou os rótulos de laço (tipo e recíproca) e deu nomes de exibição aos
 > sinais (CORE-03); a v1.6 fixou o estado do personagem e a ordem das coleções, a leitura dentro
 > do tick, quem conta na presença, o envelhecimento da percepção e o modelo de fatos e cópias
-> (CORE-04).
+> (CORE-04); a v1.7 fixou o contador de tentativa da stream `generation`
+> (CORE-05).
 
 ## 1. Princípios
 
@@ -880,7 +881,10 @@ uma a uma, em inteiros:
 - **Streams:** uma por finalidade — `generation`, `setup`, `turn`, `choice`, `signal`,
   `perception`, `resolution`, `leave`. A seed do elenco alimenta só `generation` (personagens,
   laços, história); a seed da cena alimenta as demais, e `setup` sorteia os valores de abertura
-  (estado do dia e posições). Assim se varia uma sem mexer na outra.
+  (estado do dia e posições). Assim se varia uma sem mexer na outra. Gerar o elenco de novo
+  mantendo os travados usa a mesma seed do elenco com um **contador de tentativa** `n`: a stream
+  `generation` da tentativa `n` nasce de `hash32(castSeed, "generation#<n>")`, e a tentativa 0 é
+  a stream normal ([presets](<presets.md>), seção 10.1).
 - **`hash32(seed, nome)`:** FNV-1a de 32 bits sobre os bytes UTF-8 de `"<seed>:<nome>"`, com a
   seed em decimal sem zeros à esquerda (por exemplo, `"42:turn"`). Os bytes UTF-8 são os do
   codificador WHATWG (`TextEncoder`): um surrogate sozinho vira U+FFFD.
