@@ -69,7 +69,13 @@ const CHARACTER_LOCK_FIELDS: readonly (keyof CharacterChanges)[] = [
 
 /** A new state of the cast: the revision moves and the generated view is dropped. */
 function castChanged(state: PlaygroundState, changes: Partial<PlaygroundState>): PlaygroundState {
-  return { ...state, ...changes, revision: state.revision + 1, generated: null };
+  return {
+    ...state,
+    ...changes,
+    revision: state.revision + 1,
+    generated: null,
+    axesEdited: false,
+  };
 }
 
 /** A new state of the bonds: the locks of the pairs the family added go too. */
@@ -144,7 +150,8 @@ function editBondAxis(
   }
   const side = { ...base[action.side], [action.axis]: clampAxis(action.value) };
   const locked = { ...base, [action.side]: side };
-  return { ...state, bonds: replaceAt(state.bonds, action.index, (old) => ({ ...old, locked })) };
+  const bonds = replaceAt(state.bonds, action.index, (old) => ({ ...old, locked }));
+  return { ...state, bonds, axesEdited: true };
 }
 
 const HANDLERS: Handlers = {
@@ -210,7 +217,7 @@ const HANDLERS: Handlers = {
   }),
   setPlayer: (state, { player }) => ({ ...state, player }),
   generated: (state, { view, attempt, revision }) =>
-    revision === state.revision ? { ...state, generated: view, attempt } : state,
+    revision === state.revision ? { ...state, generated: view, attempt, axesEdited: false } : state,
 };
 
 /** Applies one action to the playground form. */

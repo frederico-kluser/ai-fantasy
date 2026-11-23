@@ -88,6 +88,8 @@ export interface PlaygroundState {
   readonly player: number | null;
   /** Counts the changes to the cast, so a late generation of an older cast is dropped. */
   readonly revision: number;
+  /** Whether a drawn axis was edited since the last generation: the generated view is out of date. */
+  readonly axesEdited: boolean;
   /** The last generated cast of this revision, or `null`. */
   readonly generated: CastView | null;
 }
@@ -112,6 +114,7 @@ export function initialPlayground(seeds: RngSeeds): PlaygroundState {
     player: null,
     revision: 0,
     generated: null,
+    axesEdited: false,
   };
 }
 

@@ -274,6 +274,46 @@ describe("playgroundReducer: locks", () => {
     ]).toStrictEqual([1, 2]);
   });
 
+  it("given a generated cast when editing an axis then the generated labels are marked out of date", () => {
+    const first = generate(TRIO);
+
+    const state = run(first, {
+      type: "editBondAxis",
+      index: 0,
+      side: "aToB",
+      axis: "trust",
+      value: 1,
+    });
+
+    expect([first.axesEdited, state.axesEdited]).toStrictEqual([false, true]);
+  });
+
+  it("given edited axes when generating again then the generated labels are current again", () => {
+    const edited = run(generate(TRIO), {
+      type: "editBondAxis",
+      index: 0,
+      side: "aToB",
+      axis: "trust",
+      value: 1,
+    });
+
+    expect(generate(edited, 1).axesEdited).toBe(false);
+  });
+
+  it("given edited axes when the cast changes then the mark goes with the generated cast", () => {
+    const edited = run(generate(TRIO), {
+      type: "editBondAxis",
+      index: 0,
+      side: "aToB",
+      axis: "trust",
+      value: 1,
+    });
+
+    expect(
+      run(edited, { type: "updateCharacter", index: 0, changes: { name: "X" } }).axesEdited,
+    ).toBe(false);
+  });
+
   it("given nothing generated when editing an axis then nothing changes", () => {
     expect(
       run(TRIO, { type: "editBondAxis", index: 0, side: "aToB", axis: "trust", value: 1 }),

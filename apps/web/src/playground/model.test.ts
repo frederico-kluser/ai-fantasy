@@ -69,6 +69,7 @@ describe("initialPlayground", () => {
       player: null,
       revision: 0,
       generated: null,
+      axesEdited: false,
     });
   });
 

@@ -159,6 +159,20 @@ describe("generated cast", () => {
     ]);
   });
 
+  it("given edited axes when rendering then a note says the labels wait for a new draw", () => {
+    render(<GeneratedCast state={stateWith({ axesEdited: true })} dispatch={vi.fn()} />);
+
+    expect(screen.getByRole("note").textContent).toBe(
+      "Você editou eixos sorteados: os laços e o gancho acima são da última geração e só se atualizam ao sortear de novo.",
+    );
+  });
+
+  it("given no edited axis when rendering then no note shows", () => {
+    render(<GeneratedCast state={stateWith({})} dispatch={vi.fn()} />);
+
+    expect(screen.queryByRole("note")).toBeNull();
+  });
+
   it("given no derived pair when rendering then no family group shows", () => {
     const view = {
       ...VIEW,

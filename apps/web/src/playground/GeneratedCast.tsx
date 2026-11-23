@@ -123,6 +123,12 @@ export function GeneratedCast({
       <Characters view={view} />
       <Relations view={view} />
       <Hook view={view} />
+      {state.axesEdited ? (
+        <p role="note">
+          Você editou eixos sorteados: os laços e o gancho acima são da última geração e só se
+          atualizam ao sortear de novo.
+        </p>
+      ) : null}
       <DerivedPairs view={view} derived={state.derived} dispatch={dispatch} />
     </section>
   );
