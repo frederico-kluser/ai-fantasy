@@ -773,14 +773,17 @@ uma a uma, em inteiros:
   `0..10000`, é `draw(stream, 10000) < p`. `drawWeighted(pesos)`, com pesos inteiros `≥ 0` e total
   em `1..2^31`, sorteia `u = draw(stream, total)` e escolhe o primeiro índice cuja soma acumulada
   dos pesos passa de `u` (peso 0 nunca sai). Argumento fora dessas faixas é erro de programação e
-  não consome a stream.
+  não consome a stream. As regras sorteiam **só entre opções válidas** (peso 0 nas inválidas, ou
+  um índice numa lista das válidas) e nunca "sorteiam de novo até dar válido": com um seletor por
+  finalidade forçado, cada nova tentativa receberia o mesmo resultado inválido, sem fim.
 - **Registro:** todo sorteio entra no registro da sessão com número de sequência (`seq`: 0, 1, 2…
-  ao longo da sessão inteira, sem recomeçar a cada passo), tick, stream, tipo (`RAW`, `CHANCE` ou
-  `WEIGHTED`), finalidade (em `SCREAMING_SNAKE_CASE`, como `TURN_ORDER`), alvo (se houver),
-  limite (o `bound`; 10000 na chance; o total no ponderado), valor natural sorteado, probabilidade
-  (se houver) e resultado aplicado (o valor; 1 ou 0 na chance; o índice no ponderado). Leva ainda
-  `forced` quando um resultado forçado foi aplicado e `mode: MOST_LIKELY` quando o sorteio correu
-  nesse modo.
+  ao longo da sessão inteira, sem recomeçar a cada passo), tick (o tick em que o sorteio acontece:
+  o motor abre um drawer por tick e passa o estado do sorteio de um para o outro, também quando
+  um passo avança vários ticks), stream, tipo (`RAW`, `CHANCE` ou `WEIGHTED`), finalidade (em
+  `SCREAMING_SNAKE_CASE`, como `TURN_ORDER`), alvo (se houver), limite (o `bound`; 10000 na
+  chance; o total no ponderado), valor natural sorteado, probabilidade (se houver) e resultado
+  aplicado (o valor; 1 ou 0 na chance; o índice no ponderado). Leva ainda `forced` quando um
+  resultado forçado foi aplicado e `mode: MOST_LIKELY` quando o sorteio correu nesse modo.
 - **Forçar caminho (testes):** o inspetor pode forçar o resultado de um sorteio identificado
   (por sequência ou por finalidade e alvo) ou ligar o modo "mais provável" (`MOST_LIKELY`), em
   que cada sorteio vira o resultado mais provável: `drawChance(p)` dá sucesso se e só se
@@ -788,12 +791,15 @@ uma a uma, em inteiros:
   é um `drawWeighted` das larguras das cinco faixas; um `draw` cru devolve `(bound − 1) / 2`.
   Forçar é uma **entrada** registrada e reproduzível. Em detalhe:
   - um seletor por sequência casa com um único sorteio; um seletor por finalidade casa com todo
-    sorteio dessa finalidade (e desse alvo, quando dado). Na lista de forçados, vale o primeiro
-    que casar;
+    sorteio dessa finalidade (e desse alvo, quando dado). Na lista de forçados, só o primeiro
+    seletor que casar decide;
+  - cada `FORCE_DRAW` novo entra no **início** da lista: o mais recente vence um forçado antigo que
+    case com o mesmo sorteio;
   - o resultado forçado só se aplica se o sorteio natural pudesse dá-lo (valor em `[0, bound)`;
     sucesso só com `p > 0` e falha só com `p < 10000`; índice com peso `> 0`). Senão, o sorteio
-    segue natural (ou mais provável) e não leva a marca `forced`: um caminho forçado é sempre um
-    caminho possível;
+    segue natural (ou o mais provável, em `MOST_LIKELY`), não leva a marca `forced` e os
+    seletores seguintes da lista não são tentados: um caminho forçado é sempre um caminho
+    possível;
   - o resultado forçado vence o modo `MOST_LIKELY`;
   - forçar e `MOST_LIKELY` consomem a stream exatamente como o sorteio natural, e o valor natural
     fica no registro: só aquele resultado muda, e os sorteios seguintes continuam alinhados com a
@@ -801,9 +807,13 @@ uma a uma, em inteiros:
 - **Hash do estado:** FNV-1a de 64 bits (com `BigInt`) sobre os bytes UTF-8 da serialização
   canônica do estado, em 16 dígitos hexadecimais minúsculos. A serialização canônica é JSON sem
   espaços: chaves dos objetos ordenadas por unidades de código UTF-16 (o `sort()` padrão), arrays
-  na ordem dada, inteiros seguros em decimal, strings com os escapes do JSON, booleanos e `null`.
-  Qualquer outro valor (número não inteiro, `NaN`, `Infinity`, `undefined`, função, `BigInt`,
-  símbolo, `Map`, `Set` ou objeto que não seja simples) é erro de programação. Não é
+  na ordem dada, inteiros seguros em decimal (`-0` é escrito `0`), booleanos, `null` e strings
+  entre aspas com os escapes do JSON e só eles: `"` vira `\"` e `\` vira `\\`; U+0008, U+0009,
+  U+000A, U+000C e U+000D viram `\b`, `\t`, `\n`, `\f` e `\r`; os demais caracteres abaixo de
+  U+0020 viram `\u00xx` e um surrogate sozinho vira `\udxxx` (hexadecimal minúsculo); todo o resto
+  vai literal (inclusive acentos, U+007F e U+2028). Qualquer outro valor (número não inteiro,
+  `NaN`, `Infinity`, `undefined`, função, `BigInt`, símbolo, chave símbolo, array com buraco ou
+  propriedade extra, `Map`, `Set` ou objeto que não seja simples) é erro de programação. Não é
   criptográfico; só confere o replay.
 - **Replay exato:** seed + versões (motor e presets) + cena + entradas (atos do jogador, respostas
   do SOM, correções, sorteios forçados, trocas de modo de controle) + falas do modelo de texto

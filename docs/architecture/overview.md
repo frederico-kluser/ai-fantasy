@@ -86,7 +86,7 @@ importar algo proibido.
 
 ```ts
 // primeira fatia: elenco gerado (seed do elenco) e cena (seed da cena)
-createScene(setup: SceneSetup, seeds: { cast: number; scene: number }): SceneState;
+createScene(setup: SceneSetup, seeds: { castSeed: number; sceneSeed: number }): SceneState; // RngSeeds
 // fatias seguintes: os mesmos personagens, com a história levada adiante
 createSlice(campaign: CampaignState, setup: SliceSetup, sceneSeed: number): SceneState;
 step(state: SceneState, input?: EngineInput): StepResult;
