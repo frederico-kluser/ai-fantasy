@@ -9,6 +9,7 @@
  */
 import { OBLIGATION_TTL_TICKS } from "../domain/constants.ts";
 import type { CharacterId, FactId } from "../domain/ids.ts";
+import type { Fact } from "../memory/fact.ts";
 import type { ActId } from "../presets/acts.ts";
 import { canonicalize } from "../session/canonical.ts";
 import type { ActLabel, Topic } from "./label.ts";
@@ -170,4 +171,23 @@ export function expireObligations(pending: readonly Obligation[], tick: number):
       .filter(expired)
       .map((obligation) => ({ obligation, ending: "IGNORED" as const })),
   };
+}
+
+/**
+ * Whether `actor` interrupts (simulation-model §11 item 4): an obligation of the
+ * last act (the act fact of highest id) is pending and the actor is neither its
+ * author nor one who owes the answer. The effects belong to the appraisal (SOC-03).
+ */
+export function isInterruption(
+  pending: readonly Obligation[],
+  facts: readonly Fact[],
+  actor: CharacterId,
+): boolean {
+  const last = facts.findLast((fact) => fact.kind === "ACT");
+  const owed = pending.filter((obligation) => obligation.fact === last?.id);
+  return (
+    owed.length > 0 &&
+    last?.author !== actor &&
+    owed.every((obligation) => obligation.debtor !== actor)
+  );
 }

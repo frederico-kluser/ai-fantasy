@@ -1,13 +1,22 @@
 import fc from "fast-check";
 import { describe, expect, it } from "vitest";
 
-import { aboutFact, aLabel, defaultRules, factIdOf, ids } from "../../test/support/acts.ts";
+import {
+  aboutFact,
+  aHistoryFact,
+  aLabel,
+  anActFact,
+  defaultRules,
+  factIdOf,
+  ids,
+} from "../../test/support/acts.ts";
 import { idOf } from "../../test/support/space.ts";
 import type { ActLabel } from "./label.ts";
 import {
   answeredObligation,
   createObligations,
   expireObligations,
+  isInterruption,
   settleObligations,
   type Obligation,
 } from "./obligations.ts";
@@ -204,5 +213,32 @@ describe("expireObligations (simulation-model §10, OBLIGATION_TTL_TICKS)", () =
         expect(pending.length).toBe(Number(after < 12));
       }),
     );
+  });
+});
+
+describe("isInterruption (simulation-model §11 item 4)", () => {
+  /** Fact 4: 1 asked 2; fact 5 (a history fact) comes later but is no act. */
+  const FACTS = [anActFact(4, 1, ASK), aHistoryFact(5, 3, 4)];
+  const PENDING = [anObligation(2, 1, 4)];
+
+  it.each([
+    [3, true],
+    [2, false],
+    [1, false],
+  ])(
+    "given a pending answer to the last act when %i acts then the interruption is %s",
+    (actor, interrupts) => {
+      expect(isInterruption(PENDING, FACTS, idOf(actor))).toBe(interrupts);
+    },
+  );
+
+  it("given a pending answer to an older act when a third party acts then it is no interruption", () => {
+    const facts = [...FACTS, anActFact(6, 4, aLabel())];
+
+    expect(isInterruption(PENDING, facts, idOf(3))).toBe(false);
+  });
+
+  it("given no act yet when someone acts then it is no interruption", () => {
+    expect(isInterruption([], [aHistoryFact(0, 3, 4)], idOf(3))).toBe(false);
   });
 });
