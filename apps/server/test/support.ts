@@ -4,6 +4,7 @@
  */
 import assert from "node:assert/strict";
 import { mkdirSync, mkdtempSync, readdirSync, rmSync, writeFileSync } from "node:fs";
+import { rename } from "node:fs/promises";
 import { request as httpRequest } from "node:http";
 import { connect } from "node:net";
 import { tmpdir } from "node:os";
@@ -15,6 +16,7 @@ import { onTestFinished } from "vitest";
 
 import { loadConfig, type ServerConfig } from "../src/config.ts";
 import { buildApp, HOST, type AppOptions, type ServerPlugin } from "../src/server.ts";
+import type { SessionStore } from "../src/session-store.ts";
 
 /**
  * A recognizable fake OpenRouter key. Tests never read the real one from
@@ -77,6 +79,63 @@ export function capturedLog(): CapturedLog {
     },
     lines,
   };
+}
+
+/**
+ * A session store whose saves always come back busy (as when a reader holds the
+ * file on Windows through every retry); reads find nothing, the campaign exists.
+ */
+export function busyStore(): SessionStore {
+  const busy = () => Promise.resolve({ ok: false as const, error: "busy" as const });
+  return {
+    listCampaigns: () => Promise.resolve([]),
+    hasCampaign: () => Promise.resolve(true),
+    readCampaign: () => Promise.resolve(undefined),
+    writeCampaign: busy,
+    readSlice: () => Promise.resolve(undefined),
+    writeSlice: busy,
+  };
+}
+
+/** A promise the test opens by hand, to order concurrent work without a clock. */
+export interface Gate {
+  readonly opened: Promise<void>;
+  readonly open: () => void;
+}
+
+/** A new closed {@link Gate}. */
+export function gate(): Gate {
+  const { promise, resolve } = Promise.withResolvers<undefined>();
+  return {
+    opened: promise,
+    open: () => {
+      resolve(undefined);
+    },
+  };
+}
+
+/** A Node.js-like file system error with `code`. */
+export function fileError(code: string): Error {
+  return Object.assign(new Error(`file error ${code}`), { code });
+}
+
+/**
+ * A `rename` for `AtomicWriteIo` that fails with `code` on its first `failures`
+ * calls and then renames for real; `calls` counts every attempt.
+ */
+export function renameFailing(
+  code: string,
+  failures: number,
+): { renameStub: (from: string, to: string) => Promise<void>; calls: string[] } {
+  const calls: string[] = [];
+  const renameStub = async (from: string, to: string): Promise<void> => {
+    calls.push(code);
+    if (calls.length <= failures) {
+      throw fileError(code);
+    }
+    await rename(from, to);
+  };
+  return { renameStub, calls };
 }
 
 /** Each log line parsed as JSON (pino writes one JSON object per line). */

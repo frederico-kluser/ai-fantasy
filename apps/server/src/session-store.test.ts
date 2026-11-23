@@ -1,11 +1,13 @@
 import { mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
+import { setImmediate as nextTurn } from "node:timers/promises";
 import { join, posix, win32 } from "node:path";
 
 import { describe, expect, it } from "vitest";
 
-import { temporaryFolder, writeTree } from "../test/support.ts";
+import { gate, renameFailing, temporaryFolder, writeTree } from "../test/support.ts";
+import { NODE_IO, type AtomicWriteIo } from "./atomic-write.ts";
 import { sessionId } from "./session-format.ts";
-import { createSessionStore, resolveInside, writeFileAtomically } from "./session-store.ts";
+import { createSessionStore, resolveInside } from "./session-store.ts";
 
 const OUTSIDE = "Invariant violated: a session path would leave the data folder.";
 
@@ -56,53 +58,6 @@ describe("paths stay inside the data folder (overview §8, defense in depth)", (
   });
 });
 
-describe("atomic writes (temporary file in the same folder, then rename)", () => {
-  it("given a new file when writing it then it holds the content and no temporary file is left", async () => {
-    const folder = temporaryFolder();
-    const path = join(folder, "campaign.json");
-
-    await writeFileAtomically(path, '{"formatVersion":1}\n');
-
-    expect({ content: readFileSync(path, "utf8"), files: readdirSync(folder) }).toEqual({
-      content: '{"formatVersion":1}\n',
-      files: ["campaign.json"],
-    });
-  });
-
-  it("given an existing file when writing it again then the content is replaced", async () => {
-    const folder = temporaryFolder();
-    const path = writeTree(folder, "1.jsonl", "old\n");
-
-    await writeFileAtomically(path, Buffer.from("new\n"));
-
-    expect({ content: readFileSync(path, "utf8"), files: readdirSync(folder) }).toEqual({
-      content: "new\n",
-      files: ["1.jsonl"],
-    });
-  });
-
-  it("given a temporary path that already exists when writing then nothing is overwritten and the error is raised", async () => {
-    const folder = temporaryFolder();
-    const temporary = writeTree(folder, ".campaign.json.taken.tmp", "someone else's file");
-
-    await expect(
-      writeFileAtomically(join(folder, "campaign.json"), "{}\n", temporary),
-    ).rejects.toThrow();
-    expect({ files: readdirSync(folder), kept: readFileSync(temporary, "utf8") }).toEqual({
-      files: [".campaign.json.taken.tmp"],
-      kept: "someone else's file",
-    });
-  });
-
-  it("given a target that cannot be replaced when writing then the error is raised and no temporary file is left", async () => {
-    const folder = temporaryFolder();
-    writeTree(folder, "campaign.json/inside.txt", "a folder where the file should be");
-
-    await expect(writeFileAtomically(join(folder, "campaign.json"), "{}\n")).rejects.toThrow();
-    expect(readdirSync(folder)).toEqual(["campaign.json"]);
-  });
-});
-
 describe("session store (data/campaigns/<id>/campaign.json and slices/<id>.jsonl)", () => {
   it("given no data folder when listing campaigns then the list is empty", async () => {
     const store = createSessionStore(join(temporaryFolder(), "missing"));
@@ -114,13 +69,19 @@ describe("session store (data/campaigns/<id>/campaign.json and slices/<id>.jsonl
     const dataDir = temporaryFolder();
     const store = createSessionStore(dataDir);
 
-    await store.writeCampaign(id("tavern"), '{"formatVersion":1}\n');
+    const written = await store.writeCampaign(id("tavern"), '{"formatVersion":1}\n');
 
     expect({
+      written,
       file: readFileSync(join(dataDir, "campaigns", "tavern", "campaign.json"), "utf8"),
       read: (await store.readCampaign(id("tavern")))?.toString("utf8"),
       exists: await store.hasCampaign(id("tavern")),
-    }).toEqual({ file: '{"formatVersion":1}\n', read: '{"formatVersion":1}\n', exists: true });
+    }).toEqual({
+      written: { ok: true, value: undefined },
+      file: '{"formatVersion":1}\n',
+      read: '{"formatVersion":1}\n',
+      exists: true,
+    });
   });
 
   it("given no campaign when reading it then nothing comes back and it does not exist", async () => {
@@ -191,3 +152,83 @@ describe("session store (data/campaigns/<id>/campaign.json and slices/<id>.jsonl
     ]);
   });
 });
+
+describe("saves under contention (Windows readers, simultaneous saves)", () => {
+  it("given a slice that stays busy on every attempt when saving it then the store reports busy and the old slice stays", async () => {
+    const dataDir = temporaryFolder();
+    writeTree(dataDir, "campaigns/tavern/slices/1.jsonl", '{"formatVersion":1}\n');
+    const { renameStub } = renameFailing("EPERM", 99);
+    const io: AtomicWriteIo = { ...NODE_IO, rename: renameStub, wait: () => Promise.resolve() };
+    const store = createSessionStore(dataDir, io);
+
+    const result = await store.writeSlice(
+      id("tavern"),
+      id("1"),
+      Buffer.from('{"formatVersion":2}\n'),
+    );
+
+    expect({
+      result,
+      slice: readFileSync(join(dataDir, "campaigns", "tavern", "slices", "1.jsonl"), "utf8"),
+      files: readdirSync(join(dataDir, "campaigns", "tavern", "slices")),
+    }).toEqual({
+      result: { ok: false, error: "busy" },
+      slice: '{"formatVersion":1}\n',
+      files: ["1.jsonl"],
+    });
+  });
+
+  it("given two saves of the same slice at the same time when they run then the second starts only after the first is renamed", async () => {
+    const firstRename = gate();
+    const steps: string[] = [];
+    const io = recordingIo(steps, firstRename);
+    const store = createSessionStore(temporaryFolder(), io);
+
+    const first = store.writeSlice(id("tavern"), id("1"), Buffer.from("a"));
+    const second = store.writeSlice(id("tavern"), id("1"), Buffer.from("b"));
+    await nextTurn();
+    const whileFirstWaits = [...steps];
+    firstRename.open();
+    await Promise.all([first, second]);
+
+    expect({ whileFirstWaits, steps }).toEqual({
+      whileFirstWaits: ["write a", "rename"],
+      steps: ["write a", "rename", "write b", "rename"],
+    });
+  });
+
+  it("given saves of two different slices at the same time when they run then neither waits for the other", async () => {
+    const firstRename = gate();
+    const steps: string[] = [];
+    const store = createSessionStore(temporaryFolder(), recordingIo(steps, firstRename));
+
+    const first = store.writeSlice(id("tavern"), id("1"), Buffer.from("a"));
+    const second = store.writeSlice(id("tavern"), id("2"), Buffer.from("b"));
+    await nextTurn();
+    const beforeAnyRename = [...steps];
+    firstRename.open();
+    await Promise.all([first, second]);
+
+    expect(beforeAnyRename).toEqual(["write a", "write b", "rename", "rename"]);
+  });
+});
+
+/**
+ * File operations that touch no disk: writes and renames are recorded in
+ * `steps`, and every rename waits for `renames` to open.
+ */
+function recordingIo(steps: string[], renames: { readonly opened: Promise<void> }): AtomicWriteIo {
+  return {
+    ...NODE_IO,
+    makeFolder: () => Promise.resolve(),
+    writeFile: (_path, content) => {
+      steps.push(`write ${content.toString()}`);
+      return Promise.resolve();
+    },
+    rename: async () => {
+      steps.push("rename");
+      await renames.opened;
+    },
+    remove: () => Promise.resolve(),
+  };
+}

@@ -6,6 +6,7 @@ import {
   configFor,
   FAKE_KEY,
   jsonLines,
+  rawExchange,
   LOCAL_HOST,
   temporaryFolder,
   testApp,
@@ -211,6 +212,44 @@ describe("request body limit (BODY_LIMIT_BYTES)", () => {
     expect({ size: payload.length, status: response.statusCode }).toEqual({
       size: 64,
       status: 200,
+    });
+  });
+});
+
+describe("errors of the HTTP parser over a real socket (overview §5.2)", () => {
+  /** Status line and body of a raw HTTP response. */
+  function parts(response: string): { status: string; body: unknown } {
+    const [head = "", body = ""] = response.split("\r\n\r\n");
+    return { status: head.split("\r\n")[0] ?? "", body: JSON.parse(body) };
+  }
+
+  it("given a malformed request line when it arrives then the answer is 400 with the JSON error", async () => {
+    const port = Math.max(...listeningAddresses(await started()).map((address) => address.port));
+
+    const response = await rawExchange(port, "BOGUS\r\n\r\n");
+
+    expect(parts(response)).toEqual({
+      status: "HTTP/1.1 400 Bad Request",
+      body: { error: { code: "MALFORMED_REQUEST", message: "Pedido HTTP malformado." } },
+    });
+  });
+
+  it("given headers above the maximum size when they arrive then the answer is 431 with the JSON error", async () => {
+    const port = Math.max(...listeningAddresses(await started()).map((address) => address.port));
+
+    const response = await rawExchange(
+      port,
+      `GET /api/health HTTP/1.1\r\nHost: 127.0.0.1:${String(port)}\r\nX-Big: ${"a".repeat(20_000)}\r\n\r\n`,
+    );
+
+    expect(parts(response)).toEqual({
+      status: "HTTP/1.1 431 Request Header Fields Too Large",
+      body: {
+        error: {
+          code: "HEADERS_TOO_LARGE",
+          message: "Os cabeçalhos do pedido passam do tamanho máximo.",
+        },
+      },
     });
   });
 });

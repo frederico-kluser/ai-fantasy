@@ -1,10 +1,11 @@
 import { existsSync, readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 
-import type { FastifyInstance } from "fastify";
+import Fastify, { type FastifyInstance } from "fastify";
 import { describe, expect, it, onTestFinished } from "vitest";
 
 import {
+  busyStore,
   configFor,
   LOCAL_HOST,
   rawExchange,
@@ -13,7 +14,9 @@ import {
   treeOf,
   writeTree,
 } from "../test/support.ts";
+import { handleError } from "./errors.ts";
 import { listeningAddresses, startServer } from "./server.ts";
+import { sessionRoutes } from "./session-routes.ts";
 
 const CAMPAIGN = { formatVersion: 1, characters: [{ id: "c1", name: "Otávio" }], gapHours: 72 };
 const SLICE = Buffer.from(
@@ -26,7 +29,7 @@ const INVALID_ID = {
   error: {
     code: "INVALID_ID",
     message:
-      "Id inválido: use de 1 a 64 caracteres entre a-z, 0-9 e '-', começando por letra ou número.",
+      "Id inválido: use de 1 a 64 caracteres entre a-z, 0-9 e '-', começando por letra ou número e sem nome reservado do Windows (con, nul…).",
   },
 };
 const INVALID_CAMPAIGN = {
@@ -430,7 +433,7 @@ describe("ids (overview §8: nothing outside the data folder)", () => {
     });
   });
 
-  it.each(["..%5C..%5Cescape", "Tavern", "a_b", "a.b", "%20a", "a".repeat(65)])(
+  it.each(["..%5C..%5Cescape", "Tavern", "a_b", "a.b", "%20a", "a".repeat(65), "nul", "com1"])(
     "given the campaign id %j when saving then the server answers 400",
     async (campaignId) => {
       const { app, dataDir } = testApp();
@@ -482,6 +485,44 @@ describe("ids (overview §8: nothing outside the data folder)", () => {
         body: INVALID_ID,
         leaked: false,
       });
+    },
+  );
+});
+
+describe("busy files (Windows: a reader holds the file during every retry)", () => {
+  const SESSION_BUSY = {
+    error: {
+      code: "SESSION_BUSY",
+      message:
+        "A sessão está em uso (outra gravação ou leitura em andamento) e não foi gravada; tente de novo.",
+    },
+  };
+
+  it.each([
+    ["a campaign", "/api/sessions/campaigns/tavern", "application/json", '{"formatVersion":1}'],
+    ["a slice", "/api/sessions/campaigns/tavern/slices/1", NDJSON, '{"formatVersion":1}\n'],
+  ])(
+    "given %s that stays busy when saving it then the server answers 409 with the JSON error",
+    async (_what, url, contentType, payload) => {
+      const app = Fastify();
+      app.setErrorHandler(handleError);
+      await app.register(sessionRoutes, {
+        prefix: "/api/sessions",
+        store: busyStore(),
+        bodyLimit: 1024,
+      });
+      onTestFinished(async () => {
+        await app.close();
+      });
+
+      const response = await app.inject({
+        method: "PUT",
+        url,
+        headers: { "content-type": contentType },
+        payload,
+      });
+
+      expect(errorOf(response)).toEqual({ status: 409, body: SESSION_BUSY });
     },
   );
 });

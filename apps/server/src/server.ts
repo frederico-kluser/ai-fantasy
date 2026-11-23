@@ -13,7 +13,7 @@ import Fastify from "fastify";
 import type { FastifyInstance, FastifyPluginAsync, FastifyPluginCallback } from "fastify";
 
 import type { ServerConfig } from "./config.ts";
-import { handleError, handleNotFound } from "./errors.ts";
+import { handleClientError, handleError, handleNotFound } from "./errors.ts";
 import { localOnly } from "./local-guard.ts";
 import { sessionRoutes } from "./session-routes.ts";
 import { createSessionStore } from "./session-store.ts";
@@ -95,6 +95,8 @@ export function buildApp(options: AppOptions): FastifyInstance {
     logger: loggerOptions(config, options.logger),
     // Malformed URLs and over-long parameters are answered before routing: JSON errors too.
     frameworkErrors: handleError,
+    // So are the errors of the HTTP parser (malformed request, headers too large, timeout).
+    clientErrorHandler: handleClientError,
   });
   app.addHook("onRequest", localOnly(config.port));
   app.setErrorHandler(handleError);

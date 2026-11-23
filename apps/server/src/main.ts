@@ -8,6 +8,7 @@ import type { FastifyInstance } from "fastify";
 
 import { loadConfig } from "./config.ts";
 import { loadEnvFileIfPresent } from "./env.ts";
+import { errorCodeOf } from "./fs-errors.ts";
 import { repositoryPaths, type PathsResult } from "./paths.ts";
 import { listeningAddresses, startServer, type LogDestination } from "./server.ts";
 
@@ -27,10 +28,39 @@ export type MainResult =
   | { readonly ok: true; readonly app: FastifyInstance }
   | { readonly ok: false; readonly app: undefined };
 
+/** Explains a listen failure for people, by error code. */
+const LISTEN_FAILURES: ReadonlyMap<string, (port: number) => string> = new Map([
+  [
+    "EADDRINUSE",
+    (port: number) =>
+      `Erro: a porta ${port} de 127.0.0.1 já está em uso — Solução: feche o programa que a usa (outro npm start ou npm run dev, por exemplo) ou escolha outra porta em PORT, no ambiente ou no .env.`,
+  ],
+  [
+    "EACCES",
+    (port: number) =>
+      `Erro: sem permissão para escutar na porta ${port} de 127.0.0.1 — Solução: escolha outra porta em PORT, no ambiente ou no .env (no Windows, o Hyper-V reserva faixas de portas: veja netsh interface ipv4 show excludedportrange protocol=tcp).`,
+  ],
+]);
+
+/**
+ * The `Erro: … — Solução: …` line for a server that could not listen on
+ * `port`: a port in use (`EADDRINUSE`), a port the system refuses (`EACCES`,
+ * such as the ranges Hyper-V reserves on Windows) or any other code.
+ */
+export function listenFailure(error: unknown, port: number): string {
+  const code = errorCodeOf(error) ?? "desconhecido";
+  const explain = LISTEN_FAILURES.get(code);
+  return (
+    explain?.(port) ??
+    `Erro: o servidor não conseguiu escutar em 127.0.0.1:${port} (código ${code}) — Solução: confira PORT, no ambiente ou no .env, e se outro programa usa a porta.`
+  );
+}
+
 /**
  * Starts the server from the environment and logs where it listens. A missing
- * repository or an invalid configuration logs `Erro: … — Solução: …` lines (one
- * per invalid variable) and starts nothing.
+ * repository, an invalid configuration (one line per invalid variable) or a port
+ * the server cannot listen on logs `Erro: … — Solução: …` lines and starts
+ * nothing.
  */
 export async function main(options: MainOptions): Promise<MainResult> {
   if (!options.paths.ok) {
@@ -44,7 +74,13 @@ export async function main(options: MainOptions): Promise<MainResult> {
     options.log(config.error);
     return { ok: false, app: undefined };
   }
-  const app = await startServer({ config: config.value, webDistDir, logger: options.logStream });
+  let app: FastifyInstance;
+  try {
+    app = await startServer({ config: config.value, webDistDir, logger: options.logStream });
+  } catch (error) {
+    options.log(listenFailure(error, config.value.port));
+    return { ok: false, app: undefined };
+  }
   for (const { address, port } of listeningAddresses(app)) {
     options.log(`AI Fantasy (${ENGINE_NAME}): servidor local em http://${address}:${String(port)}`);
   }

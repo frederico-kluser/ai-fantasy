@@ -1,4 +1,4 @@
-import { inspect } from "node:util";
+import { format, inspect } from "node:util";
 
 import { describe, expect, it } from "vitest";
 
@@ -18,8 +18,12 @@ describe("Secret (development-rules §11: the key never reaches logs or response
 
   it.each([
     ["String()", (secret: Secret) => String(secret)],
-    ["a template literal", (secret: Secret) => `${secret.toString()}|${String(secret)}`],
-    ["concatenation", (secret: Secret) => "key: " + secret.toString()],
+    // eslint-disable-next-line @typescript-eslint/restrict-template-expressions -- the implicit conversion is the behavior under test
+    ["a template literal", (secret: Secret) => `key: ${secret}`],
+    // eslint-disable-next-line @typescript-eslint/restrict-plus-operands -- the implicit conversion is the behavior under test
+    ["concatenation", (secret: Secret) => "key: " + secret],
+    ["Array.join", (secret: Secret) => ["key:", secret].join(" ")],
+    ["util.format %s (console.log)", (secret: Secret) => format("key: %s", secret)],
   ])("given a secret when converting it with %s then the value is redacted", (_how, convert) => {
     const text = convert(new Secret(FAKE_KEY));
 

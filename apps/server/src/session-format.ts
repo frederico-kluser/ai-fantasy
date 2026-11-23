@@ -16,11 +16,37 @@ import type { Result } from "./result.ts";
  */
 export const SESSION_ID_PATTERN = /^[a-z0-9][a-z0-9-]{0,63}$/;
 
-/** A campaign id or a slice id that matches {@link SESSION_ID_PATTERN}. */
-export const sessionId = z.string().regex(SESSION_ID_PATTERN).brand<"SessionId">();
+/**
+ * Device names Windows reserves, with or without an extension (`nul.jsonl`
+ * too): many tools cannot open such files, so they are never ids.
+ */
+const WINDOWS_RESERVED_NAME = /^(?:con|prn|aux|nul|com[0-9]|lpt[0-9])$/;
+
+/**
+ * A campaign id or a slice id: matches {@link SESSION_ID_PATTERN} and is not a
+ * Windows reserved device name.
+ */
+export const sessionId = z
+  .string()
+  .regex(SESSION_ID_PATTERN)
+  .refine((id) => !WINDOWS_RESERVED_NAME.test(id))
+  .brand<"SessionId">();
 
 /** A validated campaign id or slice id. */
 export type SessionId = z.infer<typeof sessionId>;
+
+function isSessionId(value: unknown): value is SessionId {
+  return sessionId.safeParse(value).success;
+}
+
+/**
+ * The valid session ids among `names`, in lexicographic order (by UTF-16 code
+ * unit, never by locale: `"1" < "10" < "2"`). Folder listings come in whatever
+ * order the file system gives, so the store always sorts them here.
+ */
+export function sortedSessionIds(names: readonly (string | undefined)[]): SessionId[] {
+  return names.filter(isSessionId).sort();
+}
 
 /** A JSON object whose `formatVersion` is an integer ≥ 1; other fields are kept as they are. */
 const versionedDocument = z.looseObject({ formatVersion: z.int().min(1) });

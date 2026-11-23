@@ -2,17 +2,22 @@
  * Saved sessions on disk (overview §8): `campaigns/<id>/campaign.json` and
  * `campaigns/<id>/slices/<sliceId>.jsonl` inside the data folder. Ids reach the
  * store already validated; every path is still checked to stay inside the data
- * folder (defense in depth). Writes are atomic: a temporary file in the same
- * folder, then a rename.
+ * folder (defense in depth). Writes are atomic (`atomic-write.ts`) and queued
+ * per file, so two saves of the same file never race.
  */
-import { randomUUID } from "node:crypto";
-import { mkdir, readdir, readFile, rename, rm, stat, writeFile } from "node:fs/promises";
-import { basename, dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
+import { readdir, readFile, stat } from "node:fs/promises";
+import { isAbsolute, relative, resolve, sep } from "node:path";
 import type { PlatformPath } from "node:path";
 
-import { z } from "zod";
-
-import { sessionId, type SessionId } from "./session-format.ts";
+import {
+  NODE_IO,
+  writeFileAtomically,
+  type AtomicWriteIo,
+  type AtomicWriteResult,
+} from "./atomic-write.ts";
+import { unlessMissing } from "./fs-errors.ts";
+import { createKeyedQueue } from "./keyed-queue.ts";
+import { sortedSessionIds, type SessionId } from "./session-format.ts";
 
 /** A campaign with its slices, as `GET /api/sessions/campaigns` lists it. */
 export interface CampaignSummary {
@@ -29,16 +34,16 @@ export interface SessionStore {
   readonly hasCampaign: (campaignId: SessionId) => Promise<boolean>;
   /** The saved `campaign.json`, or `undefined` when there is none. */
   readonly readCampaign: (campaignId: SessionId) => Promise<Buffer | undefined>;
-  /** Saves `campaign.json` atomically, creating the campaign folder. */
-  readonly writeCampaign: (campaignId: SessionId, content: string) => Promise<void>;
+  /** Saves `campaign.json` atomically, creating the campaign folder; `busy` if it stayed in use. */
+  readonly writeCampaign: (campaignId: SessionId, content: string) => Promise<AtomicWriteResult>;
   /** The saved slice, byte for byte, or `undefined` when there is none. */
   readonly readSlice: (campaignId: SessionId, sliceId: SessionId) => Promise<Buffer | undefined>;
-  /** Saves the slice atomically and exactly as given, creating the slices folder. */
+  /** Saves the slice atomically and exactly as given; `busy` if it stayed in use. */
   readonly writeSlice: (
     campaignId: SessionId,
     sliceId: SessionId,
     content: Buffer,
-  ) => Promise<void>;
+  ) => Promise<AtomicWriteResult>;
 }
 
 /** The path functions {@link resolveInside} needs; tests pass `posix` or `win32`. */
@@ -73,51 +78,6 @@ export function resolveInside(
   return target;
 }
 
-/** A new temporary file next to `path`: `.<name>.<uuid>.tmp`, never a valid session file name. */
-function temporaryPathFor(path: string): string {
-  return join(dirname(path), `.${basename(path)}.${randomUUID()}.tmp`);
-}
-
-/**
- * Writes `content` to `path` atomically: first to a new temporary file in the
- * same folder (created exclusively and flushed to disk), then renamed over
- * `path`. Readers see the old file or the new one, never half of it. On failure
- * the temporary file is removed and the error is raised; an existing file at
- * `temporary` is never overwritten.
- */
-export async function writeFileAtomically(
-  path: string,
-  content: string | Buffer,
-  temporary: string = temporaryPathFor(path),
-): Promise<void> {
-  await writeFile(temporary, content, { flag: "wx", flush: true });
-  try {
-    await rename(temporary, path);
-  } catch (error) {
-    await unlessMissing(rm(temporary), undefined);
-    throw error;
-  }
-}
-
-/** A file system error saying that a file or folder does not exist. */
-const missingEntry = z.object({ code: z.literal("ENOENT") });
-
-/** `fallback` when `promise` fails because a file or folder does not exist. */
-async function unlessMissing<T, F>(promise: Promise<T>, fallback: F): Promise<T | F> {
-  try {
-    return await promise;
-  } catch (error) {
-    if (missingEntry.safeParse(error).success) {
-      return fallback;
-    }
-    throw error;
-  }
-}
-
-function isSessionId(value: unknown): value is SessionId {
-  return sessionId.safeParse(value).success;
-}
-
 function sliceIdOf(fileName: string): string | undefined {
   return fileName.endsWith(SLICE_SUFFIX) ? fileName.slice(0, -SLICE_SUFFIX.length) : undefined;
 }
@@ -131,11 +91,17 @@ async function entryNames(
   return entries.filter(keep).map((entry) => entry.name);
 }
 
+async function isFile(path: string): Promise<boolean> {
+  return unlessMissing(
+    stat(path).then((stats) => stats.isFile()),
+    false,
+  );
+}
+
 /** Where each thing lives inside the data folder (overview §8). */
 function sessionPaths(dataDir: string) {
   return {
     campaigns: () => resolveInside(dataDir, [CAMPAIGNS]),
-    campaignDir: (campaignId: string) => resolveInside(dataDir, [CAMPAIGNS, campaignId]),
     campaignFile: (campaignId: string) =>
       resolveInside(dataDir, [CAMPAIGNS, campaignId, CAMPAIGN_FILE]),
     slicesDir: (campaignId: string) => resolveInside(dataDir, [CAMPAIGNS, campaignId, SLICES]),
@@ -151,38 +117,32 @@ async function listCampaigns(paths: ReturnType<typeof sessionPaths>): Promise<Ca
       return undefined;
     }
     const files = await entryNames(paths.slicesDir(campaignId), (entry) => entry.isFile());
-    return { id: campaignId, sliceIds: files.map(sliceIdOf).filter(isSessionId).sort() };
+    return { id: campaignId, sliceIds: sortedSessionIds(files.map(sliceIdOf)) };
   };
   const folders = await entryNames(paths.campaigns(), (entry) => entry.isDirectory());
-  const summaries = await Promise.all(folders.filter(isSessionId).sort().map(summary));
+  const summaries = await Promise.all(sortedSessionIds(folders).map(summary));
   return summaries.filter((entry) => entry !== undefined);
 }
 
-async function isFile(path: string): Promise<boolean> {
-  return unlessMissing(
-    stat(path).then((stats) => stats.isFile()),
-    false,
-  );
-}
-
-/** The store of the data folder `dataDir` (absolute). */
-export function createSessionStore(dataDir: string): SessionStore {
+/**
+ * The store of the data folder `dataDir` (absolute). `io` is the file layer of
+ * the atomic writes; tests replace it to simulate busy files.
+ */
+export function createSessionStore(dataDir: string, io: AtomicWriteIo = NODE_IO): SessionStore {
   const paths = sessionPaths(dataDir);
-  const { campaignDir, campaignFile, slicesDir, sliceFile } = paths;
+  const { campaignFile, sliceFile } = paths;
+  const queued = createKeyedQueue();
+  const save = (file: string, content: string | Buffer) =>
+    queued(file, () => writeFileAtomically(file, content, io));
   return {
     listCampaigns: async () => listCampaigns(paths),
     hasCampaign: async (campaignId) => isFile(campaignFile(campaignId)),
     readCampaign: async (campaignId) =>
       unlessMissing(readFile(campaignFile(campaignId)), undefined),
-    writeCampaign: async (campaignId, content) => {
-      await mkdir(campaignDir(campaignId), { recursive: true });
-      await writeFileAtomically(campaignFile(campaignId), content);
-    },
+    writeCampaign: async (campaignId, content) => save(campaignFile(campaignId), content),
     readSlice: async (campaignId, sliceId) =>
       unlessMissing(readFile(sliceFile(campaignId, sliceId)), undefined),
-    writeSlice: async (campaignId, sliceId, content) => {
-      await mkdir(slicesDir(campaignId), { recursive: true });
-      await writeFileAtomically(sliceFile(campaignId, sliceId), content);
-    },
+    writeSlice: async (campaignId, sliceId, content) =>
+      save(sliceFile(campaignId, sliceId), content),
   };
 }

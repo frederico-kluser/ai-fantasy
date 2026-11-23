@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { campaignDocument, sessionId, validateSlice } from "./session-format.ts";
+import { campaignDocument, sessionId, sortedSessionIds, validateSlice } from "./session-format.ts";
 
 const NOT_UTF8 = "Fatia inválida: o corpo não é texto UTF-8.";
 const NO_FINAL_NEWLINE = "Fatia inválida: o JSONL tem de terminar com uma quebra de linha (\\n).";
@@ -42,6 +42,38 @@ describe("session ids (overview §8)", () => {
 
   it("given an id that is not a string when validating it then it is rejected", () => {
     expect(sessionId.safeParse(7).success).toBe(false);
+  });
+
+  it.each(["con", "prn", "aux", "nul", "com0", "com1", "com9", "lpt0", "lpt1", "lpt9"])(
+    "given the Windows reserved device name %j when validating it as an id then it is rejected",
+    (id) => {
+      expect(sessionId.safeParse(id).success).toBe(false);
+    },
+  );
+
+  it.each(["com", "com10", "lpt", "lpt10", "console", "nul-1", "aux2", "xcon", "connect"])(
+    "given the id %j that only looks like a reserved name when validating it then it is accepted",
+    (id) => {
+      expect(sessionId.safeParse(id).success).toBe(true);
+    },
+  );
+
+  it("given names out of order and some that are not ids when sorting them then only the ids come, in lexicographic order", () => {
+    const names = [
+      "b",
+      "Upper",
+      "a-2",
+      ".1.jsonl.x.tmp",
+      undefined,
+      "10",
+      "a",
+      "2",
+      "1",
+      "nul",
+      "2-b",
+    ];
+
+    expect(sortedSessionIds(names)).toEqual(["1", "10", "2", "2-b", "a", "a-2", "b"]);
   });
 });
 

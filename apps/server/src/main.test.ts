@@ -6,8 +6,8 @@ import { join, resolve } from "node:path";
 
 import { afterAll, describe, expect, it, onTestFinished, vi } from "vitest";
 
-import { capturedLog, configFor, FAKE_KEY, jsonLines } from "../test/support.ts";
-import { defaultMainOptions, main, type MainResult } from "./main.ts";
+import { capturedLog, configFor, FAKE_KEY, fileError, jsonLines } from "../test/support.ts";
+import { defaultMainOptions, listenFailure, main, type MainResult } from "./main.ts";
 import type { PathsResult } from "./paths.ts";
 import { listeningAddresses, startServer } from "./server.ts";
 
@@ -131,6 +131,50 @@ describe("server entry point", () => {
       ],
     });
   });
+
+  it("given a port already in use when running main then it says so with a solution and starts nothing", async () => {
+    const other = await startServer({
+      config: configFor({ PORT: "0", DATA_DIR: scratch }),
+      webDistDir: emptySite,
+    });
+    onTestFinished(async () => {
+      await other.close();
+    });
+    const port = Math.max(...listeningAddresses(other).map((address) => address.port));
+    const lines: string[] = [];
+
+    const result = await main({
+      env: { PORT: String(port) },
+      paths: NO_ENV,
+      log: (line) => lines.push(line),
+    });
+
+    expect({ result, lines }).toEqual({
+      result: { ok: false, app: undefined },
+      lines: [
+        `Erro: a porta ${String(port)} de 127.0.0.1 já está em uso — Solução: feche o programa que a usa (outro npm start ou npm run dev, por exemplo) ou escolha outra porta em PORT, no ambiente ou no .env.`,
+      ],
+    });
+  });
+
+  it("given a port the system refuses (EACCES) when explaining the failure then the line names the Hyper-V reserved ranges", () => {
+    expect(listenFailure(fileError("EACCES"), 50_000)).toBe(
+      "Erro: sem permissão para escutar na porta 50000 de 127.0.0.1 — Solução: escolha outra porta em PORT, no ambiente ou no .env (no Windows, o Hyper-V reserva faixas de portas: veja netsh interface ipv4 show excludedportrange protocol=tcp).",
+    );
+  });
+
+  it.each([
+    ["another error code", fileError("EADDRNOTAVAIL"), "EADDRNOTAVAIL"],
+    ["an error without a code", new Error("strange"), "desconhecido"],
+    ["something that is not an error", "strange", "desconhecido"],
+  ])(
+    "given %s when explaining a listen failure then the line names the code and a solution",
+    (_case, error, code) => {
+      expect(listenFailure(error, 4318)).toBe(
+        `Erro: o servidor não conseguiu escutar em 127.0.0.1:4318 (código ${code}) — Solução: confira PORT, no ambiente ou no .env, e se outro programa usa a porta.`,
+      );
+    },
+  );
 
   it("given no repository around the server when running main then it says so and starts nothing", async () => {
     const lines: string[] = [];

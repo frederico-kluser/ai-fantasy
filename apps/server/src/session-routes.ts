@@ -8,14 +8,18 @@
  * - `PUT /campaigns/:campaignId/slices/:sliceId` → saves an `application/x-ndjson`
  *   body exactly as received (204); the campaign must exist (404 otherwise).
  *
+ * A save whose file stays in use through every retry (a reader on Windows)
+ * answers 409 `SESSION_BUSY` and leaves the old file as it was.
+ *
  * Ids are checked before anything touches the disk (400). Campaigns accept only
  * JSON and slices only NDJSON: any other content type is 415.
  */
-import type { FastifyInstance, FastifyPluginCallback } from "fastify";
+import type { FastifyInstance, FastifyPluginCallback, FastifyReply, FastifyRequest } from "fastify";
 import { z } from "zod";
 
 import { API_ERRORS, sendError } from "./errors.ts";
 import { campaignDocument, sessionId, validateSlice } from "./session-format.ts";
+import type { AtomicWriteResult } from "./atomic-write.ts";
 import type { SessionStore } from "./session-store.ts";
 
 /** Options of {@link sessionRoutes}. */
@@ -32,17 +36,18 @@ const JSON_TYPE = "application/json; charset=utf-8";
 const campaignParams = z.object({ campaignId: sessionId });
 const sliceParams = z.object({ campaignId: sessionId, sliceId: sessionId });
 
-/** Campaign routes; this context parses JSON only. */
-const campaignRoutes: FastifyPluginCallback<SessionRoutesOptions> = (
-  app,
-  { store, bodyLimit },
-  done,
-) => {
-  app.removeContentTypeParser("text/plain");
+type Handler = (request: FastifyRequest, reply: FastifyReply) => Promise<FastifyReply>;
 
-  app.get("/campaigns", async () => ({ campaigns: await store.listCampaigns() }));
+/** 204 when saved; 409 when the file stayed in use through every retry. */
+function answerSave(reply: FastifyReply, written: AtomicWriteResult): FastifyReply {
+  if (!written.ok) {
+    return sendError(reply, 409, API_ERRORS.sessionBusy);
+  }
+  return reply.code(204).send();
+}
 
-  app.get("/campaigns/:campaignId", async (request, reply) => {
+function readCampaign(store: SessionStore): Handler {
+  return async (request, reply) => {
     const params = campaignParams.safeParse(request.params);
     if (!params.success) {
       return sendError(reply, 400, API_ERRORS.invalidId);
@@ -52,9 +57,11 @@ const campaignRoutes: FastifyPluginCallback<SessionRoutesOptions> = (
       return sendError(reply, 404, API_ERRORS.campaignNotFound);
     }
     return reply.type(JSON_TYPE).send(campaign);
-  });
+  };
+}
 
-  app.put("/campaigns/:campaignId", { bodyLimit }, async (request, reply) => {
+function saveCampaign(store: SessionStore): Handler {
+  return async (request, reply) => {
     const params = campaignParams.safeParse(request.params);
     if (!params.success) {
       return sendError(reply, 400, API_ERRORS.invalidId);
@@ -62,10 +69,53 @@ const campaignRoutes: FastifyPluginCallback<SessionRoutesOptions> = (
     if (!campaignDocument.safeParse(request.body).success) {
       return sendError(reply, 400, API_ERRORS.invalidCampaign);
     }
-    await store.writeCampaign(params.data.campaignId, `${JSON.stringify(request.body, null, 2)}\n`);
-    return reply.code(204).send();
-  });
+    const content = `${JSON.stringify(request.body, null, 2)}\n`;
+    return answerSave(reply, await store.writeCampaign(params.data.campaignId, content));
+  };
+}
 
+function readSlice(store: SessionStore): Handler {
+  return async (request, reply) => {
+    const params = sliceParams.safeParse(request.params);
+    if (!params.success) {
+      return sendError(reply, 400, API_ERRORS.invalidId);
+    }
+    const slice = await store.readSlice(params.data.campaignId, params.data.sliceId);
+    if (slice === undefined) {
+      return sendError(reply, 404, API_ERRORS.sliceNotFound);
+    }
+    return reply.type(NDJSON_TYPE).send(slice);
+  };
+}
+
+function saveSlice(store: SessionStore): Handler {
+  return async (request, reply) => {
+    const params = sliceParams.safeParse(request.params);
+    if (!params.success) {
+      return sendError(reply, 400, API_ERRORS.invalidId);
+    }
+    const slice = validateSlice(request.body);
+    if (!slice.ok) {
+      return sendError(reply, 400, { code: "INVALID_BODY", message: slice.error });
+    }
+    const { campaignId, sliceId } = params.data;
+    if (!(await store.hasCampaign(campaignId))) {
+      return sendError(reply, 404, API_ERRORS.campaignNotFound);
+    }
+    return answerSave(reply, await store.writeSlice(campaignId, sliceId, slice.value));
+  };
+}
+
+/** Campaign routes; this context parses JSON only. */
+const campaignRoutes: FastifyPluginCallback<SessionRoutesOptions> = (
+  app,
+  { store, bodyLimit },
+  done,
+) => {
+  app.removeContentTypeParser("text/plain");
+  app.get("/campaigns", async () => ({ campaigns: await store.listCampaigns() }));
+  app.get("/campaigns/:campaignId", readCampaign(store));
+  app.put("/campaigns/:campaignId", { bodyLimit }, saveCampaign(store));
   done();
 };
 
@@ -88,35 +138,8 @@ const sliceRoutes: FastifyPluginCallback<SessionRoutesOptions> = (
   done,
 ) => {
   acceptNdjsonOnly(app);
-
-  app.get("/campaigns/:campaignId/slices/:sliceId", async (request, reply) => {
-    const params = sliceParams.safeParse(request.params);
-    if (!params.success) {
-      return sendError(reply, 400, API_ERRORS.invalidId);
-    }
-    const slice = await store.readSlice(params.data.campaignId, params.data.sliceId);
-    if (slice === undefined) {
-      return sendError(reply, 404, API_ERRORS.sliceNotFound);
-    }
-    return reply.type(NDJSON_TYPE).send(slice);
-  });
-
-  app.put("/campaigns/:campaignId/slices/:sliceId", { bodyLimit }, async (request, reply) => {
-    const params = sliceParams.safeParse(request.params);
-    if (!params.success) {
-      return sendError(reply, 400, API_ERRORS.invalidId);
-    }
-    const slice = validateSlice(request.body);
-    if (!slice.ok) {
-      return sendError(reply, 400, { code: "INVALID_BODY", message: slice.error });
-    }
-    if (!(await store.hasCampaign(params.data.campaignId))) {
-      return sendError(reply, 404, API_ERRORS.campaignNotFound);
-    }
-    await store.writeSlice(params.data.campaignId, params.data.sliceId, slice.value);
-    return reply.code(204).send();
-  });
-
+  app.get("/campaigns/:campaignId/slices/:sliceId", readSlice(store));
+  app.put("/campaigns/:campaignId/slices/:sliceId", { bodyLimit }, saveSlice(store));
   done();
 };
 
