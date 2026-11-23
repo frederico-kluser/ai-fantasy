@@ -38,6 +38,31 @@ async function generated(): Promise<HTMLElement> {
   return screen.findByRole("heading", { name: /^Elenco gerado/ });
 }
 
+/** Two enemies (a tense bond, so no hook is drawn), generated once. */
+async function enemiesGenerated(): Promise<void> {
+  renderPage();
+  addCast(["Ana", "caretaker"], ["Bia", "rebel"]);
+  click("Adicionar laço");
+  choose("Arquétipo do laço", "enemies");
+  click("Gerar elenco");
+  await generated();
+}
+
+/** Ticks the lock of each card named. */
+function lockAll(cards: readonly string[]): void {
+  cards.forEach((name) => {
+    fireEvent.click(within(group(name)).getByRole("checkbox"));
+  });
+}
+
+/** Opens the review sheet, reads the fingerprint of the opened scene and goes back. */
+async function reviewHash(): Promise<string> {
+  click("Revisar ficha");
+  const status = await screen.findByText(/^Configuração válida/);
+  click("Voltar e editar");
+  return status.textContent.replace(/^.*: /, "");
+}
+
 describe("manual playground: start", () => {
   it("given a new playground when rendering then the engine is idle and both buttons work", () => {
     renderPage();
@@ -198,22 +223,25 @@ describe("manual playground: generation", () => {
   });
 
   it("given a cast seed when regenerating bonds with one locked then the locked bond stays", async () => {
-    renderPage();
-    addCast(["Ana", "caretaker"], ["Bia", "rebel"]);
-    click("Adicionar laço");
-    click("Gerar elenco");
-    await generated();
-    const bond = group("Laço 1");
-    const before = valueOf("confiança, Ana → Bia", bond);
-    fireEvent.click(within(bond).getByLabelText("Travar laço"));
+    await enemiesGenerated();
+    lockAll(["Personagem 1", "Personagem 2", "Laço 1"]);
+    const first = await reviewHash();
 
     click("Sortear de novo");
     await screen.findByRole("heading", { name: "Elenco gerado (tentativa 1)" });
 
-    expect([
-      valueOf("confiança, Ana → Bia", group("Laço 1")),
-      within(group("Laço 1")).getByLabelText<HTMLInputElement>("Travar laço").checked,
-    ]).toStrictEqual([before, true]);
+    expect(await reviewHash()).toBe(first);
+  });
+
+  it("given the characters locked but not the bond when regenerating then the bond is drawn again", async () => {
+    await enemiesGenerated();
+    lockAll(["Personagem 1", "Personagem 2"]);
+    const first = await reviewHash();
+
+    click("Sortear de novo");
+    await screen.findByRole("heading", { name: "Elenco gerado (tentativa 1)" });
+
+    expect(await reviewHash()).not.toBe(first);
   });
 
   it("given a generated bond when editing an axis then the bond locks with the value", async () => {

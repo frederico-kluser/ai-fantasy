@@ -12,6 +12,15 @@ async function addCharacter(page: Page, archetype: string, name: string, card: s
   await page.getByRole("group", { name: card }).getByLabel("Nome", { exact: true }).fill(name);
 }
 
+/** Opens the review sheet, reads its status (with the fingerprint of the opened scene) and goes back. */
+async function reviewedState(page: Page): Promise<string> {
+  await page.getByRole("button", { name: "Revisar ficha" }).click();
+  await expect(page.getByRole("heading", { name: "Ficha da cena" })).toBeFocused();
+  const status = await page.getByRole("status").textContent();
+  await page.getByRole("button", { name: "Voltar e editar" }).click();
+  return status ?? "";
+}
+
 function bond(page: Page): Locator {
   return page.getByRole("group", { name: "Laço 1" });
 }
@@ -28,18 +37,19 @@ test("given a manual playground when confirming then the review sheet shows the 
   await addCharacter(page, "caretaker", "Marta", "Personagem 1");
   await addCharacter(page, "rebel", "Joca", "Personagem 2");
   await page.getByRole("button", { name: "Adicionar laço" }).click();
-  await bond(page).getByLabel("Arquétipo do laço").selectOption({ label: "irmãos" });
+  await bond(page).getByLabel("Arquétipo do laço").selectOption({ label: "inimigos" });
 
   await page.getByRole("button", { name: "Gerar elenco" }).click();
   await expect(page.getByRole("list", { name: "Laços gerados" })).toContainText(
-    "Marta → Joca: irmão(ã)",
+    "Marta → Joca: inimigo(a)",
   );
-  await bond(page).getByText("Eixos sorteados (editar trava o laço)").click();
-  const trust = await bond(page).getByLabel("confiança, Marta → Joca").inputValue();
+  await page.getByRole("group", { name: "Personagem 1" }).getByRole("checkbox").check();
+  await page.getByRole("group", { name: "Personagem 2" }).getByRole("checkbox").check();
   await bond(page).getByLabel("Travar laço").check();
+  const first = await reviewedState(page);
   await page.getByRole("button", { name: "Sortear de novo" }).click();
   await expect(page.getByRole("heading", { name: "Elenco gerado (tentativa 1)" })).toBeVisible();
-  await expect(bond(page).getByLabel("confiança, Marta → Joca")).toHaveValue(trust);
+  expect(await reviewedState(page)).toBe(first);
 
   await page.getByLabel("Posição de Marta").selectOption({ label: "(1, 1)" });
   await page.getByLabel("Personagem do jogador").selectOption({ label: "Joca" });
@@ -68,7 +78,9 @@ test("given the navigation when moving with the keyboard then the scene screen o
   page,
 }) => {
   await page.goto("/");
-  await page.getByRole("link", { name: "Cena" }).focus();
+  await page.keyboard.press("Tab");
+  await page.keyboard.press("Tab");
+  await expect(page.getByRole("link", { name: "Cena" })).toBeFocused();
 
   await page.keyboard.press("Enter");
 
