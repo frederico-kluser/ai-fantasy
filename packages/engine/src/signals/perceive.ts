@@ -22,10 +22,10 @@ import { itemAt } from "../domain/lookup.ts";
 import type { SignalCauseId, SignalId } from "../presets/signals.ts";
 import type { Drawer } from "../rng/drawer.ts";
 import { applyInterpretation } from "./effects.ts";
-import type { EmittedSignal } from "./emission.ts";
+import type { Emission } from "./emission.ts";
 import { interpretationWeights } from "./interpret.ts";
 import { noticeChance } from "./notice.ts";
-import type { SignalChannel, SignalRule, SignalRules } from "./rules.ts";
+import type { SignalChannel } from "./rules.ts";
 
 /**
  * A signal noticed and interpreted (simulation-model §16 step 8): who noticed
@@ -48,9 +48,6 @@ export interface ObserverScene {
   readonly scene: SceneContext;
   readonly now: TickContext;
   readonly tick: number;
-  readonly signals: SignalRules;
-  /** Everyone present, to find each emitter. */
-  readonly characters: readonly CharacterState[];
 }
 
 /** A visual signal needs sight, a vocal one a normal voice in range (simulation-model §7). */
@@ -59,32 +56,19 @@ const PERCEIVED_BY: Readonly<Record<SignalChannel, (aware: Awareness) => boolean
   VOCAL: (aware) => aware.hears,
 };
 
-function ruleOf(signals: SignalRules, id: SignalId): SignalRule {
-  const rule = signals.find((signal) => signal.id === id);
-  if (rule === undefined) {
-    throw new RangeError(`the signal ${id} is not in the rules`);
-  }
-  return rule;
-}
-
-function characterOf(characters: readonly CharacterState[], id: CharacterId): CharacterState {
-  const found = characters.find((character) => character.id === id);
-  if (found === undefined) {
-    throw new RangeError(`the emitter ${id} is not present`);
-  }
-  return found;
+/** A signal that came out, with its preset and the state of its emitter. */
+export interface SeenEmission extends Emission {
+  readonly emitter: CharacterState;
 }
 
 /** The cause `observer` reads in `emitted`, drawn as `SIGNAL_INTERPRET`. */
 function interpret(
   drawer: Drawer,
   observer: CharacterState,
-  emitter: CharacterState,
-  emitted: EmittedSignal,
+  { emitter, emitted, rule }: SeenEmission,
   where: ObserverScene,
 ): SignalCauseId {
   const { place, weather, grid } = where.scene;
-  const rule = ruleOf(where.signals, emitted.signal);
   const weights = interpretationWeights(rule, emitted.cause, readerView(observer, emitter.id), {
     thermalTarget: thermalTarget(
       place.baseTemperature,
@@ -105,10 +89,10 @@ function interpret(
 function readSignal(
   drawer: Drawer,
   observer: CharacterState,
-  emitted: EmittedSignal,
+  emission: SeenEmission,
   where: ObserverScene,
 ): SignalPerceived[] {
-  const emitter = characterOf(where.characters, emitted.emitter);
+  const { emitter, emitted } = emission;
   const aware = awareness(where.scene.grid, where.now, observer.cell, emitter.cell);
   const noticed =
     PERCEIVED_BY[emitted.channel](aware) &&
@@ -131,7 +115,7 @@ function readSignal(
       signal,
       channel,
       trueCause: cause,
-      interpretedCause: interpret(drawer, observer, emitter, emitted, where),
+      interpretedCause: interpret(drawer, observer, emission, where),
     },
   ];
 }
@@ -143,11 +127,11 @@ function readSignal(
 export function readSignals(
   drawer: Drawer,
   observer: CharacterState,
-  emitted: readonly EmittedSignal[],
+  emissions: readonly SeenEmission[],
   where: ObserverScene,
 ): SignalPerceived[] {
-  return emitted
-    .filter((entry) => entry.emitter !== observer.id)
+  return emissions
+    .filter((entry) => entry.emitter.id !== observer.id)
     .flatMap((entry) => readSignal(drawer, observer, entry, where));
 }
 

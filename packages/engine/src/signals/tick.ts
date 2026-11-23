@@ -10,8 +10,13 @@ import { tickContext, type SceneContext } from "../context/scene.ts";
 import { compareIds, type CharacterId } from "../domain/ids.ts";
 import type { Drawer } from "../rng/drawer.ts";
 import { causeIntensities, visibleAttraction } from "./causes.ts";
-import { emitSignals, type EmittedSignal } from "./emission.ts";
-import { perceptionsAfter, readSignals, type SignalPerceived } from "./perceive.ts";
+import { emissionsOf, type EmittedSignal } from "./emission.ts";
+import {
+  perceptionsAfter,
+  readSignals,
+  type SeenEmission,
+  type SignalPerceived,
+} from "./perceive.ts";
 import type { SignalRules } from "./rules.ts";
 
 /** Everything the signals of a tick need besides the characters. */
@@ -40,16 +45,16 @@ function emitAll(
   sorted: readonly CharacterState[],
   input: SignalTickInput,
   vision: number,
-): EmittedSignal[] {
+): SeenEmission[] {
   return sorted.flatMap((emitter) =>
-    emitSignals(drawer, input.signals, {
+    emissionsOf(drawer, input.signals, {
       emitter: emitter.id,
       intensities: causeIntensities(emitter, {
         attraction: visibleAttraction(emitter, sorted, input.scene.grid, vision),
         lying: input.lying.includes(emitter.id),
       }),
       selfControl: effectiveTrait(emitter.traits, emitter.tendencies, "selfControl"),
-    }),
+    }).map((emission) => ({ ...emission, emitter })),
   );
 }
 
@@ -79,7 +84,7 @@ export function signalsTick(
   const now = tickContext(input.scene, input.tick);
   const sorted = [...characters].sort((a, b) => compareIds(a.id, b.id));
   const emitted = emitAll(drawer, sorted, input, now.vision);
-  const where = { ...input, now, characters: sorted };
+  const where = { scene: input.scene, now, tick: input.tick };
   const read = sorted.map((observer) => ({
     observer,
     readings: readSignals(drawer, observer, emitted, where),
@@ -89,7 +94,7 @@ export function signalsTick(
       ...observer,
       perceptions: perceptionsAfter(observer, readings),
     })),
-    emitted,
+    emitted: emitted.map((emission) => emission.emitted),
     events: read.flatMap(({ readings }) => readings),
   };
 }

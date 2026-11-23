@@ -72,24 +72,45 @@ function strongest(causes: readonly SignalCauseId[], input: EmissionInput): Sign
   );
 }
 
+/** A signal that came out and the preset it came from. */
+export interface Emission {
+  readonly emitted: EmittedSignal;
+  readonly rule: SignalRule;
+}
+
 /**
- * The signals one character emits this tick (simulation-model §7). For each
- * signal, in the order of the catalog, and each of its causes with intensity
- * ≥ 5000, in the order of the signal's list, one `SIGNAL_EMIT` chance on the
- * `signal` stream with the emitter as target. A signal comes out once, with
- * the strongest emitting cause as its true cause (tie: the first of its list).
+ * The signals one character emits this tick (simulation-model §7), with their
+ * presets. For each signal, in the order of the catalog, and each of its
+ * causes with intensity ≥ 5000, in the order of the signal's list, one
+ * `SIGNAL_EMIT` chance on the `signal` stream with the emitter as target. A
+ * signal comes out once, with the strongest emitting cause as its true cause
+ * (tie: the first of its list).
  *
  * @returns the signals that came out, in the order of the catalog.
  */
+export function emissionsOf(
+  drawer: Drawer,
+  signals: SignalRules,
+  input: EmissionInput,
+): Emission[] {
+  return signals.flatMap((rule) => {
+    const cause = strongest(emittingCauses(drawer, rule, input), input);
+    return cause === null
+      ? []
+      : [
+          {
+            emitted: { emitter: input.emitter, signal: rule.id, channel: rule.channel, cause },
+            rule,
+          },
+        ];
+  });
+}
+
+/** The signals one character emits this tick (see {@link emissionsOf}), without their presets. */
 export function emitSignals(
   drawer: Drawer,
   signals: SignalRules,
   input: EmissionInput,
 ): EmittedSignal[] {
-  return signals.flatMap((signal) => {
-    const cause = strongest(emittingCauses(drawer, signal, input), input);
-    return cause === null
-      ? []
-      : [{ emitter: input.emitter, signal: signal.id, channel: signal.channel, cause }];
-  });
+  return emissionsOf(drawer, signals, input).map((emission) => emission.emitted);
 }

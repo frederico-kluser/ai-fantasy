@@ -146,6 +146,18 @@ describe("emitSignals (simulation-model §7, emission on the signal stream)", ()
     ]);
   });
 
+  it("given a cause at exactly 5000 when emitting then its chance of 0 is still drawn", () => {
+    const drawer = aDrawer();
+
+    emitSignals(drawer, SIGNALS.slice(0, 1), {
+      emitter: idOf(4),
+      intensities: causes({ fear: 5000 }),
+      selfControl: 0,
+    });
+
+    expect(drawer.finish().records.map((record) => record.p)).toStrictEqual([0]);
+  });
+
   it("given causes below 5000 when emitting then nothing is drawn", () => {
     const drawer = aDrawer();
 
