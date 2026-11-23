@@ -128,6 +128,12 @@ describe("weighted outcomes (simulation-model §15)", () => {
     },
   );
 
+  it("given 500 000 options in MOST_LIKELY mode when resolving then the heaviest wins without exhausting the stack", () => {
+    const weights = Array.from({ length: 500000 }, (_, index) => index % 7);
+
+    expect(weightedOutcomes.mostLikely(weights)).toBe(6);
+  });
+
   it.each([
     [0, false],
     [1, true],
