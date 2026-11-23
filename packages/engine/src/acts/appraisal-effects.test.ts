@@ -272,6 +272,23 @@ describe("termDeltas (dialogue-acts §7.1 and §7.2, order of calculation)", () 
     expect(delta?.delta).toBe(mulBp(mulBp(1200, 12000), 15000));
   });
 
+  it("given the fear of a THREATEN where truncation tells the orders apart when scaling then the courage factor comes before fearOf", () => {
+    const steady = aCharacter(2, 0, {
+      traits: someTraits({ courage: 2 }),
+      bonds: [aBond(1, { fearOf: 9999 })],
+    });
+
+    const [delta] = termDeltas(
+      [{ kind: "EMOTION", emotion: "fear", k: 3, byFearOf: true }],
+      steady,
+      one,
+      { unit: 266, ...NEUTRAL_SCALING },
+      noDrive,
+    );
+
+    expect(delta?.delta).toBe(1593);
+  });
+
   it("given directed and object drives when scaling then directed ones are toward the counterpart, request ones resolve and unresolved ones are dropped", () => {
     const deltas = termDeltas(
       [driveTerm("justice", 1), driveTerm("RECEIVER", -3), driveTerm("GIVER", -1)],

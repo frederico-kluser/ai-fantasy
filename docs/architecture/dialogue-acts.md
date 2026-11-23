@@ -388,8 +388,12 @@ Fixados na SOC-03 (`packages/engine/src/acts/appraisal*.ts`, `deltas.ts`, `lies.
 
 - **Linhas como dados.** A tabela 7.1 e as linhas de 8.3 são dados: cada linha tem ato, condição,
   valência e termos. Valem todas as linhas do ato cuja condição vale; os termos se somam e a
-  valência é a de maior módulo (empate: a primeira na ordem da tabela). Sem linha, valência 0 e
-  nenhum efeito, nem os extras do tom.
+  valência é a de maior módulo (empate: a primeira na ordem da tabela). As linhas de valência 0
+  sem efeito (`ASK`, `REQUEST`, `MOVE`, `LEAVE`) existem e recebem o tom (7.2): um `REQUEST` em
+  `AGGRESSIVE` tem valência −2, os extras do tom, hostilidade percebida e ofensor; a linha de `ASK`
+  vale sempre, e as emoções de segredo ou fato ruim são uma linha à parte. Só um ato sem linha
+  nenhuma (`STAY_SILENT`, que tem a linha de obrigação ignorada; `ACCEPT` ou `REFUSE` que não
+  respondem a nada) fica com valência 0 e nenhum efeito, nem os extras do tom.
 - **"Tópico interessa"** (linhas de `CHAT` e `TELL`) é a parte do tópico da regra de interesse da
   simulação (5.2), sem o "X é alvo" (que valeria sempre para o alvo): a própria pessoa; um
   presente com quem ela tem afeto, ressentimento ou atração ≥ 5000; uma pessoa a quem ela tem
@@ -402,7 +406,8 @@ Fixados na SOC-03 (`packages/engine/src/acts/appraisal*.ts`, `deltas.ts`, `lies.
   alvo" na linha de `ASK` é o fato ruim para ele (um `SECRET` de que o alvo é autor ou ofensor).
 - **Tom:** os multiplicadores valem para cada termo pelo sinal do efeito (déficit que cai é bom;
   `surprise` e `dependence` são neutros). Os extras do tom são termos sem multiplicador. Na regra
-  de `SEDUCTIVE`, "valência +1" e "valência −1" somam à valência da linha.
+  de `SEDUCTIVE`, "valência +1" e "valência −1" somam à valência da linha (leitura escolhida na
+  SOC-03; o maintainer pode revisitá-la).
 - **Fatores de traço** (simulação 5.6) valem só para ganhos (deltas positivos) de `anger`, `fear` e
   `guilt`, com o traço efetivo.
 - **Teto dos laços:** os deltas de um ato no mesmo eixo, da mesma pessoa para a mesma pessoa, se
@@ -415,7 +420,11 @@ Fixados na SOC-03 (`packages/engine/src/acts/appraisal*.ts`, `deltas.ts`, `lies.
 - **Ciúme** e os **efeitos em quem agiu** (7.3) usam o tom real e a valência pelo tom real para
   cada alvo; o ciúme vale para quem tem a perspectiva `DIRECT` ou `SEEN` (não `FRAGMENT`). O
   **ofensor** é o autor quando a valência pelo tom real é ≤ −1 para algum alvo. Um fato de ato
-  nunca é segredo.
+  nunca é segredo (escolha da SOC-03; o maintainer pode revisitá-la).
+- **Tédio** (simulação 5.2): cada ouvinte `DIRECT` a quem o ato interessa (`actInterests`: o ato é
+  dirigido a ele — alvo, ou ouvinte `DIRECT` de um `GROUP` — ou o tópico lhe interessa) perde 1000
+  de tédio (`BOREDOM_RELIEF`), ou 2000 (`BOREDOM_RELIEF_ADDRESSED`) se o ato é dirigido a ele com a
+  valência que ele leu ≥ 1; nunca abaixo de 0. É um delta de emoção do ato (conta na importância).
 - **Percepção** (simulação §9, item 4) muda só pelos números de lá; ignorar uma obrigação aplica
   só a linha de `STAY_SILENT` devido (intensidade 5000, sem tom e sem mudar a percepção).
 - **Mentiras:** a detecção (`LIE_DETECT`, stream `perception`) e a crença (`LIE_BELIEF`, stream

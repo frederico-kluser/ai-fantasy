@@ -1299,3 +1299,35 @@ describe("appraiseAct: boredom relief (simulation-model §5.2)", () => {
     expect(amount(deltasOf(input), w, "boredom")).toBeUndefined();
   });
 });
+
+describe("appraiseAct: order of calculation (dialogue-acts §7.2)", () => {
+  it("given an AGGRESSIVE TEASE when appraising then the extras are exactly one unit, added after the multiplier", () => {
+    const input = anInput(
+      { act: "TEASE", tone: "AGGRESSIVE", targets: [y], topic: { type: "PERSON", person: y } },
+      [heard(2, "DIRECT", "AGGRESSIVE")],
+      [aCharacter(1, 0), aCharacter(2, 1)],
+    );
+    const deltas = deltasOf(input);
+
+    expect(amount(deltas, y, "fear")).toBe(U);
+    expect(amount(deltas, y, "anger")).toBe(mulBp(2 * U, 15000) + U);
+  });
+
+  it("given an AGGRESSIVE THREATEN at intensity 10000 when appraising then trust sums its sources and stops at -1500", () => {
+    const input = anInput(
+      {
+        act: "THREATEN",
+        tone: "AGGRESSIVE",
+        targets: [y],
+        topic: { type: "PERSON", person: y },
+        intensity: toBp(10000),
+      },
+      [heard(2, "DIRECT", "AGGRESSIVE")],
+      [aCharacter(1, 0), aCharacter(2, 1)],
+    );
+    const deltas = deltasOf(input);
+
+    expect(amount(deltas, y, "trust")).toBe(-1500);
+    expect(amount(deltas, y, "resentment")).toBe(mulBp(2 * 400, 15000));
+  });
+});
