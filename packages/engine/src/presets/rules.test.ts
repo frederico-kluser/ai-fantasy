@@ -52,6 +52,14 @@ describe("rules inside one preset (presets §2 to §7, dialogue-acts §3)", () =
     },
   );
 
+  it("given a partial mask with one fully roofed row and open cells elsewhere when loading then it loads", () => {
+    const roofed = ["r".repeat(20), ...Array.from({ length: 13 }, () => ".".repeat(20))];
+
+    expect(
+      loadPresets(patchPreset("places", "market", { grid: { ...MARKET_GRID, roofed } })).ok,
+    ).toBe(true);
+  });
+
   it.each([
     ["siblings", true, 1, "a directional archetype has different labels for A and B"],
     ["parent_child", false, 0, "an archetype with different labels for A and B is directional"],
