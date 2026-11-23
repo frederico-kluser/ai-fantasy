@@ -17,10 +17,20 @@ function isPlainObject(value: object): value is Readonly<Record<string, unknown>
   return prototype === Object.prototype || prototype === null;
 }
 
+function canonicalArray(value: readonly unknown[]): string {
+  // Only the indices may be keys: a hole or an extra property would be lost in the text.
+  if (Object.keys(value).length !== value.length) {
+    throw new TypeError("canonicalize: arrays may not have holes or extra properties");
+  }
+  return `[${value.map((item) => canonicalize(item)).join(",")}]`;
+}
+
 function canonicalObject(value: object): string {
+  if (Object.getOwnPropertySymbols(value).length > 0) {
+    throw new TypeError("canonicalize: symbol keys are not allowed");
+  }
   if (Array.isArray(value)) {
-    // Array.from visits holes as undefined (map would skip them), so sparse arrays throw.
-    return `[${Array.from(value, (item: unknown) => canonicalize(item)).join(",")}]`;
+    return canonicalArray(value);
   }
   if (!isPlainObject(value)) {
     throw new TypeError("canonicalize: only plain objects and arrays are allowed");
@@ -33,12 +43,15 @@ function canonicalObject(value: object): string {
 
 /**
  * The canonical text of `value`: object keys sorted by UTF-16 code units (the
- * default `sort()`), arrays in their order, safe integers in decimal, strings
- * with JSON escapes, booleans and `null`, and no spaces.
+ * default `sort()`), arrays in their order, safe integers in decimal (`-0` is
+ * written `0`), strings with the JSON escapes only (`\"`, `\\`, `\b`, `\t`, `\n`,
+ * `\f`, `\r`, the other characters below U+0020 and lone surrogates as lowercase
+ * `\u` escapes; everything else literal), booleans and `null`, and no spaces.
  *
  * @throws RangeError for a number that is not a safe integer (`0.5`, `NaN`, `Infinity`).
- * @throws TypeError for `undefined`, functions, `BigInt`, symbols and objects that are
- * neither plain objects nor arrays (`Map`, `Set`, class instances, typed arrays).
+ * @throws TypeError for `undefined`, functions, `BigInt`, symbols, symbol keys, arrays
+ * with holes or extra properties, and objects that are neither plain objects nor
+ * arrays (`Map`, `Set`, class instances, typed arrays).
  * @example
  * canonicalize({ b: 1, a: [true, null] }); // '{"a":[true,null],"b":1}'
  */

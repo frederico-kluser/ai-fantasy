@@ -89,6 +89,31 @@ describe("forced draws (simulation-model §15, invariant 8)", () => {
     expect(drawer.draw("turn", 100, "PICK")).toBe(5);
   });
 
+  it("given a first matching selector with an impossible outcome when drawing then the later selectors are not tried", () => {
+    const drawer = forcedDrawer([
+      { selector: { kind: "SEQ", seq: 0 }, outcome: 100 },
+      { selector: { kind: "PURPOSE", purpose: "PICK" }, outcome: 7 },
+    ]);
+
+    expect(drawer.draw("turn", 100, "PICK")).toBe(21);
+    expect(drawer.finish().records.filter((record) => "forced" in record)).toStrictEqual([]);
+  });
+
+  it.each([
+    ["a raw draw", (drawer: Drawer) => drawer.draw("turn", 100, "PICK"), 0],
+    ["a chance draw", (drawer: Drawer) => drawer.drawChance("turn", 5000, "PICK"), false],
+    ["a weighted draw", (drawer: Drawer) => drawer.drawWeighted("turn", [1, 1], "PICK"), 0],
+  ])(
+    "given a forced outcome of negative zero in %s when drawing then the outcome is zero",
+    (_, draw, result) => {
+      const drawer = forcedDrawer([{ selector: { kind: "SEQ", seq: 0 }, outcome: -0 }]);
+
+      // toBe and toMatchObject compare numbers with Object.is, so -0 would not match 0.
+      expect(draw(drawer)).toBe(result);
+      expect(drawer.finish().records).toMatchObject([{ outcome: 0, forced: true }]);
+    },
+  );
+
   it("given a forced chance and a forced weighted draw when drawing then they take the forced outcomes", () => {
     const drawer = forcedDrawer([
       { selector: { kind: "SEQ", seq: 0 }, outcome: 1 },

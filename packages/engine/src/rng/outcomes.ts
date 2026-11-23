@@ -39,6 +39,25 @@ export function pickWeighted(weights: readonly number[], u: number): number {
   return index;
 }
 
+/**
+ * The index of the heaviest option, the lowest one on ties. A loop, not
+ * `Math.max(...weights)`, so any number of options fits on the stack. The weights
+ * are already checked (integers ≥ 0, total > 0), so the heaviest weighs more than 0.
+ */
+export function heaviestIndex(weights: readonly number[]): number {
+  let heaviest = 0;
+  let heaviestWeight = 0;
+  let index = 0;
+  for (const weight of weights) {
+    if (weight > heaviestWeight) {
+      heaviest = index;
+      heaviestWeight = weight;
+    }
+    index += 1;
+  }
+  return heaviest;
+}
+
 /** Raw draws: the outcome is the value in `[0, bound)`; MOST_LIKELY gives `div(bound − 1, 2)`. */
 export const rawOutcomes: DrawOutcomes<number> = {
   natural: (value) => value,
@@ -62,7 +81,7 @@ export const chanceOutcomes: DrawOutcomes<number> = {
  */
 export const weightedOutcomes: DrawOutcomes<readonly number[]> = {
   natural: (value, weights) => pickWeighted(weights, value),
-  mostLikely: (weights) => weights.indexOf(Math.max(...weights)),
+  mostLikely: (weights) => heaviestIndex(weights),
   isPossible: (outcome, weights) => (weights[outcome] ?? 0) > 0,
 };
 
