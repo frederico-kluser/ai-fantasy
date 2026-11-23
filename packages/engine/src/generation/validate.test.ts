@@ -209,6 +209,7 @@ describe("validateCast (presets §10.1)", () => {
             name: "scholar person",
             pronouns: "",
             description: "",
+            role: "",
             ageBand: "ADULT",
             speechRegister: "COLLOQUIAL",
           },

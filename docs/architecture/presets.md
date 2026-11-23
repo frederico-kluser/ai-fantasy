@@ -315,7 +315,7 @@ preenche escolhas dessa entrada.
 | `attempt` | contador de tentativa, inteiro ≥ 0 (0 na primeira geração) |
 | `characters` | de 1 a 8 personagens; o id de cada um é a posição na lista (0, 1, 2…) |
 | `characters[i].archetype` | arquétipo de personagem (seção 5) |
-| `characters[i].identity` | nome, pronomes, descrição, faixa etária (padrão `ADULT`) e registro de fala (padrão `COLLOQUIAL`): apresentação, fora do hash |
+| `characters[i].identity` | nome, pronomes, descrição, papel, faixa etária (padrão `ADULT`) e registro de fala (padrão `COLLOQUIAL`): apresentação, fora do hash |
 | `characters[i].dominantDrives` | escolhas do SOM para as vontades dominantes: até 2, sem repetir (padrão nenhuma) |
 | `characters[i].dayState` | estado do dia (seção 9; padrão `rested`), aplicado só na abertura |
 | `characters[i].association` | associação escolhida pelo SOM: tag e `FEAR` ou `ATTACHMENT` (padrão nenhuma) |

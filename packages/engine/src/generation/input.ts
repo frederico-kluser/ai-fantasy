@@ -105,6 +105,7 @@ const identitySchema = z.strictObject({
   name: textSchema,
   pronouns: z.string().default(""),
   description: z.string().default(""),
+  role: z.string().default(""),
   ageBand: z.enum(AGE_BANDS).default("ADULT"),
   speechRegister: z.enum(SPEECH_REGISTERS).default("COLLOQUIAL"),
 });
