@@ -12,3 +12,7 @@ export * from "./space/index.ts";
 export { canonicalize } from "./session/canonical.ts";
 export { hashState } from "./session/hash.ts";
 export * from "./presets/index.ts";
+export * from "./acts/index.ts";
+export * from "./character/index.ts";
+export * from "./context/index.ts";
+export * from "./memory/index.ts";
