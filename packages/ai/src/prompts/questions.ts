@@ -85,7 +85,7 @@ export interface DecisionCall {
   /** The questions, by id, in the order they were built. */
   readonly questions: Readonly<Record<string, Question>>;
   /** The session the call belongs to, for the route's grouping. */
-  readonly sessionId?: string;
+  readonly sessionId?: string | undefined;
 }
 
 /** A question with its id, in build order. */
