@@ -89,6 +89,8 @@ describe("engine entry point", () => {
       "toBipolarBp",
       "toBp",
       "toCharacterId",
+      "toFactId",
+      "toThingId",
       "visionRange",
       "voiceRange",
       "withdrawCell",
