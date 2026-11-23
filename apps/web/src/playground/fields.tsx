@@ -2,7 +2,7 @@
  * Labelled form fields (overview §6): every input has a visible label tied to
  * it, so it is reachable by keyboard and named for assistive technology.
  */
-import { useId, type JSX } from "react";
+import { useId, useState, type JSX } from "react";
 
 /** An option of a select. */
 export interface Option {
@@ -99,4 +99,62 @@ export function picker<T extends string>(
       onPick(picked);
     }
   };
+}
+
+const INTEGER = /^-?\d+$/;
+
+/** The integer written in `text` when it lies in `min..max`, or `null`. */
+export function integerIn(text: string, min: number, max: number): number | null {
+  const value = Number(text);
+  return INTEGER.test(text) && value >= min && value <= max ? value : null;
+}
+
+interface NumberProps {
+  readonly label: string;
+  readonly value: number;
+  readonly min: number;
+  readonly max: number;
+  readonly onValue: (value: number) => void;
+}
+
+/**
+ * A labelled integer field that keeps what is typed: an empty or invalid text
+ * stays in the field, marked as an error, and only a valid integer in range
+ * reaches `onValue`. A new `value` from outside replaces the text.
+ */
+export function NumberField({ label, value, min, max, onValue }: NumberProps): JSX.Element {
+  const id = useId();
+  const errorId = `${id}-error`;
+  const [draft, setDraft] = useState({ text: String(value), value });
+  const current = draft.value === value ? draft : { text: String(value), value };
+  if (current !== draft) {
+    setDraft(current);
+  }
+  const invalid = integerIn(current.text, min, max) === null;
+  return (
+    <div className="field">
+      <label htmlFor={id}>{label}</label>
+      <input
+        id={id}
+        type="text"
+        inputMode="numeric"
+        value={current.text}
+        aria-invalid={invalid}
+        aria-describedby={invalid ? errorId : undefined}
+        onChange={(event) => {
+          const text = event.target.value;
+          const typed = integerIn(text, min, max);
+          setDraft({ text, value: typed ?? value });
+          if (typed !== null && typed !== value) {
+            onValue(typed);
+          }
+        }}
+      />
+      {invalid ? (
+        <p id={errorId} className="field-error">
+          {`Use um número inteiro de ${String(min)} a ${String(max)}.`}
+        </p>
+      ) : null}
+    </div>
+  );
 }

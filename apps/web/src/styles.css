@@ -274,3 +274,13 @@ pre {
   font-family: var(--font-mono);
   font-size: 0.875rem;
 }
+
+input[aria-invalid="true"] {
+  border-color: var(--color-alert);
+}
+
+.field-error {
+  margin: 0;
+  color: var(--color-alert);
+  font-size: 0.875rem;
+}

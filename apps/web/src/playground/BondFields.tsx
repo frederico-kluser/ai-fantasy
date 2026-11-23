@@ -6,6 +6,7 @@
 import {
   BOND_ARCHETYPE_IDS,
   BOND_AXIS_IDS,
+  BP_MAX,
   HISTORY_EVENT_IDS,
   type HistoryEventId,
 } from "@ai-fantasy/engine";
@@ -14,7 +15,7 @@ import type { Dispatch, JSX } from "react";
 import { PRESETS } from "../engine/presets.ts";
 import type { BondDraftData } from "../engine/protocol.ts";
 import { LockField } from "./CastFields.tsx";
-import { InputField, oneOf, optionsOf, picker, SelectField, type Option } from "./fields.tsx";
+import { NumberField, oneOf, optionsOf, picker, SelectField, type Option } from "./fields.tsx";
 import { displayName, nameIn, withOther } from "./labels.ts";
 import type { BondForm, EventForm, PlaygroundState } from "./model.ts";
 import type { BondChanges, PlaygroundAction } from "./reducer.ts";
@@ -149,15 +150,14 @@ function AxisFields({
       <summary>Eixos sorteados (editar trava o laço)</summary>
       {sides.map(([side, from, to]) =>
         BOND_AXIS_IDS.map((axis) => (
-          <InputField
+          <NumberField
             key={`${side}.${axis}`}
             label={`${withOther(nameIn(PRESETS.bondAxes, axis), to)}, ${from} → ${to}`}
-            type="number"
             min={0}
-            max={10000}
-            value={String(draft[side][axis])}
-            onChange={(value) => {
-              dispatch({ type: "editBondAxis", index, side, axis, value: Number(value) });
+            max={BP_MAX}
+            value={draft[side][axis]}
+            onValue={(value) => {
+              dispatch({ type: "editBondAxis", index, side, axis, value });
             }}
           />
         )),

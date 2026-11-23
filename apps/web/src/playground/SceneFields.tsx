@@ -7,7 +7,7 @@ import type { Dispatch, JSX } from "react";
 
 import { PRESETS } from "../engine/presets.ts";
 import { SEED_MAX } from "../engine/protocol.ts";
-import { InputField, oneOf, optionsOf, picker, SelectField } from "./fields.tsx";
+import { InputField, NumberField, oneOf, optionsOf, picker, SelectField } from "./fields.tsx";
 import { DAY_PHASE_NAMES } from "./labels.ts";
 import type { PlaygroundState } from "./model.ts";
 import type { PlaygroundAction, SceneChanges } from "./reducer.ts";
@@ -20,11 +20,6 @@ interface Props {
 
 const NO_TAG = "";
 
-function seedOf(text: string): number | null {
-  const seed = Number(text);
-  return text !== "" && Number.isInteger(seed) && seed >= 0 && seed <= SEED_MAX ? seed : null;
-}
-
 function SeedField({
   label,
   value,
@@ -36,19 +31,7 @@ function SeedField({
 }): JSX.Element {
   return (
     <div className="seed">
-      <InputField
-        label={label}
-        type="number"
-        min={0}
-        max={SEED_MAX}
-        value={String(value)}
-        onChange={(text) => {
-          const seed = seedOf(text);
-          if (seed !== null) {
-            onSeed(seed);
-          }
-        }}
-      />
+      <NumberField label={label} value={value} min={0} max={SEED_MAX} onValue={onSeed} />
       <button
         type="button"
         onClick={() => {

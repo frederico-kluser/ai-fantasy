@@ -498,6 +498,94 @@ describe("seed fields", () => {
   });
 });
 
+describe("number fields", () => {
+  it("given a seed when erasing it then the field stays empty, shows the error and nothing changes", () => {
+    const dispatch = spy();
+    render(<SeedFields state={DUO} dispatch={dispatch} />);
+
+    change("Seed do elenco", "");
+
+    expect([
+      screen.getByLabelText<HTMLInputElement>("Seed do elenco").value,
+      screen.getByLabelText("Seed do elenco").getAttribute("aria-invalid"),
+      screen.getByText("Use um número inteiro de 0 a 4294967295.").id,
+      dispatch.mock.calls,
+    ]).toStrictEqual([
+      "",
+      "true",
+      screen.getByLabelText("Seed do elenco").getAttribute("aria-describedby"),
+      [],
+    ]);
+  });
+
+  it("given an erased seed when typing a valid one then the error goes and the seed changes", () => {
+    const dispatch = spy();
+    render(<SeedFields state={DUO} dispatch={dispatch} />);
+    change("Seed do elenco", "");
+
+    change("Seed do elenco", "7");
+
+    expect([
+      screen.queryByText(/^Use um número inteiro/),
+      screen.getByLabelText("Seed do elenco").getAttribute("aria-invalid"),
+      dispatch.mock.calls,
+    ]).toStrictEqual([null, "false", [[{ type: "setSeeds", seeds: { castSeed: 7 } }]]]);
+  });
+
+  it("given the seed already shown when typing it with a leading zero then nothing is sent", () => {
+    const dispatch = spy();
+    render(<SeedFields state={DUO} dispatch={dispatch} />);
+
+    change("Seed do elenco", `0${String(SEEDS.castSeed)}`);
+
+    expect(dispatch).not.toHaveBeenCalled();
+  });
+
+  it("given an invalid seed typed when the seed changes from outside then the field shows the new seed", () => {
+    const { rerender } = render(<SeedFields state={DUO} dispatch={spy()} />);
+    change("Seed do elenco", "abc");
+
+    rerender(
+      <SeedFields state={{ ...DUO, seeds: { ...DUO.seeds, castSeed: 99 } }} dispatch={spy()} />,
+    );
+
+    expect([
+      screen.getByLabelText<HTMLInputElement>("Seed do elenco").value,
+      screen.queryByText(/^Use um número inteiro/),
+    ]).toStrictEqual(["99", null]);
+  });
+
+  it.each(["", "10001", "-1", "2.5"])(
+    "given the axis text %j when typing then it is an error and nothing changes",
+    (value) => {
+      const dispatch = spy();
+      render(<BondFields state={{ ...DUO, generated: viewOf(DUO) }} dispatch={dispatch} />);
+
+      change("confiança, Ana → Bia", value, card("Laço 1"));
+
+      expect([
+        within(card("Laço 1")).getByLabelText<HTMLInputElement>("confiança, Ana → Bia").value,
+        within(card("Laço 1")).getByText("Use um número inteiro de 0 a 10000.").tagName,
+        dispatch.mock.calls,
+      ]).toStrictEqual([value, "P", []]);
+    },
+  );
+
+  it.each([
+    ["0", 0],
+    ["10000", 10000],
+  ])("given the axis text %j when typing then the axis is edited to %i", (value, edited) => {
+    const dispatch = spy();
+    render(<BondFields state={{ ...DUO, generated: viewOf(DUO) }} dispatch={dispatch} />);
+
+    change("confiança, Ana → Bia", value, card("Laço 1"));
+
+    expect(dispatch.mock.calls).toStrictEqual([
+      [{ type: "editBondAxis", index: 0, side: "aToB", axis: "trust", value: edited }],
+    ]);
+  });
+});
+
 describe("position fields", () => {
   it("given a cell when choosing it then the character's position is set", () => {
     const dispatch = spy();
