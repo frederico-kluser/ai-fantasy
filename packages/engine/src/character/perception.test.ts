@@ -69,6 +69,18 @@ describe("perceptionPreview (simulation-model §5.5)", () => {
 });
 
 describe("perceptionToward (simulation-model §5.5)", () => {
+  it("given a preview when making a fresh perception then it has the preview values, no apparent emotion and no marks", () => {
+    expect(freshPerception(idOf(4), ZERO_PREVIEW)).toStrictEqual({
+      target: 4,
+      perceivedThreat: 0,
+      perceivedHostility: 0,
+      perceivedInterest: 0,
+      perceivedSincerity: 5000,
+      apparentEmotion: null,
+      apparentState: [],
+    });
+  });
+
   it("given no record toward 4 when reading it then it is the preview, with no apparent emotion nor marks", () => {
     expect(perceptionToward([], idOf(4), ZERO_PREVIEW)).toStrictEqual(
       freshPerception(idOf(4), ZERO_PREVIEW),
@@ -109,6 +121,15 @@ describe("relaxPerception (simulation-model §5.5)", () => {
     expect(relaxPerception(perception, ZERO_PREVIEW).apparentEmotion).toStrictEqual({
       emotion: "fear",
       intensity: 1078,
+    });
+  });
+
+  it("given an apparent emotion of 1021 when a tick passes then it relaxes to exactly 1000 and stays", () => {
+    const perception = aPerception(1, {}, { emotion: "joy", intensity: toBp(1021) });
+
+    expect(relaxPerception(perception, ZERO_PREVIEW).apparentEmotion).toStrictEqual({
+      emotion: "joy",
+      intensity: 1000,
     });
   });
 

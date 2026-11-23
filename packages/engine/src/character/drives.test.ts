@@ -122,6 +122,10 @@ describe("directedTarget (simulation-model §5.3)", () => {
     expect(directedTarget(drives, "care", [idOf(6), idOf(2)])).toBe(2);
   });
 
+  it("given present targets with no deficit when choosing the target then the lowest id wins", () => {
+    expect(directedTarget(someDrives(), "care", [idOf(4), idOf(3)])).toBe(3);
+  });
+
   it("given nobody present when choosing the target then there is none", () => {
     expect(directedTarget(someDrives(), "care", [])).toBeNull();
   });

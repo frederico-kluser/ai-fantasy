@@ -71,6 +71,24 @@ describe("emotionsTick: gains of the tick (simulation-model §5.2 and §5.7)", (
     ).toBe(40);
   });
 
+  it("given a fear, an attachment and a neutral association of present tags when a tick passes then fear +20 and joy +10", () => {
+    const emotions = emotionsTick(someEmotions(), someEmotions(), {
+      ...QUIET,
+      tagValences: [-6000, 5000, 0],
+    });
+
+    expect([emotions.fear, emotions.joy]).toStrictEqual([20, 10]);
+  });
+
+  it("given pain exactly 5000 when a tick passes then sadness rises by 5", () => {
+    const emotions = emotionsTick(someEmotions(), someEmotions(), {
+      ...QUIET,
+      body: aBody({ pain: 5000 }),
+    });
+
+    expect(emotions.sadness).toBe(5);
+  });
+
   it("given an attachment to a present tag when a tick passes then joy rises by 10", () => {
     expect(
       emotionsTick(someEmotions(), someEmotions(), { ...QUIET, tagValences: [5000] }).joy,

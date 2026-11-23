@@ -192,6 +192,22 @@ describe("statusTick: threat and drives (simulation-model §6 and §5.3)", () =>
     ]);
   });
 
+  it("given a perception of someone absent who looks afraid when ticking then care toward the present one follows only its own distress", () => {
+    const worried = aCharacter(1, 0, {
+      perceptions: [aPerception(2), aPerception(3, {}, { emotion: "fear", intensity: toBp(6000) })],
+    });
+
+    expect(statusTick([worried, aCharacter(2, 1)], INPUT)[0]?.drives.directed.care).toStrictEqual([
+      { target: 2, deficit: 0 },
+    ]);
+  });
+
+  it("given an expansive character while an act goes on when ticking then company rises by 1 only", () => {
+    const expansive = aCharacter(1, 0, { traits: someTraits({ sociability: 10000 }) });
+
+    expect(statusTick([expansive], INPUT)[0]?.drives.deficits.company).toBe(1);
+  });
+
   it("given care toward someone present who shows no distress when ticking then it falls toward 0", () => {
     const carer = aCharacter(1, 0, { drives: someDrives({ directed: { care: [[2, 5000]] } }) });
 
