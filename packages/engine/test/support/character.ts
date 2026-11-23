@@ -269,6 +269,7 @@ export function aCharacter(
     associations: [],
     perceptions: [],
     memories: [],
+    historyApplied: [],
     threat: toBp(0),
     ...overrides,
   };

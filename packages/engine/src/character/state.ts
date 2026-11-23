@@ -5,7 +5,7 @@
  * keyed by id, so the canonical serialization (§15) has an explicit order.
  */
 import type { Bp, BipolarBp } from "../domain/bp.ts";
-import type { CharacterId, ThingId } from "../domain/ids.ts";
+import type { CharacterId, FactId, ThingId } from "../domain/ids.ts";
 import type { FactCopy } from "../memory/copy.ts";
 import type { CharacterArchetypeId } from "../presets/character-archetypes.ts";
 import type { AssociationTagId } from "../presets/tags.ts";
@@ -61,6 +61,12 @@ export interface CharacterState {
   readonly perceptions: readonly Perception[];
   /** Copies of the facts the character knows, sorted by fact id (simulation-model §12). */
   readonly memories: readonly FactCopy[];
+  /**
+   * The history facts whose effects on this character as side B were applied
+   * after it learned of them (presets §7: "esperam até B receber uma cópia do
+   * fato e então se aplicam uma vez"), sorted by fact id; empty at generation.
+   */
+  readonly historyApplied: readonly FactId[];
   /** The threat of the last tick (simulation-model §6), read by the leave rule and the signals. */
   readonly threat: Bp;
 }

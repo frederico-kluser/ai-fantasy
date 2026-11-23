@@ -219,7 +219,9 @@ Deslocamentos de base somam à linha de base calculada e respeitam o teto de 300
 recebe uma cópia `DIRECT` com fidelidade 8000. "Segredo" é segredo para terceiros: ninguém além
 de quem sabe tem cópia. Um acontecimento que não é segredo é sabido pelos dois; a coluna "Quem
 sabe" diz quem tem cópia quando ele é segredo. Quando só A sabe, os efeitos em B ("só se B sabe") esperam até B receber
-uma cópia do fato e então se aplicam uma vez. Se `betrayed_trust` é secreto, sorteia-se no stream
+uma cópia do fato e então se aplicam uma vez: o estado de B guarda a lista dos fatos já aplicados
+(`historyApplied`, vazia na geração), e perder a cópia e saber de novo não os aplica outra vez
+(SOC-03; `applyDeferredHistory`, logo depois da gravação do ato). Se `betrayed_trust` é secreto, sorteia-se no stream
 `generation`.
 
 ## 8. Associações

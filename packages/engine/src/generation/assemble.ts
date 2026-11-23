@@ -187,6 +187,7 @@ export function assembleCharacter(
     associations: draft.associations,
     perceptions: [],
     memories: ledger.copies,
+    historyApplied: [],
     threat: toBp(0),
   };
 }
