@@ -113,7 +113,11 @@ describe("validateCast (presets §10.1)", () => {
       ],
     );
 
-    expect(codesOf(input)).toStrictEqual(["PARENT_CYCLE bonds"]);
+    expect(codesOf(input)).toStrictEqual([
+      "PARENT_CYCLE bonds.0",
+      "PARENT_CYCLE bonds.1",
+      "PARENT_CYCLE bonds.2",
+    ]);
   });
 
   it("given a parent who is also the sibling and the grandparent of others when validating then each conflict names its pair", () => {
@@ -173,7 +177,7 @@ describe("validateCast (presets §10.1)", () => {
     const character = aCastCharacter("merchant", { locked: aCharacterDraft({ fun: 8000 }) });
 
     expect(codesOf({ characters: [character] })).toStrictEqual([
-      "INVALID_INPUT characters.0.locked.weights",
+      "IMPOSSIBLE_DRAFT characters.0.locked.weights",
     ]);
   });
 
@@ -194,7 +198,7 @@ describe("validateCast (presets §10.1)", () => {
     };
 
     expect(codesOf({ characters: [aCastCharacter("merchant", { locked })] })).toStrictEqual([
-      "INVALID_INPUT characters.0.locked.associations.1",
+      "IMPOSSIBLE_DRAFT characters.0.locked.associations.1",
     ]);
   });
 
@@ -221,6 +225,7 @@ describe("validateCast (presets §10.1)", () => {
         },
       ],
       bonds: [],
+      derived: [],
     });
   });
 
@@ -285,18 +290,6 @@ describe("validateCast (presets §10.1)", () => {
         [aBondSpec(0, 1, "parent_child"), aBondSpec(1, 0, "parent_child")],
       ),
       "the pair 0.1 already has a bond",
-    ],
-    [
-      "a parent cycle of three",
-      aCastInput(
-        ["rebel", "merchant", "elder"],
-        [
-          aBondSpec(0, 1, "parent_child"),
-          aBondSpec(1, 2, "parent_child"),
-          aBondSpec(2, 0, "parent_child"),
-        ],
-      ),
-      "PARENT bonds form a cycle: someone would be their own ancestor",
     ],
     [
       "a chosen sibling who is also a grandchild",
@@ -407,5 +400,51 @@ describe("validateCast (presets §10.1)", () => {
       "the pair 1.2 would be PARENT and SIBLING",
       "the pair 0.2 would be GRANDPARENT and PARENT",
     ]);
+  });
+
+  it("given a cycle reached from an ancestor when validating then only the bonds on the cycle are named", () => {
+    const input = aCastInput(
+      ["elder", "rebel", "merchant", "child"],
+      [
+        aBondSpec(0, 1, "parent_child"),
+        aBondSpec(1, 2, "parent_child"),
+        aBondSpec(2, 3, "parent_child"),
+        aBondSpec(3, 1, "parent_child"),
+      ],
+    );
+
+    expect(errorOf(validateCast(presets, input)).map((error) => error.message)).toStrictEqual([
+      "PARENT bonds form a cycle: someone would be their own ancestor (1 → 2)",
+      "PARENT bonds form a cycle: someone would be their own ancestor (2 → 3)",
+      "PARENT bonds form a cycle: someone would be their own ancestor (3 → 1)",
+    ]);
+  });
+
+  it.each([
+    [
+      "a pair the family does not add",
+      { a: 0, b: 1, locked: { aToB: AXES, bToA: AXES, secrets: [] } },
+    ],
+    ["the grandchild as side A", { a: 2, b: 0, locked: { aToB: AXES, bToA: AXES, secrets: [] } }],
+    ["a secret mark", { a: 0, b: 2, locked: { aToB: AXES, bToA: AXES, secrets: [false] } }],
+  ])("given a derived lock with %s when validating then the draft is impossible", (_case, lock) => {
+    const input = aCastInput(
+      ["elder", "rebel", "child"],
+      [aBondSpec(0, 1, "parent_child"), aBondSpec(1, 2, "parent_child")],
+      { derived: [lock] },
+    );
+
+    expect(codesOf(input)).toStrictEqual(["IMPOSSIBLE_DRAFT derived.0"]);
+  });
+
+  it("given a derived lock of the grandparent pair when validating then it is kept", () => {
+    const lock = { a: 0, b: 2, locked: { aToB: AXES, bToA: AXES, secrets: [] } };
+    const input = aCastInput(
+      ["elder", "rebel", "child"],
+      [aBondSpec(0, 1, "parent_child"), aBondSpec(1, 2, "parent_child")],
+      { derived: [lock] },
+    );
+
+    expect(valueOf(validateCast(presets, input)).derived).toHaveLength(1);
   });
 });

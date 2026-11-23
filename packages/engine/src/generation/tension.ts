@@ -12,7 +12,7 @@ import type { HistoryFact } from "../memory/fact.ts";
 import type { Drawer } from "../rng/drawer.ts";
 import type { BondLabelId } from "../presets/bonds.ts";
 import type { HistoryEvent, HistoryEventId } from "../presets/history-events.ts";
-import { drawSecret } from "./bond-draft.ts";
+import { drawSecret, possibleSecrets } from "./bond-draft.ts";
 import { pairKey, type PairPlan } from "./graph.ts";
 import type { PlacedEvent } from "./history.ts";
 
@@ -86,20 +86,29 @@ export function hookPair(
 }
 
 /**
- * Draws the hook event of a pair (presets §10.1 step 5): the event among the
- * six with equal weights, who did it (0: the lower id), then its secret.
+ * Draws the hook event of a pair (presets §10 step 6 and §10.1 step 5): who did
+ * it (`TENSION_AUTHOR`: 0 is the lower id), then the event among the six with
+ * equal weights, weight 0 for those that would leave the pair without tension
+ * for some secret mark they can have (`TENSION_EVENT`), then its secret.
+ *
+ * @param tenses whether the pair has tension once `placed` is added to the history.
  */
 export function drawHook(
   drawer: Drawer,
   [lower, upper]: readonly [CharacterId, CharacterId],
   presetOf: (event: HistoryEventId) => HistoryEvent,
+  tenses: (placed: PlacedEvent) => boolean,
 ): PlacedEvent {
-  const weights = TENSION_EVENTS.map(() => 1);
+  const second = drawer.draw("generation", 2, "TENSION_AUTHOR", lower) === 1;
+  const [author, subject] = second ? [upper, lower] : [lower, upper];
+  const weights = TENSION_EVENTS.map((event) =>
+    possibleSecrets(presetOf(event)).every((secret) => tenses({ event, author, subject, secret }))
+      ? 1
+      : 0,
+  );
   const event = itemAt(
     TENSION_EVENTS,
     drawer.drawWeighted("generation", weights, "TENSION_EVENT", lower),
   );
-  const second = drawer.draw("generation", 2, "TENSION_AUTHOR", lower) === 1;
-  const [author, subject] = second ? [upper, lower] : [lower, upper];
   return { event, author, subject, secret: drawSecret(drawer, presetOf(event), author) };
 }

@@ -20,7 +20,7 @@ import type { PairPlan } from "./graph.ts";
 import { eventOutcome, joinEffects, type Effects, type PlacedEvent } from "./history.ts";
 import type { BondDraft, CastInput, CharacterDraft } from "./input.ts";
 import { presetById } from "./lookup.ts";
-import { drawHook, hookPair } from "./tension.ts";
+import { drawHook, hasTension, hookPair } from "./tension.ts";
 import { planCast } from "./validate.ts";
 
 /** A generated cast (presets §10.1, "Saída"). */
@@ -33,13 +33,28 @@ export interface Cast {
   readonly facts: readonly HistoryFact[];
   /** The day state chosen for each character, by id, for `openScene`. */
   readonly dayStates: readonly DayStateId[];
-  /** The drawn values, in the order of the input, to lock them in a new attempt. */
+  /**
+   * The drawn values, to lock them in a new attempt: the characters by id; the
+   * chosen bonds in the order of the input, then the pairs the family added
+   * (`derived`), in pair order.
+   */
   readonly drafts: {
     readonly characters: readonly CharacterDraft[];
-    readonly bonds: readonly BondDraft[];
+    readonly bonds: readonly BondDraftEntry[];
   };
   /** The tension event the generator added (also the last fact), or `null`. */
   readonly hook: PlacedEvent | null;
+}
+
+/**
+ * The drawn values of a pair: `a` is side A. A chosen bond is locked through
+ * its `locked` field; a `derived` one through the `derived` list of the input.
+ */
+export interface BondDraftEntry {
+  readonly a: CharacterId;
+  readonly b: CharacterId;
+  readonly derived: boolean;
+  readonly draft: BondDraft;
 }
 
 /** A cast with the rng state after its draws and their records. */
@@ -115,12 +130,38 @@ function drawCharacters(drawer: Drawer, presets: Presets, input: CastInput): Cha
   });
 }
 
-/** The drafts of the chosen bonds, in the order of the input. */
-function inputBondDrafts(pairs: readonly DrawnPair[]): BondDraft[] {
-  return pairs
-    .flatMap(({ plan, draft }) => (plan.input === null ? [] : [{ index: plan.input, draft }]))
-    .sort((x, y) => x.index - y.index)
-    .map((entry) => entry.draft);
+/** The drafts of the chosen bonds in the order of the input, then the derived ones in pair order. */
+function bondDraftEntries(pairs: readonly DrawnPair[]): BondDraftEntry[] {
+  const entries = pairs.map(({ plan, draft }) => ({
+    index: plan.input ?? pairs.length,
+    entry: { a: plan.a, b: plan.b, derived: plan.input === null, draft },
+  }));
+  return entries.sort((x, y) => x.index - y.index).map(({ entry }) => entry);
+}
+
+/** What the hook needs to know about the cast drawn so far. */
+interface Drawn {
+  readonly presets: Presets;
+  readonly drafts: readonly CharacterDraft[];
+  readonly pairs: readonly DrawnPair[];
+  readonly events: readonly PlacedEvent[];
+}
+
+/** The tension hook (presets §10 step 6), drawn only when the cast lacks tension. */
+function hookOf(drawer: Drawer, drawn: Drawn, before: History): PlacedEvent | null {
+  const { presets, drafts, pairs, events } = drawn;
+  const plans = pairs.map((pair) => pair.plan);
+  const pair = hookPair(plans, assembleAll(drafts, pairs, before.effects), before.facts);
+  if (pair === null) {
+    return null;
+  }
+  const tenses = (placed: PlacedEvent) => {
+    const history = historyOf(presets, [...events, placed], drafts);
+    const characters = assembleAll(drafts, pairs, history.effects);
+    const [x, y] = [itemAt(characters, placed.author), itemAt(characters, placed.subject)];
+    return hasTension(x, y, history.facts);
+  };
+  return drawHook(drawer, pair, (id) => presetById(presets.historyEvents, id), tenses);
 }
 
 /**
@@ -154,9 +195,7 @@ export function generateCast(
   const drawn = drawPairs(drawer, presets, pairs);
   const events = placedEvents(drawn);
   const before = historyOf(presets, events, drafts);
-  const pair = hookPair(pairs, assembleAll(drafts, drawn, before.effects), before.facts);
-  const hook =
-    pair === null ? null : drawHook(drawer, pair, (id) => presetById(presets.historyEvents, id));
+  const hook = hookOf(drawer, { presets, drafts, pairs: drawn, events }, before);
   const history = hook === null ? before : historyOf(presets, [...events, hook], drafts);
   const { rng, records } = drawer.finish();
   const cast: Cast = {
@@ -164,7 +203,7 @@ export function generateCast(
     characters: assembleAll(drafts, drawn, history.effects),
     facts: history.facts,
     dayStates: data.characters.map((spec) => spec.dayState),
-    drafts: { characters: drafts, bonds: inputBondDrafts(drawn) },
+    drafts: { characters: drafts, bonds: bondDraftEntries(drawn) },
     hook,
   };
   return ok({ cast, rng, records });

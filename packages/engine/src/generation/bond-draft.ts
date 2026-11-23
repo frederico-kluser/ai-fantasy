@@ -43,6 +43,13 @@ export function drawSecret(drawer: Drawer, event: HistoryEvent, author: Characte
   return drawer.drawChance("generation", event.secretChance, "HISTORY_SECRET", author);
 }
 
+/** The secret marks an event can have (presets §7): only false, only true, or both. */
+export function possibleSecrets(event: HistoryEvent): boolean[] {
+  return [false, true].filter((secret) =>
+    secret ? event.secretChance > 0 : event.secretChance < BP_MAX,
+  );
+}
+
 /** A pair to draw: its sides, archetype and events with their presets. */
 export interface BondToDraw {
   readonly a: CharacterId;

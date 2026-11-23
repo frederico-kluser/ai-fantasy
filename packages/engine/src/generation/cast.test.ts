@@ -19,7 +19,7 @@ import {
   valueOf,
 } from "../../test/support/cast.ts";
 import { generateCast } from "./cast.ts";
-import { TENSION_EVENTS } from "./tension.ts";
+import { hasTension, TENSION_EVENTS } from "./tension.ts";
 
 const presets = defaultPresets();
 const SEEDS = { castSeed: 20261123, sceneSeed: 1 };
@@ -170,7 +170,7 @@ describe("generateCast (presets §10.1)", () => {
       },
     ]);
     expect(holdersOf(cast.characters, 0)).toStrictEqual([0]);
-    expect(victimBond?.axes).toStrictEqual(cast.drafts.bonds[0]?.bToA);
+    expect(victimBond?.axes).toStrictEqual(cast.drafts.bonds[0]?.draft.bToA);
   });
 
   it("given a shared_secret event when generating then both hold DIRECT copies with fidelity 8000 and no one else does", () => {
@@ -198,7 +198,7 @@ describe("generateCast (presets §10.1)", () => {
   it("given a known event when generating then the bond deltas add to the drawn axes", () => {
     const bond = aBondSpec(0, 1, "colleagues", { events: [anEvent("saved_life", 0)] });
     const cast = castOf(aCastInput(["protector", "child"], [bond]));
-    const drawn = cast.drafts.bonds[0]?.bToA;
+    const drawn = cast.drafts.bonds[0]?.draft.bToA;
 
     expect(characterOf(cast.characters, 1).bonds[0]?.axes.trust).toBe((drawn?.trust ?? 0) + 3000);
   });
@@ -241,7 +241,7 @@ describe("generateCast (presets §10.1)", () => {
     const rivals = aBondSpec(0, 1, "rivals");
     const friends = aBondSpec(1, 2, "old_friends");
     const first = castOf(aCastInput(["rebel", "merchant", "devout"], [rivals, friends]));
-    const locked = { ...rivals, locked: first.drafts.bonds[0] };
+    const locked = { ...rivals, locked: first.drafts.bonds[0]?.draft };
     const again = castOf(
       aCastInput(["rebel", "merchant", "devout"], [locked, friends], { attempt: 1 }),
     );
@@ -466,7 +466,128 @@ describe("generateCast (presets §10.1)", () => {
 
     expect(axisTargets).toStrictEqual([...eight(0), ...eight(1), ...eight(0), ...eight(2)]);
     expect(characterOf(generated.cast.characters, 0).bonds[1]?.axes).toStrictEqual(
-      generated.cast.drafts.bonds[0]?.aToB,
+      generated.cast.drafts.bonds[0]?.draft.aToB,
+    );
+  });
+
+  it("given an archetype that cites a trait when generating then it is drawn within 1500 of the cited value", () => {
+    const empathy = [1, 2, 3, 4, 5, 6, 7, 8].map(
+      (castSeed) =>
+        castOf({ characters: [aCastCharacter("caretaker")] }, { castSeed, sceneSeed: 0 }).drafts
+          .characters[0]?.traits.empathy ?? 0,
+    );
+
+    expect(empathy.every((value) => value >= 5500 && value <= 8500)).toBe(true);
+    expect(empathy.some((value) => value !== 7000)).toBe(true);
+  });
+
+  it("given an event with one person when generating then its bond deltas do not touch the bond with another", () => {
+    const bonds = [
+      aBondSpec(0, 1, "enemies", { events: [anEvent("helped_in_crisis", 0)] }),
+      aBondSpec(0, 2, "enemies"),
+    ];
+    const cast = castOf(aCastInput(["rebel", "merchant", "elder"], bonds));
+    const bondsOfFirst = characterOf(cast.characters, 0).bonds;
+
+    expect(bondsOfFirst[1]?.axes).toStrictEqual(cast.drafts.bonds[1]?.draft.aToB);
+    expect(bondsOfFirst[0]?.axes.affection).toBe(
+      (cast.drafts.bonds[0]?.draft.aToB.affection ?? 0) + 1000,
+    );
+  });
+
+  it("given a loan never repaid when generating then the debtor's guilt and shame each shift 500 and nothing else", () => {
+    const bond = aBondSpec(0, 1, "enemies", { events: [anEvent("lent_not_repaid", 0)] });
+    const cast = castOf(aCastInput(["merchant", "trickster"], [bond]));
+
+    expect(characterOf(cast.characters, 1).baselineShifts).toStrictEqual({
+      joy: 0,
+      sadness: 0,
+      fear: 0,
+      anger: 0,
+      disgust: 0,
+      surprise: 0,
+      shame: 500,
+      guilt: 500,
+      jealousy: 0,
+      boredom: 0,
+    });
+  });
+
+  it("given a spouse and a rival for the same character when generating then the graph is valid", () => {
+    const bonds = [aBondSpec(0, 1, "spouses"), aBondSpec(0, 2, "rivals")];
+    const cast = castOf(aCastInput(["elder", "caretaker", "rebel"], bonds));
+
+    expect(labelsOf(cast.characters, 0, 1)).toStrictEqual(["SPOUSE"]);
+  });
+
+  it("given a grandparent with a higher id than the grandchild when generating then the grandparent is side A of the derived pair", () => {
+    const bonds = [aBondSpec(2, 1, "parent_child"), aBondSpec(1, 0, "parent_child")];
+    const cast = castOf(aCastInput(["child", "caretaker", "elder"], bonds));
+    const towardGrandparent = characterOf(cast.characters, 0).bonds.find(
+      (bond) => bond.target === 2,
+    );
+
+    expect([labelsOf(cast.characters, 2, 0), labelsOf(cast.characters, 0, 2)]).toStrictEqual([
+      ["GRANDPARENT"],
+      ["GRANDCHILD"],
+    ]);
+    expect(towardGrandparent?.axes.dependence).toBeGreaterThanOrEqual(5000);
+    expect(cast.drafts.bonds.map((entry) => [entry.a, entry.b, entry.derived])).toStrictEqual([
+      [2, 1, false],
+      [1, 0, false],
+      [2, 0, true],
+    ]);
+  });
+
+  it("given a chosen bond between two siblings when generating then the pair keeps a single bond", () => {
+    const bonds = [
+      aBondSpec(0, 1, "parent_child"),
+      aBondSpec(0, 2, "parent_child"),
+      aBondSpec(1, 2, "rivals"),
+    ];
+    const cast = castOf(aCastInput(["elder", "rebel", "trickster"], bonds));
+
+    expect(characterOf(cast.characters, 2).bonds.map((bond) => bond.target)).toStrictEqual([0, 1]);
+    expect(cast.drafts.bonds.map((entry) => entry.derived)).toStrictEqual([false, false, false]);
+  });
+
+  it("given a family when generating then the drafts list the chosen bonds in input order and then the derived pairs in pair order", () => {
+    expect(
+      castOf(FAMILY).drafts.bonds.map((entry) => [entry.a, entry.b, entry.derived]),
+    ).toStrictEqual([
+      [0, 1, false],
+      [1, 2, false],
+      [1, 3, false],
+      [0, 2, true],
+      [0, 3, true],
+      [2, 3, true],
+    ]);
+  });
+
+  it("given a locked derived pair when regenerating with the next attempt counter then it is unchanged and the other derived pairs may change", () => {
+    const first = castOf(FAMILY);
+    const siblings = first.drafts.bonds[5];
+    const again = castOf({
+      ...FAMILY,
+      attempt: 1,
+      derived: [{ a: 2, b: 3, locked: siblings?.draft }],
+    });
+
+    expect(again.drafts.bonds[5]).toStrictEqual(siblings);
+    expect(again.drafts.bonds[3]).not.toStrictEqual(first.drafts.bonds[3]);
+  });
+
+  it("given acquaintances without tension for any cast seed when generating then the hook leaves the pair with tension", () => {
+    const input = aCastInput(["merchant", "scholar"], [aBondSpec(0, 1, "acquaintances")]);
+    fc.assert(
+      fc.property(fc.integer({ min: 0, max: 4294967295 }), (castSeed) => {
+        const cast = castOf(input, { castSeed, sceneSeed: 0 });
+        const [x, y] = [characterOf(cast.characters, 0), characterOf(cast.characters, 1)];
+
+        expect(cast.hook).not.toBeNull();
+        expect(hasTension(x, y, cast.facts)).toBe(true);
+      }),
+      { numRuns: 60 },
     );
   });
 });

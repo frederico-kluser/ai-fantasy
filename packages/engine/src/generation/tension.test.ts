@@ -97,19 +97,42 @@ describe("hookPair and drawHook (presets §10.1 step 5)", () => {
     expect(hookPair(pairs, characters, [])).toStrictEqual([0, 2]);
   });
 
-  it("given the second author forced when drawing the hook then the higher id did it", () => {
-    const drawer = createDrawer(createRngState({ castSeed: 1, sceneSeed: 1 }), {
+  function forcedDrawer(author: number, event: number) {
+    return createDrawer(createRngState({ castSeed: 1, sceneSeed: 1 }), {
       tick: 0,
       mode: "NORMAL",
       forced: [
-        { selector: { kind: "PURPOSE", purpose: "TENSION_AUTHOR" }, outcome: 1 },
-        { selector: { kind: "PURPOSE", purpose: "TENSION_EVENT" }, outcome: 4 },
+        { selector: { kind: "PURPOSE", purpose: "TENSION_AUTHOR" }, outcome: author },
+        { selector: { kind: "PURPOSE", purpose: "TENSION_EVENT" }, outcome: event },
       ],
     });
-    const hook = drawHook(drawer, [0 as CharacterId, 2 as CharacterId], (id) =>
-      presetById(presets.historyEvents, id),
-    );
+  }
 
-    expect(hook).toStrictEqual({ event: "broken_promise", author: 2, subject: 0, secret: false });
+  const presetOf = (id: Parameters<typeof presetById>[1]) => presetById(presets.historyEvents, id);
+  const PAIR = [0 as CharacterId, 2 as CharacterId] as const;
+
+  it.each([
+    [1, { event: "broken_promise", author: 2, subject: 0, secret: false }],
+    [0, { event: "broken_promise", author: 0, subject: 2, secret: false }],
+  ])(
+    "given the author outcome %i forced when drawing the hook then the hook is %j",
+    (author, hook) => {
+      expect(drawHook(forcedDrawer(author, 4), PAIR, presetOf, () => true)).toStrictEqual(hook);
+    },
+  );
+
+  it("given only one event that would bring tension when drawing the hook then it is the only one that can come out", () => {
+    const drawer = forcedDrawer(0, 4);
+    const hook = drawHook(drawer, PAIR, presetOf, (placed) => placed.event === "secret_affair");
+    const draw = drawer.finish().records.find((record) => record.purpose === "TENSION_EVENT");
+
+    expect([hook.event, draw?.bound, draw?.forced]).toStrictEqual(["secret_affair", 1, undefined]);
+  });
+
+  it("given an event that brings tension only when secret when drawing the hook then it is left out", () => {
+    const tenses = (placed: { readonly event: string; readonly secret: boolean }) =>
+      placed.event === "informed_on" || (placed.event === "betrayed_trust" && placed.secret);
+
+    expect(drawHook(forcedDrawer(0, 0), PAIR, presetOf, tenses).event).toBe("informed_on");
   });
 });

@@ -7,7 +7,7 @@ import type { CharacterId } from "../domain/ids.ts";
 import type { BondArchetypeId } from "../presets/bond-archetypes.ts";
 import { BOND_LABEL_IDS, type BondLabelId } from "../presets/bonds.ts";
 import { castError, type CastError, type CastErrorCode } from "./errors.ts";
-import type { BondDraft, BondSpec, EventSpec } from "./input.ts";
+import type { BondDraft, BondSpec, DerivedLock, EventSpec } from "./input.ts";
 
 /** One directed label the family adds: `holder` holds `label` for `target`. */
 interface FamilyLink {
@@ -65,16 +65,29 @@ function parentEdges(bonds: readonly BondSpec[]): (readonly [CharacterId, Charac
     .map((bond) => [idOf(bond.a), idOf(bond.b)] as const);
 }
 
-/** Whether the parent edges form a cycle: leaf edges are dropped until none is left or none drops. */
-function hasParentCycle(edges: readonly (readonly [CharacterId, CharacterId])[]): boolean {
-  let left = edges;
+/** A chosen `parent_child` bond: its index in the input, the parent and the child. */
+interface ParentBond {
+  readonly index: number;
+  readonly parent: number;
+  readonly child: number;
+}
+
+/**
+ * The parent bonds that lie on a cycle: bonds whose child is nobody's parent,
+ * or whose parent is nobody's child, are dropped until none drops.
+ */
+function cycleBonds(bonds: readonly BondSpec[]): ParentBond[] {
+  let left = bonds.flatMap((bond, index) =>
+    bond.archetype === "parent_child" ? [{ index, parent: bond.a, child: bond.b }] : [],
+  );
   let size = -1;
   while (left.length !== size) {
     size = left.length;
-    const parents = new Set(left.map(([parent]) => parent));
-    left = left.filter(([, child]) => parents.has(child));
+    const parents = new Set(left.map((edge) => edge.parent));
+    const children = new Set(left.map((edge) => edge.child));
+    left = left.filter((edge) => parents.has(edge.child) && children.has(edge.parent));
   }
-  return left.length > 0;
+  return left;
 }
 
 function link(holder: CharacterId, target: CharacterId, label: BondLabelId): FamilyLink {
@@ -154,11 +167,19 @@ function comparePairKeys(x: string, y: string): number {
  * made transitive. Expects bonds between distinct, existing characters.
  */
 export function graphErrors(bonds: readonly BondSpec[]): CastError[] {
-  const edges = parentEdges(bonds);
-  if (hasParentCycle(edges)) {
+  const cycle = cycleBonds(bonds);
+  if (cycle.length > 0) {
     const message = "PARENT bonds form a cycle: someone would be their own ancestor";
-    return [...onceOnlyErrors(bonds), castError("PARENT_CYCLE", "bonds", message)];
+    const cycleErrors = cycle.map((edge) =>
+      castError(
+        "PARENT_CYCLE",
+        `bonds.${edge.index}`,
+        `${message} (${edge.parent} → ${edge.child})`,
+      ),
+    );
+    return [...onceOnlyErrors(bonds), ...cycleErrors];
   }
+  const edges = parentEdges(bonds);
   const links = [...chosenKinship(bonds), ...familyLinks(edges)];
   return [...onceOnlyErrors(bonds), ...conflictErrors(links)];
 }
@@ -175,7 +196,11 @@ function labelsFor(links: readonly FamilyLink[], holder: number, target: number)
 }
 
 /** The archetype and side A of a pair the family adds without a chosen bond (presets §10.1 step 3). */
-function derivedPair(links: readonly FamilyLink[], key: string): PairPlan {
+function derivedPair(
+  links: readonly FamilyLink[],
+  key: string,
+  locks: readonly DerivedLock[],
+): PairPlan {
   const [lower, upper] = idsOfKey(key);
   const grand = links.find(
     (entry) => pairKey(entry.holder, entry.target) === key && entry.label === "GRANDPARENT",
@@ -191,7 +216,7 @@ function derivedPair(links: readonly FamilyLink[], key: string): PairPlan {
       bToA: inCatalogOrder(labelsFor(links, b, a)),
     },
     events: [],
-    locked: null,
+    locked: locks.find((lock) => lock.a === a && lock.b === b)?.locked ?? null,
     input: null,
   };
 }
@@ -208,6 +233,7 @@ function comparePairPlans(x: PairPlan, y: PairPlan): number {
 export function pairPlans(
   bonds: readonly BondSpec[],
   sideLabels: (archetype: BondArchetypeId) => readonly [BondLabelId, BondLabelId],
+  locks: readonly DerivedLock[] = [],
 ): PairPlan[] {
   const links = familyLinks(parentEdges(bonds));
   const chosen = bonds.map((bond, index): PairPlan => {
@@ -228,6 +254,6 @@ export function pairPlans(
   const taken = new Set(chosen.map((pair) => pairKey(pair.a, pair.b)));
   const added = [...new Set(links.map((entry) => pairKey(entry.holder, entry.target)))]
     .filter((key) => !taken.has(key))
-    .map((key) => derivedPair(links, key));
+    .map((key) => derivedPair(links, key, locks));
   return [...chosen, ...added].sort(comparePairPlans);
 }
