@@ -39,17 +39,27 @@ Alternativas já existentes no catálogo, para troca por configuração: `perple
 (o padrão de decisões recomendado pela skill `som-agent-skill` do maintainer) e `liquid/d1`
 (família LiquidAI do d1-2B, ponte natural para o futuro local).
 
-Configuração no servidor (variáveis de ambiente com valores padrão num módulo tipado):
+Configuração no servidor: variáveis de ambiente lidas por um módulo tipado
+(`apps/server/src/config.ts`, validado com Zod, [ADR 0021](<adr/0021-zod-for-schema-validation.md>)).
+Valor vazio conta como ausente e vale o padrão; valor inválido impede o servidor de subir, com uma
+linha `Erro: … — Solução: …` por variável. As variáveis do próprio servidor (porta, pasta de dados,
+limites e log) estão na [arquitetura](<overview.md>), seção 5.3.
 
-| Variável | Padrão | Uso |
-| --- | --- | --- |
-| `OPENROUTER_API_KEY` | — (obrigatória para IA) | chave da conta |
-| `AI_SOM_MODEL` | `typesafe/jev-1.14` | modelo de decisões |
-| `AI_TEXT_MODEL` | `xiaomi/mimo-v2.6-pro` | modelo de texto |
-| `AI_TEXT_TEMPERATURE` | `0.8` | variedade das falas |
-| `AI_TEXT_REASONING_EFFORT` | desligado | esforço de raciocínio, quando o modelo aceitar |
-| `AI_TIMEOUT_MS` | `15000` | tempo máximo por chamada |
-| `AI_BUDGET_USD_PER_CONVERSATION` | definido após medir 5 cenas | teto de custo (D-23) |
+| Variável | Padrão | Aceita | No código | Uso |
+| --- | --- | --- | --- | --- |
+| `OPENROUTER_API_KEY` | — (obrigatória para IA) | qualquer texto | `aiApiKey` (`Secret`) | chave da conta |
+| `AI_SOM_MODEL` | `typesafe/jev-1.14` | id sem espaços | `systemOneModel` | modelo de decisões |
+| `AI_TEXT_MODEL` | `xiaomi/mimo-v2.6-pro` | id sem espaços | `textModel` | modelo de texto |
+| `AI_TEXT_TEMPERATURE` | `0.8` | número de 0 a 2 | `textTemperature` | variedade das falas |
+| `AI_TEXT_REASONING_EFFORT` | desligado (vazio) | `low`, `medium` ou `high` | `textReasoningEffort` | esforço de raciocínio, quando o modelo aceitar |
+| `AI_TIMEOUT_MS` | `15000` | inteiro de 1 a 2147483647 | `aiTimeoutMs` | tempo máximo por chamada |
+| `AI_BUDGET_USD_PER_CONVERSATION` | sem teto (vazio) até medir 5 cenas | número maior que 0 | `aiBudgetUsdPerConversation` | teto de custo (D-23) |
+
+Números aceitam só dígitos com ponto decimal (`0.8`), sem sinal, espaço ou expoente. O teto de
+`AI_TIMEOUT_MS` é o maior atraso que um timer do Node aceita (2³¹ − 1 ms); acima disso o timer
+dispararia na hora. A chave fica num invólucro `Secret`: só `reveal()` devolve o valor, e texto,
+JSON e `inspect` mostram `[redacted]`. `GET /api/health` diz se há chave (`aiKeyConfigured`), nunca
+qual é.
 
 Ids de modelo só existem na configuração; o código usa nomes de papel (seção 9).
 

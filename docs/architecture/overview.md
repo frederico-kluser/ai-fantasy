@@ -2,7 +2,7 @@
 
 > **v1 — 2026-11-09.** Como o código do AI Fantasy se organiza. O que o produto faz está em
 > [`docs/product.md`](<../product.md>); as regras do motor, no
-> [modelo de simulação](<simulation-model.md>). Decisões estruturais nos ADRs 0013–0020.
+> [modelo de simulação](<simulation-model.md>). Decisões estruturais nos ADRs 0013–0021.
 
 ## 1. Visão em uma tela
 
@@ -135,11 +135,79 @@ Contratos em [integração de IA](<ai-integration.md>).
 | `POST /api/som/player-line` | lê a fala do jogador e devolve o ato provável com confiança |
 | `POST /api/som/premise` | mapeia premissa e linhas de personagem para presets |
 | `POST /api/text/render` | encena um pacote e devolve `{fala, gesto}` validado ou a fala pronta |
-| `GET/POST /api/sessions…` | lista, grava e lê campanhas e fatias em `data/` |
-| `GET /api/health` | estado e se há chave configurada (sem revelá-la) |
+| `GET /api/sessions/campaigns` | lista as campanhas gravadas e as fatias de cada uma |
+| `GET`, `PUT /api/sessions/campaigns/:campaignId` | lê e grava a campanha (`campaign.json`) |
+| `GET`, `PUT /api/sessions/campaigns/:campaignId/slices/:sliceId` | lê e grava uma fatia (JSONL) |
+| `GET /api/health` | `{ "status": "ok", "aiKeyConfigured": boolean }`: diz se há chave, sem revelá-la |
 
-Escuta só em `127.0.0.1`. Em desenvolvimento, o Vite encaminha `/api` para o servidor (mesma
-origem, sem CORS). Em uso normal, o servidor entrega o site já compilado.
+Escuta só em `127.0.0.1` (constante, não configurável) e só atende o próprio site (seção 10). Em
+desenvolvimento, o Vite (`127.0.0.1:5173`) encaminha `/api` para o servidor; em uso normal, o
+servidor entrega o site já compilado (`apps/web/dist`). As rotas `/api/som/*` e `/api/text/*`
+chegam com a AI-02 e a AI-03.
+
+### 5.1 Sessões
+
+Contrato da WEB-03 e da EVAL-01. Formatos, ids e gravação na seção 8.
+
+| Pedido | Corpo | Resposta |
+| --- | --- | --- |
+| `GET /api/sessions/campaigns` | — | `200 { "campaigns": [{ "id": "…", "sliceIds": ["1", "2", "2-b"] }] }`, campanhas e fatias em ordem lexicográfica; só entram campanhas com `campaign.json` |
+| `GET …/campaigns/:campaignId` | — | `200` com o `campaign.json` (`application/json; charset=utf-8`); `404` se não existe |
+| `PUT …/campaigns/:campaignId` | `application/json`: objeto com `formatVersion` inteiro ≥ 1 | `204`; grava ou substitui a campanha |
+| `GET …/campaigns/:campaignId/slices/:sliceId` | — | `200` com os bytes gravados (`application/x-ndjson; charset=utf-8`); `404` se não existe |
+| `PUT …/campaigns/:campaignId/slices/:sliceId` | `application/x-ndjson` (seção 8) | `204`; grava exatamente o que recebeu; `404` se a campanha não existe (ela é gravada antes das fatias) |
+
+Id fora do padrão dá `400` antes de tocar no disco; corpo inválido, `400`; outro tipo de conteúdo,
+`415`. Não há `DELETE` por enquanto.
+
+### 5.2 Erros
+
+Todo erro é JSON, `{ "error": { "code": "…", "message": "…" } }`, com o código estável para o site
+e a mensagem em português para pessoas. A mensagem nunca repete o conteúdo do pedido.
+
+| Status | `code` | Quando |
+| --- | --- | --- |
+| 400 | `INVALID_ID` | `campaignId` ou `sliceId` fora do padrão da seção 8 |
+| 400 | `INVALID_BODY` | campanha ou fatia inválida; JSON malformado ou vazio |
+| 4xx | `REQUEST_REJECTED` | outro pedido recusado antes da rota (URL malformada, parâmetro longo demais…) |
+| 403 | `FORBIDDEN_HOST`, `FORBIDDEN_ORIGIN` | pedido de fora do site local (seção 10) |
+| 404 | `NOT_FOUND` | rota, campanha ou fatia inexistente |
+| 413 | `BODY_TOO_LARGE` | corpo acima do limite da rota (seção 5.3) |
+| 415 | `UNSUPPORTED_MEDIA_TYPE` | tipo de conteúdo que a rota não aceita |
+| 500 | `INTERNAL_ERROR` | falha interna; a pilha vai para o log, nunca para a resposta |
+
+### 5.3 Configuração
+
+Um módulo tipado (`apps/server/src/config.ts`, validado com Zod, [ADR 0021](<adr/0021-zod-for-schema-validation.md>))
+lê o ambiente depois de carregar o `.env` da raiz; variáveis já definidas no ambiente vencem.
+Valor vazio conta como ausente (vale o padrão). Valor inválido impede o servidor de subir: ele
+imprime uma linha `Erro: … — Solução: …` por variável. As variáveis de IA estão na
+[integração de IA](<ai-integration.md>), seção 3; as do servidor são estas:
+
+| Variável | Padrão | Aceita |
+| --- | --- | --- |
+| `PORT` | `4318` | inteiro de 0 a 65535 (0: o sistema escolhe uma porta livre) |
+| `DATA_DIR` | `data/` na raiz do repositório | caminho; um relativo parte da raiz do repositório, nunca da pasta atual |
+| `BODY_LIMIT_BYTES` | `1048576` (1 MiB) | inteiro maior que 0: corpo máximo de toda rota, menos as gravações de sessão |
+| `SESSION_BODY_LIMIT_BYTES` | `33554432` (32 MiB) | inteiro maior que 0: corpo máximo de `PUT` de campanha e de fatia |
+| `LOG_LEVEL` | `info` | `fatal`, `error`, `warn`, `info`, `debug`, `trace` ou `silent` |
+
+### 5.4 Log
+
+O log é o do Fastify (pino): uma linha JSON por evento no stdout, a partir de `LOG_LEVEL`. Entra
+cada pedido (método, URL, host, status e tempo), as recusas 4xx só com o código do framework e as
+falhas 500 com a pilha; nunca o corpo do pedido. `req.headers.authorization` e
+`req.headers.cookie` saem como `[Redacted]`, e a chave vive num invólucro `Secret` que vira
+`[redacted]` em texto, em JSON e no `inspect` do Node: nem um log acidental da configuração a
+revela. Nos testes, sem destino de log, o servidor fica em silêncio.
+
+### 5.5 Ponto de extensão
+
+`buildApp({ config, webDistDir, plugins, logger })` monta o app sem escutar (os testes usam
+`inject`); `startServer` faz o mesmo e escuta em `127.0.0.1:<PORT>`. Os `plugins` são plugins do
+Fastify registrados depois das rotas centrais, com `{ config }` nas opções: as rotas de IA (AI-02 e
+AI-03), o modo de teste com portas falsas e as rotas de avaliação (EVAL-01) entram por aí, e a
+proteção da seção 10, os limites e os erros em JSON valem para elas.
 
 ## 6. Site (`apps/web`)
 
@@ -171,13 +239,27 @@ modelos é exibido como texto (nunca como HTML).
 
 | Coisa | Formato | Onde |
 | --- | --- | --- |
-| Campanha | JSON: personagens persistentes, memórias, tempo entre fatias | `data/campaigns/<id>/campaign.json` |
-| Fatia | JSONL: cabeçalho (versões, seeds, cena) + entradas, sorteios, eventos e chamadas de IA | `data/campaigns/<id>/slices/<n>.jsonl` |
+| Campanha | JSON: personagens persistentes, memórias, tempo entre fatias | `data/campaigns/<campaignId>/campaign.json` |
+| Fatia | JSONL: cabeçalho (versões, seeds, cena) + entradas, sorteios, eventos e chamadas de IA | `data/campaigns/<campaignId>/slices/<sliceId>.jsonl` |
 | Avaliações | JSON por fatia | junto da fatia |
 | Presets | dados tipados versionados | `packages/engine/src/presets/` |
 
-Todo formato tem `formatVersion`. Ids de arquivo são validados contra `[a-z0-9-]` para evitar
-acesso fora de `data/`.
+`data/` é a pasta `DATA_DIR` (seção 5.3), fora do git. Todo formato tem `formatVersion`, inteiro
+≥ 1: no objeto da campanha e na primeira linha (o cabeçalho) da fatia.
+
+- **Ids** (`campaignId` e `sliceId`): `^[a-z0-9][a-z0-9-]{0,63}$`, isto é, de 1 a 64 caracteres
+  entre `a-z`, `0-9` e `-`, começando por letra ou número. As fatias se chamam `1`, `2`… e, numa
+  ramificação, `2-b`. Sem ponto, barra ou contrabarra, um id nunca sai da sua pasta; um id
+  inválido é recusado antes de tocar no disco e, por defesa em profundidade, todo caminho montado
+  ainda precisa ficar dentro de `DATA_DIR`.
+- **Fatia em JSONL:** texto UTF-8 que termina com `\n`, um objeto JSON por linha. O servidor grava
+  e devolve os bytes recebidos, sem reescrever nada (`\r\n` e espaços incluídos).
+- **Campanha:** o servidor regrava o objeto recebido como JSON com 2 espaços de indentação e `\n`
+  no fim; os campos ficam como vieram.
+- **Escrita atômica:** primeiro um arquivo temporário na mesma pasta (`.<nome>.<uuid>.tmp`, gravado
+  em disco), depois `rename`; quem lê vê o arquivo antigo ou o novo, nunca a metade.
+- **Listagem:** campanhas e fatias em ordem lexicográfica, comparando caracteres (`"1"`, `"10"`,
+  `"2"`); entradas que não seguem o padrão (temporários, outros arquivos) ficam de fora.
 
 ## 9. Determinismo e fronteiras
 
@@ -188,8 +270,21 @@ acesso fora de `data/`.
 
 ## 10. Segurança
 
-- Chave do OpenRouter só no servidor, lida do `.env`; nunca em logs, respostas ou no git.
-- Servidor só em `127.0.0.1`; limites de tamanho nos pedidos.
+- Chave do OpenRouter só no servidor, lida do `.env` para um invólucro `Secret` (seção 5.4); nunca
+  em logs, respostas ou no git.
+- Servidor só em `127.0.0.1`; limites de tamanho nos pedidos (seção 5.3).
+- **Só o site local usa o servidor.** Escutar em `127.0.0.1` não basta: uma página de outro site
+  aberta no mesmo navegador ainda consegue mandar pedidos para ele, e as rotas de IA gastam a
+  chave. Por isso:
+  - o cabeçalho `Host` precisa ser `127.0.0.1:<porta>` ou `localhost:<porta>` (a porta em que o
+    pedido chegou) ou `127.0.0.1:5173`/`localhost:5173` (o Vite em desenvolvimento); senão,
+    `403 FORBIDDEN_HOST`. Isso barra o *DNS rebinding*, em que um domínio estranho passa a
+    resolver para `127.0.0.1`;
+  - um pedido que pode mudar estado (todo método menos `GET`, `HEAD` e `OPTIONS`) e traz o
+    cabeçalho `Origin` só passa se a origem for `http://` de um desses hosts; senão,
+    `403 FORBIDDEN_ORIGIN`. Sem `Origin` (uma ferramenta local, não um navegador), passa;
+  - não há CORS: nenhuma resposta traz `Access-Control-Allow-*`, então o navegador impede outros
+    sites de ler as respostas.
 - Respostas de modelos são dados não confiáveis: validadas por esquema e exibidas como texto.
 - Política de vulnerabilidades em [`SECURITY.md`](<../../SECURITY.md>).
 

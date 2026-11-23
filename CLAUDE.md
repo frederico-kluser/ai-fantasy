@@ -19,7 +19,7 @@
   [guia dos agentes](docs/planning/prompts/README.md). Escrever código exige pedido explícito do
   maintainer para a tarefa.
 - **Decisões:** [`docs/planning/decisions.md`](docs/planning/decisions.md) (D-09 em diante) e
-  [ADRs](docs/architecture/adr/README.md) 0013–0020.
+  [ADRs](docs/architecture/adr/README.md) 0013–0021.
 - **Licença:** código MIT; pesos de modelos não são distribuídos (ADR 0019).
 
 ## 2. Regra zero: o motor decide, os modelos só traduzem
