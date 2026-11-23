@@ -166,6 +166,87 @@ describe("recordAct: TOLD copies (simulation-model §12)", () => {
   });
 });
 
+describe("recordAct: other acts about a fact (simulation-model §12)", () => {
+  it.each(["ASK", "ACCUSE"] as const)(
+    "given an %s about a fact when recording then nobody gets a TOLD copy",
+    (act) => {
+      const perceived: Perceived[] = [{ id: idOf(2), perspective: "DIRECT" }];
+      const { characters } = recordAct(
+        recording({ ...TELL, act }, perceived, { 1: [aCopy(0, 10000)] }),
+      );
+
+      expect(memoriesOf(characters, 2).map((copy) => copy.fact)).toStrictEqual([1]);
+    },
+  );
+
+  it("given a hearer who is not in the act when recording then its copy has importance 0", () => {
+    const label = aLabel({ targets: ids(2), topic: { type: "PERSON", person: idOf(4) } });
+    const perceived: Perceived[] = [{ id: idOf(3), perspective: "DIRECT" }];
+    const { characters } = recordAct(recording(label, perceived));
+
+    expect(memoriesOf(characters, 3)[0]?.importance).toBe(0);
+  });
+});
+
+describe("recordAct: what the appraisal adds (SOC-03)", () => {
+  const LIE = { ...TELL, isFalse: true, blamed: idOf(4) };
+  const HEARD: Perceived[] = [
+    { id: idOf(2), perspective: "DIRECT" },
+    { id: idOf(3), perspective: "DIRECT" },
+  ];
+
+  it("given offenders from the appraisal when recording then the fact keeps them", () => {
+    const input = { ...recording(), appraisal: { offenders: ids(1) } };
+
+    expect(recordAct(input).fact.offenders).toStrictEqual(ids(1));
+  });
+
+  it("given an importance from the appraisal when recording then that character's copy has it", () => {
+    const perceived: Perceived[] = [{ id: idOf(2), perspective: "DIRECT" }];
+    const importances = [{ id: idOf(2), importance: toBp(7000) }];
+    const { characters } = recordAct({
+      ...recording(aLabel(), perceived),
+      appraisal: { importances },
+    });
+
+    expect([1, 2].map((id) => memoriesOf(characters, id)[0]?.importance)).toStrictEqual([
+      3000, 7000,
+    ]);
+  });
+
+  it("given a lie believed by one hearer when recording then only the believer gets the false version", () => {
+    const input = recording(LIE, HEARD, { 1: [aCopy(0, 10000)] });
+    const { characters } = recordAct({ ...input, appraisal: { believers: ids(2) } });
+
+    expect([2, 3].map((id) => memoriesOf(characters, id)[0]?.falseOffenders)).toStrictEqual([
+      ids(4),
+      null,
+    ]);
+    expect(memoriesOf(characters, 3).map((copy) => copy.fact)).toStrictEqual([1]);
+  });
+
+  it("given a believed denial when recording then the false version names nobody", () => {
+    const denial = { ...TELL, isFalse: true };
+    const input = recording(denial, HEARD, { 1: [aCopy(0, 10000)] });
+    const { characters } = recordAct({ ...input, appraisal: { believers: ids(2, 3) } });
+
+    expect(memoriesOf(characters, 3)[0]?.falseOffenders).toStrictEqual([]);
+  });
+
+  it("given a lie without decided belief when recording then the TOLD copy carries the teller's version", () => {
+    const { characters } = recordAct(recording(LIE, HEARD, { 1: [aCopy(0, 10000)] }));
+
+    expect(memoriesOf(characters, 2)[0]?.falseOffenders).toBeNull();
+  });
+
+  it("given believers for an honest TELL when recording then they change nothing", () => {
+    const input = recording(TELL, HEARD, { 1: [aCopy(0, 10000)] });
+    const { characters } = recordAct({ ...input, appraisal: { believers: [] } });
+
+    expect(memoriesOf(characters, 3)[0]?.perspective).toBe("TOLD");
+  });
+});
+
 describe("helpers", () => {
   it("given memories when adding a copy of an older fact then they stay sorted by fact id", () => {
     expect(

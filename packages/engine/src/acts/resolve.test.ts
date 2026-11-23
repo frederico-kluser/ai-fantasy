@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  aDrawer,
   aLabel,
   anActFact,
   defaultRules,
@@ -15,13 +16,16 @@ import { toBp } from "../domain/bp.ts";
 import { createRngState } from "../rng/state.ts";
 import type { ActLabel } from "./label.ts";
 import type { Obligation } from "./obligations.ts";
-import { resolveAct, type ResolveInput } from "./resolve.ts";
+import { resolveAct, type OwnDraws, type ResolveScene } from "./resolve.ts";
 
 const RNG = createRngState({ castSeed: 1, sceneSeed: 7 });
 const ASK = aLabel({ act: "ASK", tone: "IRONIC", targets: ids(2), topic: { type: "SMALL_TALK" } });
 
 /** Author 1 at cell 0; 2 next to it; 3 at 12 cells (fragment range); 4 far beyond, unseen at night. */
-function resolving(label: ActLabel, overrides: Partial<ResolveInput> = {}): ResolveInput {
+function resolving(
+  label: ActLabel,
+  overrides: Partial<ResolveScene & OwnDraws> = {},
+): ResolveScene & OwnDraws {
   return {
     rules: defaultRules(),
     grid: openGrid(25),
@@ -72,7 +76,7 @@ describe("resolveAct (simulation-model §16 step 5)", () => {
     const result = resolveAct(resolving(ASK, { forced: [forcing("TONE_MISREAD", 0, 2)] }));
 
     expect(
-      result.ok && result.value.records.map((r) => [r.tick, r.purpose, r.target]),
+      result.ok && result.value.draws?.records.map((r) => [r.tick, r.purpose, r.target]),
     ).toStrictEqual([
       [30, "HEAR_FRAGMENT", 3],
       [30, "TONE_MISREAD", 2],
@@ -155,5 +159,18 @@ describe("resolveAct (simulation-model §16 step 5)", () => {
 
   it("given an author who is not present when resolving then it is a programming error", () => {
     expect(() => resolveAct(resolving(ASK, { author: idOf(9) }))).toThrow(RangeError);
+  });
+});
+
+describe("resolveAct with the caller's drawer (one drawer per tick)", () => {
+  it("given an open drawer when resolving then the draws go to it and the result leaves them to the caller", () => {
+    const drawer = aDrawer([forcing("TONE_MISREAD", 0, 2)]);
+    const result = resolveAct({ ...resolving(ASK), drawer });
+
+    expect(result).toMatchObject({ ok: true, value: { draws: null } });
+    expect(drawer.finish().records.map((record) => record.purpose)).toStrictEqual([
+      "HEAR_FRAGMENT",
+      "TONE_MISREAD",
+    ]);
   });
 });

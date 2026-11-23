@@ -24,6 +24,8 @@ export {
   nextFactId,
   recordAct,
   withCopy,
+  type CharacterImportance,
+  type RecordAppraisal,
   type RecordInput,
   type Recorded,
 } from "./record.ts";

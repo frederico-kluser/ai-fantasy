@@ -145,6 +145,13 @@ describe("answeredObligation (simulation-model §10 table)", () => {
     expect(answeredObligation([anObligation(2, 1, 4)], idOf(2), accept)).toBeUndefined();
   });
 
+  it("given pending ASKs listed newest first when answering then the one of the lowest fact is answered", () => {
+    const pending = [anObligation(2, 1, 6), anObligation(2, 1, 4)];
+    const refuse = aLabel({ act: "REFUSE", targets: ids(1), topic: WEATHER });
+
+    expect(answeredObligation(pending, idOf(2), refuse)).toBe(pending[1]);
+  });
+
   it("given two pending ASKs that the act answers when answering then the oldest is answered", () => {
     const pending = [anObligation(2, 1, 4), anObligation(2, 1, 6)];
     const refuse = aLabel({ act: "REFUSE", targets: ids(1), topic: WEATHER });
@@ -284,6 +291,12 @@ describe("isInterruption (simulation-model §11 item 4)", () => {
       expect(isInterruption(PENDING, FACTS, idOf(actor))).toBe(interrupts);
     },
   );
+
+  it("given an ASK to two when one of its debtors acts then it is no interruption", () => {
+    const pending = [anObligation(2, 1, 4), anObligation(3, 1, 4)];
+
+    expect(isInterruption(pending, FACTS, idOf(2))).toBe(false);
+  });
 
   it("given a pending answer to an older act when a third party acts then it is no interruption", () => {
     const facts = [...FACTS, anActFact(6, 4, aLabel())];

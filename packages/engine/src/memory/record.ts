@@ -31,6 +31,34 @@ export interface RecordInput {
   readonly perceived: readonly Perceived[];
   /** The characters present, the author included. */
   readonly characters: readonly CharacterState[];
+  /** What the appraisal (SOC-03) found; without it, the neutral values below. */
+  readonly appraisal?: RecordAppraisal;
+}
+
+/** The importance of the new fact for one character. */
+export interface CharacterImportance {
+  readonly id: CharacterId;
+  readonly importance: Bp;
+}
+
+/**
+ * What the appraisal (SOC-03) adds to the record. Every field is optional and
+ * defaults to the neutral value: no offenders, the importance of
+ * {@link neutralImportance}, and no belief decided (every `TOLD` copy carries
+ * the teller's version).
+ */
+export interface RecordAppraisal {
+  /** The offenders of the new fact, sorted by id (default `[]`). */
+  readonly offenders?: readonly CharacterId[];
+  /** The importance of the new fact for some characters; the others keep the neutral one. */
+  readonly importances?: readonly CharacterImportance[];
+  /**
+   * In a lie (`TELL` with `isFalse` about a fact), the `DIRECT` hearers without a
+   * copy who believed it: they get the `TOLD` copy of the false version (the
+   * `blamed` person as offender, or nobody); the others get no `TOLD` copy.
+   * Absent: belief is not decided yet and every `TOLD` copy carries the teller's version.
+   */
+  readonly believers?: readonly CharacterId[];
 }
 
 /** The recorded act: the new fact, the record with it, and the characters with their copies. */
@@ -91,6 +119,21 @@ function copyOf(memories: readonly FactCopy[], fact: FactId): FactCopy | undefin
 interface Telling {
   readonly fact: Fact;
   readonly tellerCopy: FactCopy;
+  /** Who believed the lie and its false offenders, or `null` when belief is not decided. */
+  readonly lie: {
+    readonly believers: readonly CharacterId[];
+    readonly offenders: CharacterId[];
+  } | null;
+}
+
+/** The lie part of a telling: only for a `TELL` with `isFalse` whose believers were decided. */
+function lieOf(input: RecordInput): Telling["lie"] {
+  const believers = input.appraisal?.believers;
+  if (!input.label.isFalse || believers === undefined) {
+    return null;
+  }
+  const { blamed } = input.label;
+  return { believers, offenders: blamed === undefined ? [] : [blamed] };
 }
 
 function tellingOf(input: RecordInput, author: CharacterState): Telling | null {
@@ -104,7 +147,7 @@ function tellingOf(input: RecordInput, author: CharacterState): Telling | null {
   if (fact === undefined || tellerCopy === undefined) {
     throw new RangeError("a TELL of a fact needs the fact and the teller's copy: validate first");
   }
-  return { fact, tellerCopy };
+  return { fact, tellerCopy, lie: lieOf(input) };
 }
 
 /**
@@ -112,14 +155,24 @@ function tellingOf(input: RecordInput, author: CharacterState): Telling | null {
  * `mulBp(teller's current fidelity, 8000)`, measured before the teller's copy
  * is refreshed, and the teller's version, false or true.
  */
-function toldCopy(telling: Telling, hearer: CharacterId): FactCopy {
-  const { tellerCopy } = telling;
-  return createCopy(
+function toldCopy(telling: Telling, hearer: CharacterId): FactCopy[] {
+  const { tellerCopy, lie } = telling;
+  if (lie !== null && !lie.believers.includes(hearer)) {
+    return [];
+  }
+  const copy = createCopy(
     tellerCopy.fact,
     { perspective: "TOLD", tellerFidelity: tellerCopy.fidelity },
     neutralImportance(involvedIn(telling.fact, hearer, [])),
-    tellerCopy.falseOffenders,
+    lie === null ? tellerCopy.falseOffenders : lie.offenders,
   );
+  return [copy];
+}
+
+/** The importance of the new fact for `id`: the appraisal's, or the neutral one. */
+function importanceFor(input: RecordInput, fact: ActFact, id: CharacterId): Bp {
+  const given = input.appraisal?.importances?.find((entry) => entry.id === id);
+  return given?.importance ?? neutralImportance(involvedIn(fact, id, input.perceived));
 }
 
 type Recorder = (character: CharacterState) => FactCopy[];
@@ -133,8 +186,7 @@ function recorderFor(input: RecordInput, fact: ActFact, telling: Telling | null)
     if (perspective === undefined) {
       return [...character.memories];
     }
-    const importance = neutralImportance(involvedIn(fact, character.id, input.perceived));
-    const own = createCopy(fact.id, { perspective }, importance);
+    const own = createCopy(fact.id, { perspective }, importanceFor(input, fact, character.id));
     const told = telling === null ? [] : toldOrRefreshed(character, telling, isAuthor, perspective);
     return [...told, own].reduce(withCopy, [...character.memories]);
   };
@@ -150,12 +202,13 @@ function toldOrRefreshed(
     return [retell(telling.tellerCopy)];
   }
   const known = copyOf(character.memories, telling.tellerCopy.fact) !== undefined;
-  return perspective === "DIRECT" && !known ? [toldCopy(telling, character.id)] : [];
+  return perspective === "DIRECT" && !known ? toldCopy(telling, character.id) : [];
 }
 
 /**
  * Records an act (simulation-model §12): the fact, with the next id, the real
- * label, no outcome band, no offenders and no secret mark (SOC-03 fills them);
+ * label, no outcome band, the appraisal's offenders (none by default) and no
+ * secret mark;
  * a `DIRECT` copy for the author and a copy with its perspective for each one
  * who perceived the act; and, in a `TELL` about a fact, the `TOLD` copies and
  * the teller's refreshed copy.
@@ -170,7 +223,7 @@ export function recordAct(input: RecordInput): Recorded {
     author: input.author,
     label: input.label,
     band: null,
-    offenders: [],
+    offenders: input.appraisal?.offenders ?? [],
     secret: false,
   };
   const author = input.characters.find((character) => character.id === input.author);

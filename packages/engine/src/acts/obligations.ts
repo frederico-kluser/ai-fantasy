@@ -128,15 +128,20 @@ function answers(owed: Obligation, label: ActLabel): boolean {
 /**
  * The obligation of `actor` that `label` answers, if any: the act is a possible
  * answer of the act owed (simulation-model §10), addressed to its author, with
- * the same topic when the answer keeps it. With several, the oldest (first
- * pending) is answered.
+ * the same topic when the answer keeps it. With several, the oldest (lowest
+ * fact; ties, the first pending) is answered.
  */
 export function answeredObligation(
   pending: readonly Obligation[],
   actor: CharacterId,
   label: ActLabel,
 ): Obligation | undefined {
-  return pending.find((owed) => owed.debtor === actor && answers(owed, label));
+  return pending
+    .filter((owed) => owed.debtor === actor && answers(owed, label))
+    .reduce<Obligation | undefined>(
+      (oldest, owed) => (oldest === undefined || owed.fact < oldest.fact ? owed : oldest),
+      undefined,
+    );
 }
 
 /**
