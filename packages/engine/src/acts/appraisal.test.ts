@@ -722,7 +722,7 @@ describe("appraiseAct: importance and ranges (simulation-model §12 and §18)", 
 describe("appraiseAct: edges (mutation review)", () => {
   const plain = [aCharacter(1, 0), aCharacter(2, 1), aCharacter(3, 2)];
 
-  it("given an act without a row in an AGGRESSIVE tone when appraising then the tone adds no extras", () => {
+  it("given an AGGRESSIVE REQUEST when appraising then its row of valence 0 takes the tone: valence -2, fear, anger, hostility and an offender", () => {
     const input = anInput(
       {
         act: "REQUEST",
@@ -731,6 +731,35 @@ describe("appraiseAct: edges (mutation review)", () => {
         object: "HELP",
         topic: { type: "PERSON", person: y },
       },
+      [heard(2, "DIRECT", "AGGRESSIVE")],
+      plain,
+    );
+    const appraisal = appraiseAct(aDrawer(), input);
+
+    expect(appraisal.valences).toEqual([{ id: y, valence: -2 }]);
+    expect(appraisal.deltas).toEqual([
+      { kind: "EMOTION", who: y, emotion: "fear", delta: U },
+      { kind: "EMOTION", who: y, emotion: "anger", delta: U },
+      { kind: "PERCEPTION", who: y, toward: z, value: "perceivedHostility", delta: 2000 },
+    ]);
+    expect(appraisal.record.offenders).toEqual([z]);
+  });
+
+  it("given an IRONIC ASK when appraising then its row takes the extras of the tone", () => {
+    const input = anInput(
+      { act: "ASK", tone: "IRONIC", targets: [y], topic: { type: "SMALL_TALK" } },
+      [heard(2, "DIRECT", "IRONIC")],
+      plain,
+    );
+    const deltas = deltasOf(input);
+
+    expect(amount(deltas, y, "resentment")).toBe(U / 2);
+    expect(amount(deltas, y, "respect")).toBe(-U / 2);
+  });
+
+  it("given an ACCEPT that answers nothing, in an AGGRESSIVE tone, when appraising then without any row the tone adds nothing", () => {
+    const input = anInput(
+      { act: "ACCEPT", tone: "AGGRESSIVE", targets: [y], topic: { type: "PERSON", person: z } },
       [heard(2, "DIRECT", "AGGRESSIVE")],
       plain,
     );

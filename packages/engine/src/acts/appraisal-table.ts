@@ -63,6 +63,7 @@ const TALK_ROWS: readonly AppraisalRow[] = [
   },
   { act: "CHAT", when: interests, valence: 1, effects: CHAT_INTERESTING },
   { act: "CHAT", when: (c) => !interests(c), valence: 0, effects: CHAT_DULL },
+  { act: "ASK", valence: 0, effects: [] },
   {
     act: "ASK",
     when: (c) => c.badFact,
@@ -169,6 +170,7 @@ const TALK_ROWS: readonly AppraisalRow[] = [
     valence: -1,
     effects: [emotion("anger", 1), bond("resentment", 1)],
   },
+  { act: "REQUEST", valence: 0, effects: [] },
   {
     act: "THREATEN",
     valence: -3,
@@ -261,6 +263,8 @@ const PRESENCE_ROWS: readonly AppraisalRow[] = [
   { act: "APPROACH", when: feared, valence: 0, effects: [emotion("fear", 1)] },
   { act: "APPROACH", when: (c) => feared(c) && !fond(c), valence: -1, effects: [] },
   { act: "WITHDRAW", valence: 0, effects: [drive("company", 1)] },
+  { act: "MOVE", valence: 0, effects: [] },
+  { act: "LEAVE", valence: 0, effects: [] },
   {
     act: "WITHDRAW",
     when: (c) => c.bond.affection >= DEAR,

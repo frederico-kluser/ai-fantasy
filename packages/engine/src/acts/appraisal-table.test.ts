@@ -156,15 +156,18 @@ describe("appraisal rows (dialogue-acts §7.1)", () => {
     expect(combinedValence(appraisalRows("APPROACH", context))).toBe(-1);
   });
 
-  it.each(["REQUEST", "MOVE", "LEAVE", "STAY_SILENT"] as const)(
-    "given a %s when selecting rows then no row applies: valence 0 and no effect",
+  it.each(["ASK", "REQUEST", "MOVE", "LEAVE"] as const)(
+    "given a %s when selecting rows then its row of valence 0 and no effect applies",
     (act) => {
       const rows = appraisalRows(act, aContext());
 
-      expect(combinedValence(rows)).toBe(0);
-      expect(termsOf(rows)).toEqual([]);
+      expect([rows.length, combinedValence(rows), termsOf(rows)]).toEqual([1, 0, []]);
     },
   );
+
+  it("given a STAY_SILENT when selecting rows then no row applies: its row is the one of an ignored obligation", () => {
+    expect(appraisalRows("STAY_SILENT", aContext())).toEqual([]);
+  });
 
   it("given an ACCEPT without a request answered when selecting rows then nothing applies", () => {
     expect(appraisalRows("ACCEPT", aContext())).toEqual([]);
