@@ -120,32 +120,19 @@ const KINSHIP: Readonly<Partial<Record<BondLabelId, string>>> = {
   GRANDCHILD: "GRANDPARENT",
 };
 
-/** Labels of the chosen bonds, as links, from the archetype sides. */
-function chosenKinship(bonds: readonly BondSpec[]): FamilyLink[] {
-  const families: Readonly<Partial<Record<BondArchetypeId, BondLabelId>>> = {
-    parent_child: "PARENT",
-    siblings: "SIBLING",
-  };
-  return bonds.flatMap((bond) => {
-    const label = families[bond.archetype];
-    return label === undefined ? [] : [link(idOf(bond.a), idOf(bond.b), label)];
+/**
+ * The pairs with two kinships once the family is transitive (presets §6): a
+ * pair is parent and child, siblings, or grandparent and grandchild, never two
+ * of these. Checked on the labels of both sides, in pair order.
+ */
+export function conflictErrors(pairs: readonly PairPlan[]): CastError[] {
+  return pairs.flatMap((pair) => {
+    const labels = [...pair.labels.aToB, ...pair.labels.bToA];
+    const kinds = [...new Set(labels.flatMap((label) => KINSHIP[label] ?? []))].sort();
+    const key = pairKey(pair.a, pair.b);
+    const message = `the pair ${key} would be ${kinds.join(" and ")}`;
+    return kinds.length > 1 ? [castError("FAMILY_CONFLICT", `pair.${key}`, message)] : [];
   });
-}
-
-function conflictErrors(links: readonly FamilyLink[]): CastError[] {
-  const kinships = new Map<string, Set<string | undefined>>();
-  for (const { holder, target, label } of links) {
-    const key = pairKey(holder, target);
-    const kinds = kinships.get(key) ?? new Set<string | undefined>();
-    kinds.add(KINSHIP[label]);
-    kinships.set(key, kinds);
-  }
-  return [...kinships.entries()]
-    .filter(([, kinds]) => kinds.size > 1)
-    .map(([key, kinds]) => {
-      const message = `the pair ${key} would be ${[...kinds].sort().join(" and ")}`;
-      return castError("FAMILY_CONFLICT", `pair.${key}`, message);
-    });
 }
 
 /** The two ids of a pair key, lower first. */
@@ -163,8 +150,9 @@ function comparePairKeys(x: string, y: string): number {
 
 /**
  * The coherence problems of the chosen bonds (presets §6): a second spouse or
- * partner, a parent cycle, or a pair with two kinships once the family is
- * made transitive. Expects bonds between distinct, existing characters.
+ * partner, or a parent cycle (one error per bond on it). Kinship conflicts are
+ * checked on the pairs ({@link conflictErrors}). Expects bonds between
+ * distinct, existing characters.
  */
 export function graphErrors(bonds: readonly BondSpec[]): CastError[] {
   const cycle = cycleBonds(bonds);
@@ -179,9 +167,7 @@ export function graphErrors(bonds: readonly BondSpec[]): CastError[] {
     );
     return [...onceOnlyErrors(bonds), ...cycleErrors];
   }
-  const edges = parentEdges(bonds);
-  const links = [...chosenKinship(bonds), ...familyLinks(edges)];
-  return [...onceOnlyErrors(bonds), ...conflictErrors(links)];
+  return onceOnlyErrors(bonds);
 }
 
 function inCatalogOrder(labels: readonly BondLabelId[]): BondLabelId[] {
@@ -228,12 +214,13 @@ function comparePairPlans(x: PairPlan, y: PairPlan): number {
 /**
  * Every pair of the cast with a bond, in pair order (lower id, then the other):
  * the chosen bonds with their archetype labels plus the family ones, and the
- * pairs the transitive family adds. Expects a coherent graph ({@link graphErrors}).
+ * pairs the transitive family adds, with their locks. Expects a graph without
+ * cycles ({@link graphErrors}).
  */
 export function pairPlans(
   bonds: readonly BondSpec[],
   sideLabels: (archetype: BondArchetypeId) => readonly [BondLabelId, BondLabelId],
-  locks: readonly DerivedLock[] = [],
+  locks: readonly DerivedLock[],
 ): PairPlan[] {
   const links = familyLinks(parentEdges(bonds));
   const chosen = bonds.map((bond, index): PairPlan => {

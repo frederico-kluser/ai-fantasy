@@ -397,8 +397,8 @@ describe("validateCast (presets §10.1)", () => {
     );
 
     expect(errorOf(validateCast(presets, input)).map((error) => error.message)).toStrictEqual([
-      "the pair 1.2 would be PARENT and SIBLING",
       "the pair 0.2 would be GRANDPARENT and PARENT",
+      "the pair 1.2 would be PARENT and SIBLING",
     ]);
   });
 
@@ -427,6 +427,7 @@ describe("validateCast (presets §10.1)", () => {
     ],
     ["the grandchild as side A", { a: 2, b: 0, locked: { aToB: AXES, bToA: AXES, secrets: [] } }],
     ["a secret mark", { a: 0, b: 2, locked: { aToB: AXES, bToA: AXES, secrets: [false] } }],
+    ["a side A outside the pair", { a: 3, b: 2, locked: { aToB: AXES, bToA: AXES, secrets: [] } }],
   ])("given a derived lock with %s when validating then the draft is impossible", (_case, lock) => {
     const input = aCastInput(
       ["elder", "rebel", "child"],
@@ -446,5 +447,34 @@ describe("validateCast (presets §10.1)", () => {
     );
 
     expect(valueOf(validateCast(presets, input)).derived).toHaveLength(1);
+  });
+
+  it("given an impossible derived lock when validating then the message says what a derived lock is", () => {
+    const lock = { a: 0, b: 1, locked: { aToB: AXES, bToA: AXES, secrets: [] } };
+    const input = aCastInput(["elder", "rebel"], [aBondSpec(0, 1, "parent_child")], {
+      derived: [lock],
+    });
+
+    expect(errorOf(validateCast(presets, input)).map((error) => error.message)).toStrictEqual([
+      "a derived lock names a pair the family adds (side A first) and has no secrets",
+    ]);
+  });
+
+  it("given one spouse and one partner for the same character when validating then the graph is valid", () => {
+    const input = aCastInput(
+      ["seducer", "caretaker", "bohemian"],
+      [aBondSpec(0, 1, "spouses"), aBondSpec(0, 2, "lovers")],
+    );
+
+    expect(validateCast(presets, input).ok).toBe(true);
+  });
+
+  it("given a parent and a chosen child bond in the other direction of a different pair when validating then no kinship conflict is found", () => {
+    const input = aCastInput(
+      ["elder", "rebel", "child"],
+      [aBondSpec(0, 1, "parent_child"), aBondSpec(2, 1, "parent_child")],
+    );
+
+    expect(validateCast(presets, input).ok).toBe(true);
   });
 });

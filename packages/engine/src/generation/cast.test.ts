@@ -590,4 +590,22 @@ describe("generateCast (presets §10.1)", () => {
       { numRuns: 60 },
     );
   });
+
+  it("given two locked derived pairs when regenerating then each keeps its own draft and the third is drawn again", () => {
+    const first = castOf(FAMILY);
+    const [grand, , siblings] = [
+      first.drafts.bonds[3],
+      first.drafts.bonds[4],
+      first.drafts.bonds[5],
+    ];
+    const derived = [
+      { a: 0, b: 2, locked: grand?.draft },
+      { a: 2, b: 3, locked: siblings?.draft },
+    ];
+    const again = castOf({ ...FAMILY, attempt: 1, derived });
+
+    expect([again.drafts.bonds[3], again.drafts.bonds[5]]).toStrictEqual([grand, siblings]);
+    expect(again.drafts.bonds[4]?.draft).not.toStrictEqual(grand?.draft);
+    expect(again.drafts.bonds[4]?.draft).not.toStrictEqual(siblings?.draft);
+  });
 });

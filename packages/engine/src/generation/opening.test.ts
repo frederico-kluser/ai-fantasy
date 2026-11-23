@@ -188,4 +188,27 @@ describe("openScene (presets §10.1)", () => {
     expect(drawCell(drawer, ROOM_GRID, [10, 11, 12], [10, undefined], 1 as CharacterId)).toBe(12);
     expect(drawer.finish().records.map((record) => record.bound)).toStrictEqual([2]);
   });
+
+  it("given a grid whose first cell is free floor when no start is free then the first cell is used", () => {
+    const row = valueOf(
+      parseGridSpec({
+        rows: [".........d"],
+        exits: [{ x: 9, y: 0 }],
+        roofed: "ALL",
+        starts: [0, 1, 2, 3, 4, 5, 6, 7].map((x) => ({ x, y: 0 })),
+      }),
+    );
+    const drawer = createDrawer(createRngState(SEEDS), { tick: 0, mode: "NORMAL", forced: [] });
+
+    expect(drawCell(drawer, row, [], [], 0 as CharacterId)).toBe(0);
+  });
+
+  it("given no free passable cell when placing then the error names the character", () => {
+    const drawer = createDrawer(createRngState(SEEDS), { tick: 0, mode: "NORMAL", forced: [] });
+    const taken = [10, 11, 12, 13, 14, 15, 16, 17, 18, 19];
+
+    expect(() => drawCell(drawer, ROOM_GRID, [], taken, 4 as CharacterId)).toThrow(
+      new RangeError("no free passable cell for character 4"),
+    );
+  });
 });

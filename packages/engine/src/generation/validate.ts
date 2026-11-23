@@ -8,7 +8,7 @@ import { DOMINANT_DRIVE_WEIGHT } from "../domain/constants.ts";
 import { err, ok, type Result } from "../domain/result.ts";
 import type { Presets } from "../presets/catalogs.ts";
 import { castError, type CastError } from "./errors.ts";
-import { graphErrors, pairKey, pairPlans, type PairPlan } from "./graph.ts";
+import { conflictErrors, graphErrors, pairKey, pairPlans, type PairPlan } from "./graph.ts";
 import {
   castInputSchema,
   type BondSpec,
@@ -150,8 +150,8 @@ export function planCast(presets: Presets, input: unknown): Result<CastPlan, rea
     return [archetype.aToB.label, archetype.bToA.label] as const;
   };
   const pairs = pairPlans(data.bonds, sides, data.derived);
-  const derived = derivedErrors(data.derived, pairs);
-  return derived.length > 0 ? err(derived) : ok({ input: data, pairs });
+  const later = [...conflictErrors(pairs), ...derivedErrors(data.derived, pairs)];
+  return later.length > 0 ? err(later) : ok({ input: data, pairs });
 }
 
 /**

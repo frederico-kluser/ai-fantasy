@@ -10,6 +10,7 @@ import { aBondSpec, aCastInput, defaultPresets, valueOf } from "../../test/suppo
 import { presetById } from "./lookup.ts";
 import { planCast } from "./validate.ts";
 import { drawHook, hasTension, hookPair, TENSION_EVENTS } from "./tension.ts";
+import { possibleSecrets } from "./bond-draft.ts";
 
 const presets = defaultPresets();
 
@@ -135,4 +136,44 @@ describe("hookPair and drawHook (presets §10.1 step 5)", () => {
 
     expect(drawHook(forcedDrawer(0, 0), PAIR, presetOf, tenses).event).toBe("informed_on");
   });
+
+  it.each([
+    ["neighbors", 2, 0],
+    ["neighbors", 0, 2],
+  ])(
+    "given a %s pair from %i to %i when choosing the hook then the lower id comes first",
+    (archetype, a, b) => {
+      const input = aCastInput(["rebel", "merchant", "elder"], [aBondSpec(a, b, archetype)]);
+      const { pairs } = valueOf(planCast(presets, input));
+      const characters = [aCharacter(0, 0), aCharacter(1, 1), aCharacter(2, 2)];
+
+      expect(hookPair(pairs, characters, [])).toStrictEqual([0, 2]);
+    },
+  );
+
+  it("given one tense pair and one calm pair when choosing the hook then no hook is needed", () => {
+    const input = aCastInput(
+      ["rebel", "merchant", "elder"],
+      [aBondSpec(0, 1, "neighbors"), aBondSpec(0, 2, "neighbors")],
+    );
+    const { pairs } = valueOf(planCast(presets, input));
+    const characters = [
+      aCharacter(0, 0, { bonds: [aBond(1), aBond(2, { resentment: 5000 })] }),
+      aCharacter(1, 1),
+      aCharacter(2, 2),
+    ];
+
+    expect(hookPair(pairs, characters, [])).toBeNull();
+  });
+
+  it.each([
+    ["helped_in_crisis", [false]],
+    ["stole", [true]],
+    ["betrayed_trust", [false, true]],
+  ] as const)(
+    "given %s when listing its possible secret marks then they are %j",
+    (event, secrets) => {
+      expect(possibleSecrets(presetById(presets.historyEvents, event))).toStrictEqual(secrets);
+    },
+  );
 });
