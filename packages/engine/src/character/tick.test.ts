@@ -194,11 +194,11 @@ describe("statusTick: threat and drives (simulation-model §6 and §5.3)", () =>
 
   it("given a perception of someone absent who looks afraid when ticking then care toward the present one follows only its own distress", () => {
     const worried = aCharacter(1, 0, {
-      perceptions: [aPerception(2), aPerception(3, {}, { emotion: "fear", intensity: toBp(6000) })],
+      perceptions: [aPerception(2, {}, { emotion: "fear", intensity: toBp(6000) }), aPerception(3)],
     });
 
-    expect(statusTick([worried, aCharacter(2, 1)], INPUT)[0]?.drives.directed.care).toStrictEqual([
-      { target: 2, deficit: 0 },
+    expect(statusTick([worried, aCharacter(3, 1)], INPUT)[0]?.drives.directed.care).toStrictEqual([
+      { target: 3, deficit: 0 },
     ]);
   });
 
