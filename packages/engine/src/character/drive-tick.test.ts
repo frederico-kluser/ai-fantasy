@@ -94,6 +94,19 @@ describe("drivesTick (simulation-model §5.3)", () => {
     ]);
   });
 
+  it("given no entry toward a present Y with no distress when a tick passes then no entry is created (it stays at the default 0)", () => {
+    const input = { ...QUIET, distresses: [{ target: idOf(3), value: toBp(0) }] };
+
+    expect(drivesTick(someDrives(), input).directed.care).toStrictEqual([]);
+  });
+
+  it("given an entry at 0 toward Y with no distress when a tick passes then the entry stays, at 0", () => {
+    const drives = someDrives({ directed: { care: [[3, 0]] } });
+    const input = { ...QUIET, distresses: [{ target: idOf(3), value: toBp(0) }] };
+
+    expect(drivesTick(drives, input).directed.care).toStrictEqual([{ target: 3, deficit: 0 }]);
+  });
+
   it("given intimacy and justice toward someone when a tick passes then they do not change", () => {
     const drives = someDrives({ directed: { intimacy: [[2, 3000]], justice: [[2, 4000]] } });
     const { directed } = drivesTick(drives, QUIET);

@@ -172,9 +172,11 @@ haver zero ou um personagem do jogador; com zero, a cena é só observada.
 | Obrigações, destino de movimento e contadores da fatia (silêncio, repetições, cumprimentos, objetivo da cena) | seções 8, 10 e 11 | não |
 
 **Estado × identidade.** O **estado** do personagem (o que as regras leem e o hash cobre) tem a
-posição, traços, tendências, aptidões, linhas de base, emoções, corpo, vontades, laços,
+posição, traços, tendências, aptidões, deslocamentos de base da história, linhas de base,
+emoções, corpo, vontades, laços,
 associações, percepções, memórias e a ameaça do último tick (seção 6). A **identidade** (nome,
-pronomes, descrição, faixa etária, registro de fala e o arquétipo de origem, para exibição) é
+pronomes, descrição, faixa etária, papel, registro de fala e o arquétipo de origem, para
+exibição) é
 apresentação, fica fora do hash e nenhuma regra a lê. Toda coleção por pessoa (vontades
 dirigidas, laços, percepções) é uma lista ordenada por id crescente do outro, e as memórias são
 ordenadas por id do fato; uma entrada ausente vale o padrão da regra (0, laço de desconhecido ou
@@ -202,6 +204,9 @@ A **maior necessidade** é o máximo entre `fatigue`, `hunger`, `thirst`, `bladd
 `|thermal|` e `intoxication`. O valor inicial de cada necessidade vem do estado do dia da cena
 (presets, seção 9).
 
+Os modificadores leem o estado do início do tick: o +1 de cansaço, as emoções de antes da
+atualização deste tick; o +3 de sede, o térmico de antes do `approach` deste tick (seção 16).
+
 ### 5.2 Emoções
 
 Intensidade unipolar.
@@ -225,7 +230,10 @@ cristaliza), limitada a `0..3000`:
 | `anger` | `500 + temper / 10` |
 | demais | 0 |
 
-Os acontecimentos de história somam deslocamentos à linha de base (presets, seção 7).
+Os acontecimentos de história somam deslocamentos à linha de base (presets, seção 7). O estado
+guarda esses deslocamentos por emoção (bipolares, sem limite) e a linha de base é sempre
+derivada: `clamp(fórmula + deslocamento, 0, 3000)`. Assim, quando um traço cristaliza (seção 13,
+item 5), a linha de base é recalculada sem perder o que o limite de 3000 tinha cortado.
 
 **A cada tick**, primeiro o decaimento e depois os ganhos do tick (associações, tédio, corpo):
 
@@ -995,7 +1003,8 @@ resolve **um ponto de decisão**:
 
    Os sub-itens 2 a 4 leem o que os anteriores deixaram: as emoções leem o corpo já atualizado, e
    as vontades leem o corpo, o tédio e a ameaça deste tick. O +1 de cansaço por medo ou raiva usa
-   as emoções do início do tick, e a ameaça e as vontades leem as posições (depois do sub-item 1),
+   as emoções do início do tick, e o +3 de sede pelo calor usa o térmico do início do tick (antes
+   do `approach` deste tick), e a ameaça e as vontades leem as posições (depois do sub-item 1),
    os laços e as percepções do início do tick; por isso a ordem entre os personagens não muda o
    resultado. O relógio do tick `t` é `minuteOfDay(startMinute, t)` (seção 2).
 7. **Fim da fatia** (seção 11, item 6).
