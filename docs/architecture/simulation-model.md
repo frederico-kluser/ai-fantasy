@@ -173,7 +173,8 @@ haver zero ou um personagem do jogador; com zero, a cena é só observada.
 **Estado × identidade.** O **estado** do personagem (o que as regras leem e o hash cobre) tem a
 posição, traços, tendências, aptidões, linhas de base, emoções, corpo, vontades, laços,
 associações, percepções, memórias e a ameaça do último tick (seção 6). A **identidade** (nome,
-pronomes, descrição, faixa etária, registro de fala e o arquétipo de origem, para exibição) é
+pronomes, descrição, faixa etária, papel, registro de fala e o arquétipo de origem, para
+exibição) é
 apresentação, fica fora do hash e nenhuma regra a lê. Toda coleção por pessoa (vontades
 dirigidas, laços, percepções) é uma lista ordenada por id crescente do outro, e as memórias são
 ordenadas por id do fato; uma entrada ausente vale o padrão da regra (0, laço de desconhecido ou

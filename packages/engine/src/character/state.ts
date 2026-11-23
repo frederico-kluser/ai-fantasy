@@ -79,6 +79,8 @@ export interface CharacterIdentity {
   /** The archetype the character was generated from, for display; `null` when made by hand. */
   readonly archetype: CharacterArchetypeId | null;
   readonly ageBand: AgeBand;
+  /** The role in the story ("o ferreiro", "a filha do prefeito"): free text for display. */
+  readonly role: string;
   readonly speechRegister: SpeechRegister;
 }
 
