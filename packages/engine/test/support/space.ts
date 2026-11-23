@@ -3,6 +3,8 @@
  * (simulation-model §3.1) and branded ids. It is an independent oracle: it does
  * not go through `parseGridSpec`, so tests can use any size and any marks.
  */
+import fc from "fast-check";
+
 import type { CharacterId } from "../../src/domain/ids.ts";
 import type { CellType, Grid } from "../../src/space/grid.ts";
 
@@ -56,4 +58,71 @@ export function cellAt(grid: Grid, x: number, y: number): number {
 /** A character id; test ids are known to be valid, so the brand is given directly. */
 export function idOf(value: number): CharacterId {
   return value as CharacterId;
+}
+
+/** Symbols for random grids: mostly floor, with every other type present. */
+const RANDOM_SYMBOLS = [".", ".", ".", ".", ".", ",", "d", "D", "=", "o", "#"];
+
+/** `height` random rows of `width` symbols. */
+export function arbitraryRows(width: number, height: number): fc.Arbitrary<string[]> {
+  const row = fc
+    .array(fc.constantFrom(...RANDOM_SYMBOLS), { minLength: width, maxLength: width })
+    .map((symbols) => symbols.join(""));
+  return fc.array(row, { minLength: height, maxLength: height });
+}
+
+/** A random grid with sides in `1..maxSide`. */
+export function arbitraryGrid(maxSide: number): fc.Arbitrary<Grid> {
+  return fc
+    .record({
+      width: fc.integer({ min: 1, max: maxSide }),
+      height: fc.integer({ min: 1, max: maxSide }),
+    })
+    .chain(({ width, height }) => arbitraryRows(width, height))
+    .map((rows) => gridOf(rows));
+}
+
+/** A random grid and two of its cells, of any type. */
+export interface TwoCells {
+  readonly grid: Grid;
+  readonly from: number;
+  readonly to: number;
+}
+
+/** A random grid with sides in `1..maxSide` and two of its cells. */
+export function arbitraryTwoCells(maxSide: number): fc.Arbitrary<TwoCells> {
+  return arbitraryGrid(maxSide).chain((grid) => {
+    const cell = fc.integer({ min: 0, max: grid.cells.length - 1 });
+    return fc.record({ grid: fc.constant(grid), from: cell, to: cell });
+  });
+}
+
+/**
+ * A random grid split by a full column of walls, a cell on its left and a cell
+ * on its right: no straight line between the two avoids the wall.
+ */
+export function arbitraryWallBetween(): fc.Arbitrary<TwoCells> {
+  return fc
+    .record({ width: fc.integer({ min: 3, max: 16 }), height: fc.integer({ min: 1, max: 16 }) })
+    .chain(({ width, height }) =>
+      fc.integer({ min: 1, max: width - 2 }).chain((wall) =>
+        fc.record({
+          rows: arbitraryRows(width, height).map((rows) =>
+            rows.map((row) => `${row.slice(0, wall)}#${row.slice(wall + 1)}`),
+          ),
+          from: fc.record({
+            x: fc.integer({ min: 0, max: wall - 1 }),
+            y: fc.integer({ min: 0, max: height - 1 }),
+          }),
+          to: fc.record({
+            x: fc.integer({ min: wall + 1, max: width - 1 }),
+            y: fc.integer({ min: 0, max: height - 1 }),
+          }),
+        }),
+      ),
+    )
+    .map(({ rows, from, to }) => {
+      const grid = gridOf(rows);
+      return { grid, from: cellAt(grid, from.x, from.y), to: cellAt(grid, to.x, to.y) };
+    });
 }
