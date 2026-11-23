@@ -83,7 +83,7 @@ Se o relatório estiver fora do escopo, explicamos por quê e indicamos o canal 
 | Servidor local | acesso pela rede ou por outro site no navegador | *bind* obrigatório em `127.0.0.1`; só `Host` e `Origin` do site local (contra *DNS rebinding*); sem CORS; limites de tamanho de pedido |
 | Estado do motor | saída de modelo maliciosa | modelos só traduzem; validação por esquema; atos e presets de catálogo fechado; caminho alternativo em falha |
 | Site | texto de modelo com HTML ou script | exibir sempre como texto; nunca `innerHTML` com conteúdo de modelo |
-| Sessões | arquivo manipulado | formato versionado e validado; ids restritos a `^[a-z0-9][a-z0-9-]{0,63}$` e caminhos presos a `DATA_DIR`; escrita atômica; replay confere o hash |
+| Sessões | arquivo manipulado | formato versionado e validado; ids restritos a `^[a-z0-9][a-z0-9-]{0,63}$` (sem nomes reservados do Windows) e caminhos presos a `DATA_DIR`; escrita atômica; replay confere o hash |
 | Dependências | cadeia de fornecimento | lockfile, `npm audit`, Dependabot, actions pinadas por SHA |
 | CI | token excessivo | `permissions` mínimos; sem segredos em PRs de forks |
 

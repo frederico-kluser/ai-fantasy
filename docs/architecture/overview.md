@@ -153,12 +153,14 @@ Contrato da WEB-03 e da EVAL-01. Formatos, ids e gravação na seção 8.
 | --- | --- | --- |
 | `GET /api/sessions/campaigns` | — | `200 { "campaigns": [{ "id": "…", "sliceIds": ["1", "2", "2-b"] }] }`, campanhas e fatias em ordem lexicográfica; só entram campanhas com `campaign.json` |
 | `GET …/campaigns/:campaignId` | — | `200` com o `campaign.json` (`application/json; charset=utf-8`); `404` se não existe |
-| `PUT …/campaigns/:campaignId` | `application/json`: objeto com `formatVersion` inteiro ≥ 1 | `204`; grava ou substitui a campanha |
+| `PUT …/campaigns/:campaignId` | `application/json`: objeto com `formatVersion` inteiro ≥ 1 | `204`; grava ou substitui a campanha; `409` se o arquivo continua em uso |
 | `GET …/campaigns/:campaignId/slices/:sliceId` | — | `200` com os bytes gravados (`application/x-ndjson; charset=utf-8`); `404` se não existe |
-| `PUT …/campaigns/:campaignId/slices/:sliceId` | `application/x-ndjson` (seção 8) | `204`; grava exatamente o que recebeu; `404` se a campanha não existe (ela é gravada antes das fatias) |
+| `PUT …/campaigns/:campaignId/slices/:sliceId` | `application/x-ndjson` (seção 8) | `204`; grava exatamente o que recebeu; `404` se a campanha não existe (ela é gravada antes das fatias); `409` se o arquivo continua em uso |
 
 Id fora do padrão dá `400` antes de tocar no disco; corpo inválido, `400`; outro tipo de conteúdo,
-`415`. Não há `DELETE` por enquanto.
+`415`. Uma gravação cujo arquivo continua em uso depois de todas as novas tentativas (seção 8)
+dá `409 SESSION_BUSY` e deixa o arquivo antigo como estava: o site pode tentar de novo. Não há
+`DELETE` por enquanto.
 
 ### 5.2 Erros
 
@@ -170,18 +172,30 @@ e a mensagem em português para pessoas. A mensagem nunca repete o conteúdo do 
 | 400 | `INVALID_ID` | `campaignId` ou `sliceId` fora do padrão da seção 8 |
 | 400 | `INVALID_BODY` | campanha ou fatia inválida; JSON malformado ou vazio |
 | 4xx | `REQUEST_REJECTED` | outro pedido recusado antes da rota (URL malformada, parâmetro longo demais…) |
+| 400 | `MALFORMED_REQUEST` | o parser HTTP não entendeu o pedido (linha ou cabeçalho malformado) |
 | 403 | `FORBIDDEN_HOST`, `FORBIDDEN_ORIGIN` | pedido de fora do site local (seção 10) |
 | 404 | `NOT_FOUND` | rota, campanha ou fatia inexistente |
+| 408 | `REQUEST_TIMEOUT` | o pedido demorou demais para chegar |
+| 409 | `SESSION_BUSY` | o arquivo da sessão continuou em uso depois de todas as novas tentativas |
 | 413 | `BODY_TOO_LARGE` | corpo acima do limite da rota (seção 5.3) |
 | 415 | `UNSUPPORTED_MEDIA_TYPE` | tipo de conteúdo que a rota não aceita |
+| 431 | `HEADERS_TOO_LARGE` | cabeçalhos acima do tamanho máximo do Node (16 KiB) |
 | 500 | `INTERNAL_ERROR` | falha interna; a pilha vai para o log, nunca para a resposta |
+
+Os erros do parser HTTP (400, 408 e 431) são escritos direto na conexão, que é fechada em seguida;
+uma conexão que o cliente derrubou fica como está. Duas respostas saem do próprio Node, antes do
+Fastify, e por isso sem o corpo JSON: um pedido HTTP/1.1 sem o cabeçalho `Host` recebe
+`400 Bad Request` vazio, e um cabeçalho `Expect` diferente de `100-continue` recebe
+`417 Expectation Failed` vazio.
 
 ### 5.3 Configuração
 
 Um módulo tipado (`apps/server/src/config.ts`, validado com Zod, [ADR 0021](<adr/0021-zod-for-schema-validation.md>))
 lê o ambiente depois de carregar o `.env` da raiz; variáveis já definidas no ambiente vencem.
 Valor vazio conta como ausente (vale o padrão). Valor inválido impede o servidor de subir: ele
-imprime uma linha `Erro: … — Solução: …` por variável. As variáveis de IA estão na
+imprime uma linha `Erro: … — Solução: …` por variável. O mesmo vale para uma porta que o servidor
+não consegue usar: ocupada por outro programa (`EADDRINUSE`) ou recusada pelo sistema (`EACCES`,
+como as faixas que o Hyper-V reserva no Windows). As variáveis de IA estão na
 [integração de IA](<ai-integration.md>), seção 3; as do servidor são estas:
 
 | Variável | Padrão | Aceita |
@@ -251,13 +265,22 @@ modelos é exibido como texto (nunca como HTML).
   entre `a-z`, `0-9` e `-`, começando por letra ou número. As fatias se chamam `1`, `2`… e, numa
   ramificação, `2-b`. Sem ponto, barra ou contrabarra, um id nunca sai da sua pasta; um id
   inválido é recusado antes de tocar no disco e, por defesa em profundidade, todo caminho montado
-  ainda precisa ficar dentro de `DATA_DIR`.
+  ainda precisa ficar dentro de `DATA_DIR`. Os nomes de dispositivo que o Windows reserva (`con`,
+  `prn`, `aux`, `nul`, `com0` a `com9`, `lpt0` a `lpt9`) também não valem como id: muitas
+  ferramentas não abrem esses arquivos, com ou sem extensão (`nul.jsonl`).
 - **Fatia em JSONL:** texto UTF-8 que termina com `\n`, um objeto JSON por linha. O servidor grava
   e devolve os bytes recebidos, sem reescrever nada (`\r\n` e espaços incluídos).
 - **Campanha:** o servidor regrava o objeto recebido como JSON com 2 espaços de indentação e `\n`
   no fim; os campos ficam como vieram.
-- **Escrita atômica:** primeiro um arquivo temporário na mesma pasta (`.<nome>.<uuid>.tmp`, gravado
-  em disco), depois `rename`; quem lê vê o arquivo antigo ou o novo, nunca a metade.
+- **Escrita atômica:** primeiro um arquivo temporário na mesma pasta (`.<nome>.<uuid>.tmp`, criado
+  com exclusividade e gravado em disco), depois `rename`; quem lê vê o arquivo antigo ou o novo,
+  nunca a metade. Qualquer falha apaga o temporário (um arquivo que já existia nesse caminho nunca
+  é tocado).
+- **Arquivo em uso:** no Windows, o `rename` sobre um arquivo aberto por outro leitor falha por um
+  instante (`EPERM`, `EACCES` ou `EBUSY`). O servidor tenta de novo depois de 10, 20, 40, 80, 160,
+  320, 640 e 1000 ms (cerca de 2,3 s ao todo); se o arquivo continua em uso, a gravação volta como
+  `busy` (`409 SESSION_BUSY`) e o arquivo antigo fica. As gravações de um mesmo arquivo entram numa
+  fila, uma por vez; arquivos diferentes gravam ao mesmo tempo.
 - **Listagem:** campanhas e fatias em ordem lexicográfica, comparando caracteres (`"1"`, `"10"`,
   `"2"`); entradas que não seguem o padrão (temporários, outros arquivos) ficam de fora.
 
