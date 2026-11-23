@@ -11,6 +11,7 @@ import { DRIVE_IDS } from "./drives.ts";
 import { HISTORY_EVENT_IDS } from "./history-events.ts";
 import {
   bpSchema,
+  reportIssues,
   textSchema,
   uniqueList,
   type CatalogInput,
@@ -68,12 +69,12 @@ export const bondArchetypeSchema = z
   })
   .superRefine((archetype, context) => {
     const differentRoles = archetype.aToB.label !== archetype.bToA.label;
-    if (differentRoles !== archetype.directional) {
-      const message = differentRoles
-        ? "an archetype with different labels for A and B is directional"
-        : "a directional archetype has different labels for A and B";
-      context.addIssue({ code: "custom", path: ["directional"], message });
-    }
+    const message = differentRoles
+      ? "an archetype with different labels for A and B is directional"
+      : "a directional archetype has different labels for A and B";
+    const issues =
+      differentRoles === archetype.directional ? [] : [{ path: ["directional"], message }];
+    reportIssues(context, issues);
   });
 
 /** A bond archetype (presets §6). */

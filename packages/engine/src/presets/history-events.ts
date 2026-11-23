@@ -12,6 +12,7 @@ import { EMOTION_IDS } from "./emotions.ts";
 import {
   bipolarSchema,
   bpSchema,
+  reportIssues,
   textSchema,
   type CatalogInput,
   type PresetOf,
@@ -76,10 +77,8 @@ export const historyEventSchema = z
     knownBy: z.enum(["BOTH", "A"]),
   })
   .superRefine((event, context) => {
-    if (event.secretChance === 0 && event.knownBy !== "BOTH") {
-      const message = "an event that is never secret is known by both";
-      context.addIssue({ code: "custom", path: ["knownBy"], message });
-    }
+    const issue = { path: ["knownBy"], message: "an event that is never secret is known by both" };
+    reportIssues(context, event.secretChance === 0 && event.knownBy !== "BOTH" ? [issue] : []);
   });
 
 /** A history event (presets §7). */

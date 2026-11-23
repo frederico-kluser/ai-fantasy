@@ -45,7 +45,7 @@ function errorAt(path: readonly PropertyKey[], message: string, input: unknown):
     catalog: known ? catalog : null,
     index: null,
     presetId: null,
-    path: known ? "" : path.map(String).join("."),
+    path: known ? "" : String(catalog ?? ""),
     message,
   };
 }

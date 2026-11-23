@@ -6,7 +6,13 @@
  */
 import { z } from "zod";
 
-import { bpSchema, textSchema, type CatalogInput, type PresetOf } from "./primitives.ts";
+import {
+  bpSchema,
+  reportIssues,
+  textSchema,
+  type CatalogInput,
+  type PresetOf,
+} from "./primitives.ts";
 
 /** Ids of the tones, in the order of dialogue-acts §3. */
 export const TONE_IDS = [
@@ -53,12 +59,11 @@ export const toneSchema = z
     confusions: z.array(confusionSchema).min(1),
   })
   .superRefine((tone, context) => {
-    tone.confusions.forEach((confusion, index) => {
+    const issues = tone.confusions.flatMap((confusion, index) => {
       const message = confusionProblem(tone, confusion, index);
-      if (message !== undefined) {
-        context.addIssue({ code: "custom", path: ["confusions", index, "tone"], message });
-      }
+      return message === undefined ? [] : [{ path: ["confusions", index, "tone"], message }];
     });
+    reportIssues(context, issues);
   });
 
 /** A tone (dialogue-acts §3). */

@@ -7,7 +7,7 @@
 import { z } from "zod";
 
 import { GRID_MAX } from "../domain/constants.ts";
-import type { DeepReadonly } from "./primitives.ts";
+import { reportIssues, type DeepReadonly, type PresetIssue } from "./primitives.ts";
 
 /** Cell type of each character of a template row (presets §2.1, simulation-model §3.1). */
 export const GRID_LEGEND: Readonly<Record<string, string>> = {
@@ -42,16 +42,11 @@ interface TemplateShape {
   readonly starts: readonly Position[];
 }
 
-interface Issue {
-  readonly path: readonly (string | number)[];
-  readonly message: string;
-}
-
 function widthOf(rows: readonly string[]): number {
   return Math.max(...rows.map((row) => row.length));
 }
 
-function rowIssue(row: string, y: number, width: number): Issue[] {
+function rowIssue(row: string, y: number, width: number): PresetIssue[] {
   const unknown = Array.from(row).find((char) => GRID_LEGEND[char] === undefined);
   if (unknown !== undefined) {
     return [{ path: ["rows", y], message: `unknown cell character: ${unknown}` }];
@@ -83,16 +78,17 @@ function positionIssues(
   field: "exits" | "starts",
   positions: readonly Position[],
   problemOf: (position: Position) => string | undefined,
-): Issue[] {
-  const keys = positions.map(({ x, y }) => `${x}, ${y}`);
+): PresetIssue[] {
+  const keyOf = ({ x, y }: Position): string => `${x}, ${y}`;
+  const keys = positions.map(keyOf);
   return positions.flatMap((position, index) => {
-    const key = keys[index] ?? "";
+    const key = keyOf(position);
     const message = keys.indexOf(key) < index ? `repeats the cell (${key})` : problemOf(position);
     return message === undefined ? [] : [{ path: [field, index], message }];
   });
 }
 
-function maskIssues(mask: readonly string[], rows: readonly string[]): Issue[] {
+function maskIssues(mask: readonly string[], rows: readonly string[]): PresetIssue[] {
   if (mask.length !== rows.length) {
     return [
       { path: ["roofed"], message: `mask has ${mask.length} rows; the grid has ${rows.length}` },
@@ -111,7 +107,7 @@ function maskIssues(mask: readonly string[], rows: readonly string[]): Issue[] {
 }
 
 /** Every rule of presets §2.1 that a template breaks, rows first. */
-function templateIssues(template: TemplateShape): Issue[] {
+function templateIssues(template: TemplateShape): PresetIssue[] {
   const { rows, roofed } = template;
   const width = widthOf(rows);
   const rowProblems = rows.flatMap((row, y) => rowIssue(row, y, width));
@@ -138,9 +134,7 @@ export const gridTemplateSchema = z
     starts: z.array(positionSchema).min(MIN_STARTS),
   })
   .superRefine((template, context) => {
-    for (const issue of templateIssues(template)) {
-      context.addIssue({ code: "custom", path: [...issue.path], message: issue.message });
-    }
+    reportIssues(context, templateIssues(template));
   });
 
 /** A grid template as written in the data, before validation. */

@@ -21,6 +21,7 @@ import {
 import {
   bipolarSchema,
   bpSchema,
+  reportIssues,
   textListSchema,
   textSchema,
   uniqueList,
@@ -95,9 +96,8 @@ export const placeSchema = z
   })
   .superRefine((place, context) => {
     const roofing = EXPOSURE_ROOFING[place.exposure];
-    if (!roofing.fits(place.grid.roofed)) {
-      context.addIssue({ code: "custom", path: ["grid", "roofed"], message: roofing.message });
-    }
+    const issue = { path: ["grid", "roofed"], message: roofing.message };
+    reportIssues(context, roofing.fits(place.grid.roofed) ? [] : [issue]);
   });
 
 /** A place (presets §2). */

@@ -38,14 +38,29 @@ export const bipolarRangeSchema = z
   .strictObject({ min: bipolarSchema, max: bipolarSchema })
   .refine(isOrdered, RANGE_ORDER);
 
+/** A rule broken inside a preset: the path of the field (from the value checked) and what is wrong. */
+export interface PresetIssue {
+  readonly path: readonly (string | number)[];
+  readonly message: string;
+}
+
+/** Reports `issues` to Zod as custom issues of the value being refined. */
+export function reportIssues(context: z.core.$RefinementCtx, issues: readonly PresetIssue[]): void {
+  for (const issue of issues) {
+    context.addIssue({ code: "custom", path: [...issue.path], message: issue.message });
+  }
+}
+
+function repeats(items: readonly string[]): PresetIssue[] {
+  return items.flatMap((value, index) =>
+    items.indexOf(value) < index ? [{ path: [index], message: `${value} is repeated` }] : [],
+  );
+}
+
 /** A list of `item` without repeats: each repeat is reported at its position. */
 export function uniqueList<T extends z.ZodType<string>>(item: T) {
   return z.array(item).superRefine((items, context) => {
-    items.forEach((value, index) => {
-      if (items.indexOf(value) < index) {
-        context.addIssue({ code: "custom", path: [index], message: `${value} is repeated` });
-      }
-    });
+    reportIssues(context, repeats(items));
   });
 }
 
