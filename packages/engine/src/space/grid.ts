@@ -93,14 +93,24 @@ export function cellIndex(grid: Grid, pos: CellPos): number {
 }
 
 /**
+ * Checks that `index` is a cell of the grid and returns it.
+ *
+ * @throws RangeError if `index` is not a cell of the grid.
+ */
+export function requireCell(grid: Grid, index: number): number {
+  if (!Number.isSafeInteger(index) || index < 0 || index >= grid.width * grid.height) {
+    throw new RangeError(`cell index ${index} is outside the ${grid.width} × ${grid.height} grid`);
+  }
+  return index;
+}
+
+/**
  * The position of the cell at `index`.
  *
  * @throws RangeError if `index` is not a cell of the grid.
  */
 export function cellPos(grid: Grid, index: number): CellPos {
-  if (!Number.isSafeInteger(index) || index < 0 || index >= grid.width * grid.height) {
-    throw new RangeError(`cell index ${index} is outside the ${grid.width} × ${grid.height} grid`);
-  }
+  requireCell(grid, index);
   return { x: index % grid.width, y: div(index, grid.width) };
 }
 
