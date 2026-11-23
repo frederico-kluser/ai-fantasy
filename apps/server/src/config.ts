@@ -5,22 +5,16 @@
  * counts as absent, so the default applies. Model ids live only here and in the
  * environment; the code names the roles (`systemOneModel`, `textModel`).
  */
-import { resolve } from "node:path";
-import { fileURLToPath } from "node:url";
+import { isAbsolute, join, resolve } from "node:path";
 
 import { z } from "zod";
 
+import { REPO_ROOT } from "./paths.ts";
 import type { Result } from "./result.ts";
 import { Secret } from "./secret.ts";
 
-/** The repository root, from this file's place in `apps/server/src` (never from the cwd). */
-const REPOSITORY_ROOT = fileURLToPath(new URL("../../../", import.meta.url));
-
 /** Default port of the local server (`PORT`). */
 export const DEFAULT_PORT = 4318;
-
-/** Default folder of campaigns and slices (`DATA_DIR`): `data/` at the repository root. */
-export const DEFAULT_DATA_DIR = resolve(REPOSITORY_ROOT, "data");
 
 /** Log levels accepted by `LOG_LEVEL` (pino's). */
 const LOG_LEVELS = ["fatal", "error", "warn", "info", "debug", "trace", "silent"] as const;
@@ -74,7 +68,7 @@ export interface ServerConfig {
   readonly aiBudgetUsdPerConversation: number | undefined;
   /** `PORT`: TCP port on 127.0.0.1; `0` lets the system pick one. */
   readonly port: number;
-  /** `DATA_DIR`, absolute: where campaigns and slices are saved. */
+  /** `DATA_DIR`, absolute (a relative value is resolved from the repository root). */
   readonly dataDir: string;
   /** `BODY_LIMIT_BYTES`: largest request body of every route but the session saves. */
   readonly bodyLimitBytes: number;
@@ -142,10 +136,7 @@ const ENVIRONMENT = z.object({
     `use um inteiro de 0 a ${HIGHEST_PORT}`,
     between(0, HIGHEST_PORT),
   ).default(DEFAULT_PORT),
-  DATA_DIR: z
-    .string()
-    .transform((value) => resolve(REPOSITORY_ROOT, value))
-    .default(DEFAULT_DATA_DIR),
+  DATA_DIR: z.string().optional(),
   BODY_LIMIT_BYTES: byteLimit.default(DEFAULTS.bodyLimitBytes),
   SESSION_BODY_LIMIT_BYTES: byteLimit.default(DEFAULTS.sessionBodyLimitBytes),
   LOG_LEVEL: z
@@ -181,6 +172,19 @@ function errorLines(
   return [...new Set(lines)].join("\n");
 }
 
+/** The repository root, asked only when `DATA_DIR` needs it (empty or relative). */
+function repositoryRoot(): string {
+  return REPO_ROOT;
+}
+
+/** `DATA_DIR` as an absolute path: empty means `data/` at the repository root. */
+function dataDirFrom(value: string | undefined): string {
+  if (value === undefined) {
+    return join(repositoryRoot(), "data");
+  }
+  return isAbsolute(value) ? value : resolve(repositoryRoot(), value);
+}
+
 function toServerConfig(env: z.output<typeof ENVIRONMENT>): ServerConfig {
   return {
     aiApiKey: env.OPENROUTER_API_KEY,
@@ -191,7 +195,7 @@ function toServerConfig(env: z.output<typeof ENVIRONMENT>): ServerConfig {
     aiTimeoutMs: env.AI_TIMEOUT_MS,
     aiBudgetUsdPerConversation: env.AI_BUDGET_USD_PER_CONVERSATION,
     port: env.PORT,
-    dataDir: env.DATA_DIR,
+    dataDir: dataDirFrom(env.DATA_DIR),
     bodyLimitBytes: env.BODY_LIMIT_BYTES,
     sessionBodyLimitBytes: env.SESSION_BODY_LIMIT_BYTES,
     logLevel: env.LOG_LEVEL,

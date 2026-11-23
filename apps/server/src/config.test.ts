@@ -1,15 +1,18 @@
 import assert from "node:assert/strict";
+import { spawnSync } from "node:child_process";
 import { tmpdir } from "node:os";
-import { dirname, resolve } from "node:path";
-import { fileURLToPath } from "node:url";
+import { join, resolve } from "node:path";
 
 import { describe, expect, it } from "vitest";
 
-import { DEFAULT_DATA_DIR, DEFAULT_PORT, loadConfig, type ServerConfig } from "./config.ts";
+import { DEFAULT_PORT, loadConfig, type ServerConfig } from "./config.ts";
 import { Secret } from "./secret.ts";
 
-/** The repository root seen from this test (apps/server/src), computed apart from config.ts. */
-const REPOSITORY_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..", "..", "..");
+/** The repository root as git sees it: independent from how the server finds it. */
+function gitTopLevel(): string {
+  const run = spawnSync("git", ["rev-parse", "--show-toplevel"], { encoding: "utf8" });
+  return resolve(run.stdout.trim());
+}
 const FAKE_KEY = "sk-or-v1-TEST-ONLY-config-0123456789";
 
 /** Every variable the configuration reads, in the order errors are reported. */
@@ -51,7 +54,7 @@ describe("defaults (ai-integration §3, overview §5)", () => {
         aiTimeoutMs: 15_000,
         aiBudgetUsdPerConversation: undefined,
         port: 4318,
-        dataDir: resolve(REPOSITORY_ROOT, "data"),
+        dataDir: join(gitTopLevel(), "data"),
         bodyLimitBytes: 1_048_576,
         sessionBodyLimitBytes: 33_554_432,
         logLevel: "info",
@@ -67,10 +70,6 @@ describe("defaults (ai-integration §3, overview §5)", () => {
 
   it("given the default port when reading it then it is 4318", () => {
     expect(DEFAULT_PORT).toBe(4318);
-  });
-
-  it("given the default data folder when reading it then it is data/ at the repository root", () => {
-    expect(DEFAULT_DATA_DIR).toBe(resolve(REPOSITORY_ROOT, "data"));
   });
 });
 
@@ -126,9 +125,15 @@ describe("values from the environment", () => {
     }).toEqual({ hasKey: false, field: true });
   });
 
+  it("given an absolute DATA_DIR when loading the config then it is kept as it is", () => {
+    const dataDir = resolve(tmpdir(), "ai-fantasy-absolute-data");
+
+    expect(loaded({ DATA_DIR: dataDir }).dataDir).toBe(dataDir);
+  });
+
   it("given a relative DATA_DIR when loading the config then it is resolved from the repository root", () => {
     expect(loaded({ DATA_DIR: "custom/sessions" }).dataDir).toBe(
-      resolve(REPOSITORY_ROOT, "custom", "sessions"),
+      resolve(gitTopLevel(), "custom", "sessions"),
     );
   });
 
