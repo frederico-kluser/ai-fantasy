@@ -1,9 +1,15 @@
 .agents/**
 .claude/**
 .github/ISSUE_TEMPLATE/**
-node_modules/
+**/node_modules/
 .work/
-coverage/
+**/coverage/
+**/reports/
+**/dist/
+**/.stryker-tmp/
+**/.vitest/
+playwright-report/
+test-results/
 docs/studies/Avaliação e Arquitetura AI Fantasy.md
 docs/studies/Expansão Sistêmica Do AI Fantasy.md
 docs/studies/Original - Roadmap Jogo Procedural Com LFM3.md

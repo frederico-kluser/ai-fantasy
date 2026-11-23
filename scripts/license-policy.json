@@ -1,0 +1,37 @@
+{
+  "$comment": "Política de licenças das dependências (ADR 0019; critério na nota de implementação do ADR 0020). 'production': licenças permitidas no que o produto distribui. 'developmentExtra': licenças a mais aceitas só em dependências de desenvolvimento, que não são distribuídas. 'exceptions': um pacote e uma licença exatos, com justificativa; scope 'development' vale só enquanto o pacote for só de desenvolvimento.",
+  "production": [
+    "MIT",
+    "Apache-2.0",
+    "BSD-2-Clause",
+    "BSD-3-Clause",
+    "ISC",
+    "0BSD",
+    "Zlib",
+    "Unicode-3.0",
+    "BlueOak-1.0.0"
+  ],
+  "developmentExtra": [
+    "CC0-1.0",
+    "CC-BY-3.0",
+    "CC-BY-4.0",
+    "Python-2.0",
+    "PSF-2.0",
+    "Unlicense",
+    "MPL-2.0"
+  ],
+  "exceptions": [
+    {
+      "package": "eslint-plugin-sonarjs",
+      "license": "LGPL-3.0-only",
+      "scope": "development",
+      "reason": "Regra sonarjs/cognitive-complexity (code-quality §1); ferramenta de lint, não é distribuída nem entra no produto (ADR 0020)."
+    },
+    {
+      "package": "@sonarsource/analyzer-commons-configurations",
+      "license": "LGPL-3.0-only",
+      "scope": "development",
+      "reason": "Dependência de eslint-plugin-sonarjs; mesmo motivo (ADR 0020)."
+    }
+  ]
+}

@@ -133,7 +133,23 @@ desenvolvimento.
 | `packages/engine` | ≥ 95% | ≥ 90% | ≥ 90% |
 | Linhas novas do PR | ≥ 95% | — | — |
 
-Stryker roda de forma incremental nos PRs (só arquivos mudados) e completo à noite.
+Stryker roda de forma incremental nos PRs (só arquivos mudados) e completo à noite. Ele muta
+todo código de `src/` dos pacotes, menos os testes (barris `index.ts` incluídos).
+
+A mutação incremental (`npm run mutation:changed`) falha se um arquivo de código
+(JavaScript/TypeScript) mudado não estiver num pacote com `stryker.config.mjs` nem nesta lista de
+exceções (`NOT_MUTATED` em `scripts/mutation-changed.ts`):
+
+| Caminho | Por que não passa por mutação |
+| --- | --- |
+| `*.test.*`, `*.spec.*` | são os testes que matam os mutantes |
+| `*.d.ts` | só tipos, nenhum código roda |
+| `scripts/**` | scripts de gate, cobertos pelo projeto `scripts` do Vitest |
+| `<pacote>/test/**`, `<pacote>/e2e/**`, `<pacote>/bench/**` | suporte de teste, specs do E2E e benchmark |
+| `*.config.{js,mjs,ts,…}` e `vitest.setup.*` na raiz do repositório ou de um pacote; `stryker.base.mjs` | configuração das ferramentas (dentro de `src/`, um `*.config.ts` é código de produção e é mutado) |
+
+Código novo fora dessa lista vai para `<pacote>/src` de um pacote com `stryker.config.mjs`; uma
+exceção nova entra na lista e nesta tabela, com o motivo.
 
 ## 13. CI
 
@@ -169,3 +185,24 @@ causa (geralmente tempo, ordem ou estado compartilhado) e só então volte a exi
 - Testes escritos antes da implementação: sim/não (por quê).
 - Suítes afetadas e resultado.
 - O que não foi testado e por quê.
+
+## 17. Onde ficam os testes e como rodar
+
+Ferramentas e versões no [ADR 0020](<../architecture/adr/0020-base-tools-and-libraries.md>).
+
+| Suíte | Arquivos | Comando |
+| --- | --- | --- |
+| Unidade, propriedades, contrato, servidor, componentes | `src/**/*.test.ts(x)` ao lado do código, em cada pacote | `npm test` (um pacote: `npm test -w @ai-fantasy/engine`) |
+| Ouro e replay | `packages/engine/test/**/*.test.ts` | `npm test` |
+| Gates e configuração (regras de lint, fronteiras, limiares, licenças, linhas novas, mutação incremental, governança) | `scripts/**/*.test.ts` (projeto `scripts` do Vitest) | `npx vitest run --project scripts` |
+| E2E | `apps/web/e2e/*.spec.ts` | `npm run e2e` |
+| Benchmark | `packages/engine/bench/` | `npm run bench` |
+| Mutação | `stryker.config.mjs` de cada pacote | `npm run mutation:changed` (um pacote: `npm run mutation -w @ai-fantasy/engine`) |
+
+- O lint proíbe `if`, ternário, `switch`, laços e `try` em `*.test.ts(x)` e nos specs do E2E
+  (`e2e/**/*.spec.ts`; os helpers do E2E podem ter lógica). Tabelas de casos vão em `it.each`;
+  para limpar recursos use `onTestFinished` ou `afterEach`.
+- O fast-check usa uma seed fixa (`packages/engine/vitest.setup.ts`); para outra seed num caso,
+  `fc.assert(propriedade, { seed })`.
+- Os relatórios ficam fora do git: `coverage/`, `reports/` de cada pacote (mutação), `.vitest/`,
+  `playwright-report/` e `test-results/`.

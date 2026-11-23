@@ -11,8 +11,12 @@
 - **F0 — Fundação documental: concluída** (refeita em 2026-11-09). Produto redefinido, plano
   antigo descartado (D-09), especificações, ADRs 0013–0019, regras de engenharia, este roadmap e
   os prompts escritos.
-- **Ainda não há código.** A próxima tarefa pronta é a **[FND-01](<docs/planning/prompts/FND-01.md>)**.
-  Código só começa com pedido explícito do maintainer.
+- **F1 — Base TypeScript: concluída** (FND-01). Monorepo com os quatro pacotes em esqueleto,
+  gates de qualidade, CI em Node e o [ADR 0020](<docs/architecture/adr/0020-base-tools-and-libraries.md>)
+  com as ferramentas de base.
+- As próximas tarefas prontas são a **[CORE-01](<docs/planning/prompts/CORE-01.md>)** e a
+  **[SRV-01](<docs/planning/prompts/SRV-01.md>)**, que podem correr em paralelo. Código só com
+  pedido explícito do maintainer.
 - O plano anterior (região procedural em Rust, 46 tarefas em ondas com juiz) está no histórico do
   git até o commit `05dea65` e não vale mais.
 
@@ -110,7 +114,7 @@ uma tarefa atualiza esta tabela no próprio PR.
 
 | Id | Tarefa | Fase | Depende de | Estado |
 | --- | --- | --- | --- | --- |
-| [FND-01](<docs/planning/prompts/FND-01.md>) | Monorepo TypeScript, gates e CI | F1 | — | ⏳ pendente |
+| [FND-01](<docs/planning/prompts/FND-01.md>) | Monorepo TypeScript, gates e CI | F1 | — | ✅ concluída (#16) |
 | [CORE-01](<docs/planning/prompts/CORE-01.md>) | Domínio, aritmética em bp, sorteio e registro | F2 | FND-01 | ⏳ pendente |
 | [CORE-02](<docs/planning/prompts/CORE-02.md>) | Tempo, contexto e grade | F2 | CORE-01 | ⏳ pendente |
 | [CORE-03](<docs/planning/prompts/CORE-03.md>) | Catálogos de presets v0 | F2 | CORE-01 | ⏳ pendente |

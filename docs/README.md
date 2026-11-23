@@ -32,7 +32,7 @@ docs/
 │   ├── dialogue-acts.md          ← atos, tons, tópicos, consequências, pedidos
 │   ├── presets.md                ← catálogos e premissa → presets
 │   ├── ai-integration.md         ← SOM e modelo de texto via OpenRouter
-│   └── adr/                      ← decisões estruturais (vigentes: 0013–0019)
+│   └── adr/                      ← decisões estruturais (vigentes: 0013–0020)
 ├── engineering/
 │   ├── development-rules.md      ← contrato do dia a dia
 │   ├── testing-strategy.md       ← TDD, suítes, gates
@@ -57,6 +57,7 @@ docs/
 
 ## Estado
 
-**Fundação documental refeita em 2026-11-09.** O produto foi redefinido (D-09) e o plano antigo
-foi removido; ele continua no histórico do git. Ainda não há código: a próxima tarefa é a
-[FND-01](<planning/prompts/FND-01.md>).
+**Base TypeScript pronta (FND-01).** O produto foi redefinido em 2026-11-09 (D-09) e o plano
+antigo foi removido; ele continua no histórico do git. O monorepo, os gates de qualidade e o CI
+existem ([ADR 0020](<architecture/adr/0020-base-tools-and-libraries.md>)); as próximas tarefas são a
+[CORE-01](<planning/prompts/CORE-01.md>) e a [SRV-01](<planning/prompts/SRV-01.md>).

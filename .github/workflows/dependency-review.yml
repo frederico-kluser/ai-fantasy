@@ -1,8 +1,9 @@
 # =============================================================================
 # Dependency review — ai-fantasy
 #
-# Bloqueia PRs que introduzam dependências com vulnerabilidades conhecidas ou
-# licenças incompatíveis. Sem manifesto (F0), o job é inócuo.
+# Bloqueia PRs que introduzam dependências com vulnerabilidades conhecidas de
+# severidade alta ou crítica. Não verifica licenças: a política de licenças
+# (ADR 0019) é o `npm run licenses`, no job `node` do CI.
 # =============================================================================
 
 name: Dependency review
@@ -22,6 +23,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
 
       - name: Dependency review
         uses: actions/dependency-review-action@bbc44d14a204704ccc493733616cd1e93a0321ec # v4

@@ -1,0 +1,55 @@
+# =============================================================================
+# Mutação completa — ai-fantasy
+#
+# Nos PRs, o CI roda só a mutação incremental dos arquivos mudados; aqui roda a
+# mutação de todos os pacotes (testing-strategy §12): motor ≥ 90%, demais ≥ 80%.
+# Os relatórios ficam como artefato. Actions fixadas por SHA (oss-pin-actions.sh).
+# =============================================================================
+
+name: Mutation (nightly)
+
+on:
+  schedule:
+    - cron: "0 6 * * *" # todo dia às 06:00 UTC (03:00 em São Paulo)
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: mutation-nightly-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  mutation:
+    name: mutation (completa)
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Node.js (versão do .node-version)
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .node-version
+          cache: npm
+
+      - name: Instalar dependências
+        run: npm ci
+
+      - name: Mutação completa (todos os pacotes)
+        run: npm run mutation
+
+      - name: Relatórios de mutação
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: mutation-reports
+          path: |
+            packages/*/reports/mutation/
+            apps/*/reports/mutation/
+          retention-days: 30
+          if-no-files-found: ignore
