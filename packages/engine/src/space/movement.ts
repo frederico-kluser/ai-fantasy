@@ -11,7 +11,7 @@ import { compareIds, type CharacterId } from "../domain/ids.ts";
 import { itemAt } from "../domain/lookup.ts";
 import { APPROACH_DISTANCE, approachOn, exitOn } from "./destinations.ts";
 import { cellDistance, requireCell, type Grid } from "./grid.ts";
-import { enterTicksOf, isEnterable, NONE, type Ground } from "./ground.ts";
+import { isEnterable, NONE, terrainOf, type Ground } from "./ground.ts";
 import { stepToward } from "./path.ts";
 
 /**
@@ -143,10 +143,11 @@ function advance(grounds: Grounds, where: Positions, occupant: Occupant): Occupa
  */
 export function moveTick(grid: Grid, occupants: readonly Occupant[]): Occupant[] {
   const ordered = [...occupants].sort((a, b) => compareIds(a.id, b.id));
-  const ticks = enterTicksOf(grid);
+  // One terrain for the whole tick: every search of every character shares it.
+  const terrain = terrainOf(grid);
   const grounds: Grounds = {
-    strict: { grid, ticks, taken: new Uint8Array(ticks.length) },
-    loose: { grid, ticks, taken: new Uint8Array(ticks.length) },
+    strict: { grid, ...terrain, taken: new Uint8Array(terrain.ticks.length) },
+    loose: { grid, ...terrain, taken: new Uint8Array(terrain.ticks.length) },
   };
   const { taken } = grounds.strict;
   const where: Positions = new Map();

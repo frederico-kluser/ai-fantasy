@@ -10,24 +10,11 @@ import { WITHDRAW_DISTANCE } from "../domain/constants.ts";
 import { itemAt } from "../domain/lookup.ts";
 import { err, ok, type Result } from "../domain/result.ts";
 import { cellDistance, requireCell, type Grid } from "./grid.ts";
-import { costField, groundOf, NONE, UNREACHED, type Ground } from "./ground.ts";
+import { costField, groundOf, nearestWhere, NONE, UNREACHED, type Ground } from "./ground.ts";
 import type { PathError } from "./path.ts";
 
 /** `APPROACH` ends next to the target (simulation-model §8.1). */
 export const APPROACH_DISTANCE = 1;
-
-/** The cheapest reachable cell of a FROM field that `accept` takes, or NONE; ties to the lowest index. */
-function cheapestWhere(field: Int32Array, accept: (cell: number) => boolean): number {
-  let best = NONE;
-  let bestCost = Number.MAX_SAFE_INTEGER;
-  for (const [cell, cost] of field.entries()) {
-    if (cost !== UNREACHED && cost < bestCost && accept(cell)) {
-      best = cell;
-      bestCost = cost;
-    }
-  }
-  return best;
-}
 
 /** The reachable cell of a FROM field farthest from `target`, or NONE; ties to the lowest index. */
 function farthestFrom(grid: Grid, field: Int32Array, target: number): number {
@@ -45,24 +32,25 @@ function farthestFrom(grid: Grid, field: Int32Array, target: number): number {
 
 /** The `APPROACH` destination on a ground, or NONE: the cheapest free cell next to `target`. */
 export function approachOn(ground: Ground, from: number, target: number): number {
-  return cheapestWhere(
-    costField(ground, from, "FROM"),
+  return nearestWhere(
+    ground,
+    from,
     (cell) => cellDistance(ground.grid, cell, target) === APPROACH_DISTANCE,
   );
 }
 
 /** The exit destination on a ground, or NONE: the cheapest free exit. */
 export function exitOn(ground: Ground, from: number): number {
-  return cheapestWhere(costField(ground, from, "FROM"), (cell) => itemAt(ground.grid.exits, cell));
+  return nearestWhere(ground, from, (cell) => itemAt(ground.grid.exits, cell));
 }
 
 function withdrawOn(ground: Ground, from: number, target: number): number {
-  const field = costField(ground, from, "FROM");
-  const away = cheapestWhere(
-    field,
+  const away = nearestWhere(
+    ground,
+    from,
     (cell) => cellDistance(ground.grid, cell, target) >= WITHDRAW_DISTANCE,
   );
-  return away === NONE ? farthestFrom(ground.grid, field, target) : away;
+  return away === NONE ? farthestFrom(ground.grid, costField(ground, from, "FROM"), target) : away;
 }
 
 function found(cell: number): Result<number, PathError> {
