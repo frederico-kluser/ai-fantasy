@@ -106,7 +106,7 @@ não é revisado. Detalhes em [`docs/engineering/testing-strategy.md`](docs/engi
 ## Gates (todos verdes antes do PR)
 
 ```bash
-npm run check              # tudo abaixo, na ordem do CI
+npm run check              # tudo abaixo, na ordem do CI, mais docs e governança
 npm run lint
 npm run typecheck
 npm run coverage           # linhas ≥ 90%, ramos ≥ 85%; motor 95/90
@@ -115,6 +115,9 @@ npm run licenses           # ADR 0019
 npm run e2e
 npm run mutation:changed   # ≥ 80%; motor ≥ 90% (npm run mutation roda tudo)
 ```
+
+Só o CI verifica os links da documentação (lychee) e as mensagens dos commits; na sua máquina,
+o hook `commit-msg` cobre as mensagens.
 
 Além disso: TSDoc nas exportações públicas, `npm audit` sem vulnerabilidades altas e
 complexidade dentro dos limites de [qualidade de código](docs/engineering/code-quality.md).

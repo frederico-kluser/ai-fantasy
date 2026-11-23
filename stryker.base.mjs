@@ -4,8 +4,9 @@
  * has a `stryker.config.mjs` that spreads this object and runs from the package
  * directory, reusing the package's `vitest.config.ts`.
  *
- * Mutated: `src/**` production files. Not mutated: tests, type declarations and
- * `index.ts` barrels (they only re-export).
+ * Mutated: every code file under `src/` except tests (`index.ts` included: a pure
+ * re-export has no mutants, and excluding it would hide any code put there).
+ * scripts/mutation-changed.ts lists what never goes through mutation.
  */
 
 /** @type {import("@stryker-mutator/api/core").PartialStrykerOptions} */
@@ -16,7 +17,7 @@ export const strykerBase = {
   coverageAnalysis: "perTest",
   incremental: true,
   incrementalFile: "reports/stryker-incremental.json",
-  mutate: ["src/**/*.{ts,tsx}", "!src/**/*.test.{ts,tsx}", "!src/**/*.d.ts", "!src/**/index.ts"],
+  mutate: ["src/**/*.{ts,tsx,mts,cts,js,jsx,mjs,cjs}", "!src/**/*.{test,spec}.*"],
   ignorePatterns: ["dist", "coverage", "e2e", "bench", ".vitest", "test-results"],
   reporters: ["clear-text", "progress", "html", "json"],
   htmlReporter: { fileName: "reports/mutation/index.html" },

@@ -1,4 +1,4 @@
-# ADR 0020 — Ferramentas e bibliotecas de base do monorepo TypeScript
+# ADR 0020 — Ferramentas de base do monorepo TypeScript
 
 - **Status:** Aceito
 - **Data:** 2026-11-23
@@ -12,8 +12,11 @@ workspaces do npm, Node 24 no servidor e React + Vite no site; o
 [ADR 0018](<0018-tdd-and-gates-in-typescript.md>) fixou TDD, os gates e as famílias de
 ferramentas; o [ADR 0019](<0019-licenses-in-the-typescript-project.md>) fixou a política de
 licenças. Faltava decidir como o TypeScript roda sem passo de build, as versões, o framework do
-servidor, a biblioteca de validação, o roteamento e o CSS do site e como verificar licenças. As 22
-tarefas seguintes usam essa base, então a escolha vale para o projeto inteiro.
+servidor e como cada gate é imposto e verificado. As 22 tarefas seguintes usam essa base.
+
+Este ADR trata só de ferramentas. Bibliotecas de domínio (validação de esquema, por exemplo) e a
+arquitetura do site (roteamento, estilos) ficam para as tarefas que precisarem delas, cada uma
+com a sua decisão.
 
 As versões foram conferidas no registro do npm em 2026-11-23 e são as estáveis mais novas
 compatíveis entre si.
@@ -41,35 +44,39 @@ compatíveis entre si.
    é testável por `inject`; `startServer()` escuta sempre em `127.0.0.1` (constante, não
    configurável). Portas: 4318 por padrão (`PORT`), 4319 no E2E, 5173 no Vite de
    desenvolvimento, que encaminha `/api` para o servidor. O `.env` da raiz é lido com
-   `process.loadEnvFile` (sem dotenv); variáveis já definidas no ambiente vencem.
-5. **Zod 4 é a biblioteca única de validação de esquema** em todos os pacotes, inclusive o motor
-   (ela é pura e não faz I/O). A primeira tarefa que validar dados de fora adiciona a dependência;
-   a FND-01 não a instala porque nada ainda valida dados externos. Os scripts de gate validam o
-   que leem com funções de guarda próprias.
-6. **Sem biblioteca de rotas no site:** um roteador por hash próprio (WEB-01) basta para as
-   quatro telas e não exige configuração no servidor.
-7. **CSS puro com variáveis** (propriedades customizadas, tema claro e escuro), sem framework.
-8. **Qualidade estática:** ESLint 10 (configuração plana em `eslint.config.js`), typescript-eslint
+   `process.loadEnvFile` (sem dotenv); variáveis já definidas no ambiente vencem. A raiz do
+   repositório é a pasta acima mais próxima cujo `package.json` declara `workspaces`, para que o
+   `.env` e `apps/web/dist` sejam achados de onde quer que o código rode (inclusive na cópia que o
+   Stryker faz do pacote).
+5. **Qualidade estática:** ESLint 10 (configuração plana em `eslint.config.js`), typescript-eslint
    8 (`strictTypeChecked`, com tipos pelo `projectService`), eslint-plugin-sonarjs 4 (só a regra
    `cognitive-complexity`), eslint-plugin-react-hooks 7 no site e eslint-config-prettier; Prettier
-   3 para formato. Os limites de [qualidade de código](<../../engineering/code-quality.md>) §1
-   contam linhas sem brancos e comentários (função 40, arquivo 400; testes isentos). As fronteiras
-   da [arquitetura](<../overview.md>) §2 são regras de `no-restricted-imports` e, de novo, um teste
-   que varre os imports (`scripts/boundaries.test.ts`). No motor: globais e propriedades não
-   determinísticas proibidas, `/` só em `packages/engine/src/domain/math.ts`, sem `**` e sem
-   literais decimais. Nos testes: sem `if`, ternário ou `switch`.
-9. **Testes:** Vitest 5 com `test.projects` (um `vitest.config.ts` por pacote, reutilizado pelo
+   3 para formato. As regras estão descritas em [qualidade de código](<../../engineering/code-quality.md>)
+   §1 e testadas no limite exato em `scripts/eslint-config.test.ts`.
+6. **Testes:** Vitest 5 com `test.projects` (um `vitest.config.ts` por pacote, reutilizado pelo
    Stryker, mais o projeto `scripts`), cobertura v8 com os limiares do ADR 0018 por glob,
    fast-check 4 com seed fixa, Testing Library + jsdom, Playwright 1.65 só com Chromium e Stryker
    10 (`vitest-runner`, análise `perTest`, modo incremental; quebra em 90 no motor e 80 nos
-   demais).
-10. **Verificador de licenças próprio** (`scripts/check-licenses.ts`), que lê o
-    `package-lock.json`; ver a nota de implementação abaixo.
-11. **Pontos de entrada fora da cobertura unitária e da mutação, por comentário explícito.** O
-    bloco `if (import.meta.main) { … }` de cada script e do servidor fica entre
-    `/* v8 ignore start/stop */` (e `// Stryker disable/restore all` no servidor), tem no máximo
-    cinco linhas e só liga funções testadas ao processo; ele é exercitado pelo E2E ou pelo próprio
-    comando. Toda lógica fica em funções testadas.
+   demais). O Stryker muta todo código de `src/` menos os testes (barris `index.ts` incluídos:
+   reexportar não gera mutante, e excluí-los esconderia código posto ali).
+7. **Gates próprios em TypeScript** (`scripts/`, sem dependência nova, testados no projeto
+   `scripts`): licenças (`check-licenses.ts`, ver a nota abaixo), cobertura das linhas novas
+   (`diff-coverage.ts`), mutação incremental (`mutation-changed.ts`), fronteiras entre pacotes
+   (`boundaries.ts`) e governança mínima (`check-governance.ts`: arquivos obrigatórios e
+   espelho `CLAUDE.md` ↔ `AGENTS.md`, que o CI também roda). A mutação incremental falha quando
+   um arquivo de código mudado não está num pacote com `stryker.config.mjs` nem na lista
+   documentada de exceções (`NOT_MUTATED`, ver [estratégia de testes](<../../engineering/testing-strategy.md>)
+   §12), para que nenhum código escape da mutação por acidente.
+8. **`npm run check` repete o CI na mesma ordem**, menos dois passos que só o CI faz: os links
+   da documentação (lychee) e as mensagens dos commits (job `build`; na máquina, o hook
+   `commit-msg` e o `oss-gate.sh` fazem esse papel). CodeQL, dependency review e Scorecard são
+   workflows à parte.
+9. **Pontos de entrada mínimos.** O bloco `if (import.meta.main) { … }` de cada script e do
+   servidor tem no máximo cinco linhas e só chama funções exportadas e testadas, inclusive a
+   fiação com o mundo real (`defaultIo(root)` nos scripts, `defaultMainOptions()` no servidor).
+   Só esse bloco fica fora da cobertura unitária e da mutação, por comentário explícito
+   (`/* v8 ignore start/stop */`, e `// Stryker disable/restore all` no servidor); ele é
+   exercitado pelo E2E ou pelo próprio comando.
 
 ### Nota de implementação do ADR 0019 (licenças)
 
@@ -86,8 +93,9 @@ compatíveis entre si.
   ausente, desconhecida ou expressão inválida falha.
 - **Exceções** ficam em `scripts/license-policy.json`: pacote e licença exatos, escopo e
   justificativa. Uma exceção com `scope: "development"` deixa de valer se o pacote passar a ser de
-  produção; exceção sem uso gera aviso. A exceção atual é o **eslint-plugin-sonarjs** e sua
-  dependência `@sonarsource/analyzer-commons-configurations`, ambos **LGPL-3.0-only** e só de
+  produção; exceção sem uso gera aviso. A exceção atual, decidida pelo orquestrador desta sessão
+  sob delegação do maintainer, é o **eslint-plugin-sonarjs** e sua dependência
+  `@sonarsource/analyzer-commons-configurations`, ambos **LGPL-3.0-only** e só de
   desenvolvimento: é a única regra mantida de complexidade cognitiva para ESLint, e a LGPL não
   alcança o projeto porque o plugin não é distribuído nem incorporado ao produto. Se surgir
   alternativa mantida com licença permissiva, ela substitui o plugin.
@@ -97,7 +105,7 @@ compatíveis entre si.
 ### Positivas
 
 - Nenhum passo de build entre editar e rodar: testes, servidor e site usam o mesmo código-fonte.
-- `npm run check` roda localmente exatamente o que o CI roda, na mesma ordem.
+- `npm run check` reproduz localmente o CI, com as duas exceções declaradas acima.
 - Fronteiras e determinismo do motor são verificados duas vezes (lint e teste).
 
 ### Negativas / custos
@@ -112,6 +120,9 @@ compatíveis entre si.
 - **Arquivo novo fora de um `include`:** o lint com tipos falha com "was not found by the project
   service". Mitigação: cada pacote inclui `src/**`, `test/**` e os arquivos de configuração da
   raiz do pacote; pastas novas com código entram no `include` do `tsconfig.json` mais próximo.
+- **Caminhos na cópia do Stryker:** os testes rodam em `<pacote>/.stryker-tmp/sandbox-*`, mais
+  fundo que no repositório. Mitigação: o código acha a raiz pelo `package.json` com
+  `workspaces`, e os testes comparam com a raiz que o git informa.
 - **Remoção de tipos não vale dentro de `node_modules`:** os pacotes do workspace resolvem para o
   caminho real (`packages/*`), então funcionam; uma dependência externa publicada em TypeScript não
   funcionaria sem build.
@@ -123,22 +134,22 @@ compatíveis entre si.
 - **`tsx` ou `ts-node` no servidor** — dependência a mais; o Node 24 já executa TypeScript.
 - **Build por pacote (`tsc`, `tsup`)** — passo extra sem ganho: nada é publicado no npm.
 - **Express ou Hono** — o Fastify tem `inject` para testes sem rede, esquemas e licença MIT.
-- **Valibot, ArkType ou io-ts** — o Zod 4 é o padrão do ecossistema, tem inferência de tipos e roda
-  no motor sem I/O.
-- **React Router ou TanStack Router** — quatro telas não justificam a dependência.
-- **Tailwind, CSS Modules ou CSS-in-JS** — dependência e configuração sem necessidade.
 - **Verificadores de licença do npm (license-checker e derivados)** — dependências a mais e sem a
   separação produção/desenvolvimento e as exceções justificadas que a política pede.
 - **Jest** — o Vitest usa a mesma transformação do Vite e tem runner do Stryker.
 - **Biome ou oxlint no lugar do ESLint** — não cobrem, hoje, o lint com tipos do
   typescript-eslint nem a complexidade cognitiva usados aqui.
+- **Stryker no próprio diretório (`inPlace`)** — evitaria a cópia, mas uma execução interrompida
+  deixaria código mutado na árvore de trabalho.
 
 ## Critérios de verificação
 
 - `npm ci && npm run check` verde localmente e o check `build` verde no CI.
 - `scripts/eslint-config.test.ts` (regras de lint), `scripts/boundaries.test.ts` (fronteiras),
   `scripts/quality-config.test.ts` (limiares de cobertura e mutação),
-  `scripts/check-licenses.test.ts` (licenças) e `scripts/diff-coverage.test.ts` (linhas novas).
+  `scripts/check-licenses.test.ts` (licenças), `scripts/diff-coverage.test.ts` (linhas novas),
+  `scripts/mutation-changed.test.ts` (mutação incremental) e `scripts/check-governance.test.ts`
+  (governança).
 
 ## Referências
 

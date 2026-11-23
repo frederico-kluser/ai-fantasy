@@ -1,8 +1,14 @@
-import { describe, expect, it } from "vitest";
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { fileURLToPath } from "node:url";
+
+import { afterAll, describe, expect, it, onTestFinished, vi } from "vitest";
 
 import {
   computeDiffCoverage,
   coveragePercent,
+  defaultIo,
   formatRanges,
   main,
   parseAddedLines,
@@ -12,6 +18,12 @@ import {
 import type { GitResult } from "./lib/io.ts";
 
 const ROOT = "C:/work/ai-fantasy";
+const repoRoot = fileURLToPath(new URL("..", import.meta.url));
+const scratch = mkdtempSync(join(tmpdir(), "ai-fantasy-diff-coverage-"));
+
+afterAll(() => {
+  rmSync(scratch, { recursive: true, force: true });
+});
 
 const DIFF_TWO_FILES = `diff --git a/apps/server/src/a.ts b/apps/server/src/a.ts
 index 1111111..2222222 100644
@@ -56,6 +68,29 @@ function lcovMap(
       new Map(Object.entries(lines).map(([line, hits]) => [Number(line), hits])),
     ]),
   );
+}
+
+/** A diff that adds `count` lines to `big.ts`. */
+function bigDiff(count: number): string {
+  const added = Array.from({ length: count }, () => "+line");
+  return [
+    "diff --git a/big.ts b/big.ts",
+    "--- a/big.ts",
+    "+++ b/big.ts",
+    `@@ -0,0 +1,${String(count)} @@`,
+    ...added,
+    "",
+  ].join("\n");
+}
+
+/** An lcov report of `big.ts` whose first `covered` lines ran and the rest did not. */
+function bigLcov(covered: number, uncovered: number): string {
+  const hits = [
+    ...Array.from({ length: covered }, () => 1),
+    ...Array.from({ length: uncovered }, () => 0),
+  ];
+  const records = hits.map((hit, index) => `DA:${String(index + 1)},${String(hit)}`);
+  return ["SF:big.ts", ...records, "end_of_record", ""].join("\n");
 }
 
 function addedMap(entries: Record<string, number[]>): Map<string, Set<number>> {
@@ -180,6 +215,42 @@ describe("coverage of the new lines", () => {
 });
 
 describe("command line", () => {
+  it("given exactly 95% of the new lines covered when running then it passes", () => {
+    const run = runMain({
+      git: {
+        ...GIT_OK,
+        "diff -U0 --no-color --no-ext-diff --find-renames abc123": {
+          ok: true,
+          output: bigDiff(20_000),
+        },
+      },
+      lcov: bigLcov(19_000, 1_000),
+    });
+
+    expect({ code: run.code, last: run.lines.at(-1) }).toEqual({
+      code: 0,
+      last: "Cobertura das linhas novas: 95.00% (19000 de 20000; mínimo 95%).",
+    });
+  });
+
+  it("given new lines covered just below 95% when running then it fails and never shows 95%", () => {
+    const run = runMain({
+      git: {
+        ...GIT_OK,
+        "diff -U0 --no-color --no-ext-diff --find-renames abc123": {
+          ok: true,
+          output: bigDiff(20_000),
+        },
+      },
+      lcov: bigLcov(18_999, 1_001),
+    });
+
+    expect({ code: run.code, last: run.lines.at(-1) }).toEqual({
+      code: 1,
+      last: "Erro: só 94.99% das linhas novas estão cobertas (mínimo 95%) — Solução: escreva testes para as linhas listadas acima.",
+    });
+  });
+
   it("given a change whose new lines are below 95% coverage when running the diff coverage step then it fails", () => {
     const run = runMain({ git: GIT_OK, lcov: LCOV });
 
@@ -290,5 +361,46 @@ describe("command line", () => {
         "Erro: opção inválida — Solução: use node scripts/diff-coverage.ts [--base <ref>] [--lcov <arquivo>].",
       ],
     });
+  });
+});
+
+describe("default wiring", () => {
+  it("given the repository when asking git through the default io then it runs in the root", () => {
+    expect(defaultIo(repoRoot).git(["rev-parse", "--is-inside-work-tree"])).toEqual({
+      ok: true,
+      output: "true\n",
+    });
+  });
+
+  it("given a path relative to the root when reading through the default io then the file is read", () => {
+    expect(defaultIo(repoRoot).readText("package.json")).toContain('"name": "ai-fantasy"');
+  });
+
+  it("given a file that does not exist when reading through the default io then nothing is returned", () => {
+    expect(defaultIo(repoRoot).readText("coverage/does-not-exist.info")).toBeUndefined();
+  });
+
+  it("given a GitHub job summary file when appending through the default io then the Markdown is written to it", () => {
+    const summary = join(scratch, "summary.md");
+    writeFileSync(summary, "");
+    vi.stubEnv("GITHUB_STEP_SUMMARY", summary);
+    onTestFinished(() => {
+      vi.unstubAllEnvs();
+    });
+
+    defaultIo(repoRoot).appendSummary("### Cobertura");
+
+    expect(readFileSync(summary, "utf8")).toBe("### Cobertura\n");
+  });
+
+  it("given a line to log when using the default io then it goes to the console", () => {
+    const log = vi.spyOn(console, "log").mockImplementation(() => undefined);
+    onTestFinished(() => {
+      log.mockRestore();
+    });
+
+    defaultIo(repoRoot).log("coverage line");
+
+    expect(log.mock.calls).toEqual([["coverage line"]]);
   });
 });

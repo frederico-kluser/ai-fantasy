@@ -97,15 +97,10 @@ describe("mutation thresholds (ADR 0018)", () => {
     },
   );
 
-  it("given the shared Stryker config when reading what is mutated then tests and barrels are left out", async () => {
+  it("given the shared Stryker config when reading what is mutated then all src code but tests is mutated", async () => {
     expect(await importStrykerConfig("apps/server")).toMatchObject({
       default: {
-        mutate: [
-          "src/**/*.{ts,tsx}",
-          "!src/**/*.test.{ts,tsx}",
-          "!src/**/*.d.ts",
-          "!src/**/index.ts",
-        ],
+        mutate: ["src/**/*.{ts,tsx,mts,cts,js,jsx,mjs,cjs}", "!src/**/*.{test,spec}.*"],
       },
     });
   });

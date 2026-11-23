@@ -5,11 +5,12 @@
 import { existsSync } from "node:fs";
 import type { AddressInfo } from "node:net";
 import { join } from "node:path";
-import { fileURLToPath } from "node:url";
 
 import fastifyStatic from "@fastify/static";
 import Fastify from "fastify";
 import type { FastifyInstance } from "fastify";
+
+import { WEB_DIST_DIR } from "./paths.ts";
 
 /**
  * The only address the server listens on. It is a constant on purpose: nothing
@@ -19,9 +20,6 @@ export const HOST = "127.0.0.1";
 
 /** Default port of the local server; `PORT` overrides it (ai-integration §3). */
 export const DEFAULT_PORT = 4318;
-
-/** Where `npm run build` writes the site. */
-export const WEB_DIST_DIR = fileURLToPath(new URL("../../web/dist/", import.meta.url));
 
 /** Options of {@link buildApp}. */
 export interface AppOptions {

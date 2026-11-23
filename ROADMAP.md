@@ -13,7 +13,7 @@
   os prompts escritos.
 - **F1 — Base TypeScript: concluída** (FND-01). Monorepo com os quatro pacotes em esqueleto,
   gates de qualidade, CI em Node e o [ADR 0020](<docs/architecture/adr/0020-base-tools-and-libraries.md>)
-  com as ferramentas e bibliotecas de base.
+  com as ferramentas de base.
 - As próximas tarefas prontas são a **[CORE-01](<docs/planning/prompts/CORE-01.md>)** e a
   **[SRV-01](<docs/planning/prompts/SRV-01.md>)**, que podem correr em paralelo. Código só com
   pedido explícito do maintainer.

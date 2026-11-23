@@ -2,7 +2,7 @@
 
 > **v1 — 2026-11-09.** Como o código do AI Fantasy se organiza. O que o produto faz está em
 > [`docs/product.md`](<../product.md>); as regras do motor, no
-> [modelo de simulação](<simulation-model.md>). Decisões estruturais nos ADRs 0013–0019.
+> [modelo de simulação](<simulation-model.md>). Decisões estruturais nos ADRs 0013–0020.
 
 ## 1. Visão em uma tela
 

@@ -9,6 +9,7 @@
  * Usage: `npm run coverage:diff [-- --base <ref>] [--lcov <file>]` after
  * `npm run coverage`. The base defaults to `origin/main`.
  */
+import { resolve } from "node:path";
 import { parseArgs } from "node:util";
 
 import { changesSince, type Changes } from "./lib/changes.ts";
@@ -245,18 +246,22 @@ export function main(argv: readonly string[], io: DiffCoverageIo, root: string):
   return 0;
 }
 
+/** The real outside world, from the repository root. */
+export function defaultIo(root: string): DiffCoverageIo {
+  return {
+    git: (args) => runGit(args, root),
+    readText: (path) => readTextFile(resolve(root, path)),
+    appendSummary: (markdown) => {
+      appendStepSummary(markdown, process.env["GITHUB_STEP_SUMMARY"]);
+    },
+    log: (line) => {
+      console.log(line);
+    },
+  };
+}
+
 /* v8 ignore start -- @preserve: process entry point, run by `npm run coverage:diff` */
 if (import.meta.main) {
-  const root = process.cwd();
-  process.exitCode = main(
-    process.argv.slice(2),
-    {
-      git: (args) => runGit(args, root),
-      readText: readTextFile,
-      appendSummary: (markdown) => appendStepSummary(markdown, process.env["GITHUB_STEP_SUMMARY"]),
-      log: console.log,
-    },
-    root,
-  );
+  process.exitCode = main(process.argv.slice(2), defaultIo(process.cwd()), process.cwd());
 }
 /* v8 ignore stop -- @preserve */
