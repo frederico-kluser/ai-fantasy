@@ -279,8 +279,10 @@ modelos é exibido como texto (nunca como HTML).
 - **Arquivo em uso:** no Windows, o `rename` sobre um arquivo aberto por outro leitor falha por um
   instante (`EPERM`, `EACCES` ou `EBUSY`). O servidor tenta de novo depois de 10, 20, 40, 80, 160,
   320, 640 e 1000 ms (cerca de 2,3 s ao todo); se o arquivo continua em uso, a gravação volta como
-  `busy` (`409 SESSION_BUSY`) e o arquivo antigo fica. As gravações de um mesmo arquivo entram numa
-  fila, uma por vez; arquivos diferentes gravam ao mesmo tempo.
+  `busy` (`409 SESSION_BUSY`) e o arquivo antigo fica. As leituras e gravações de um mesmo arquivo
+  entram numa fila, uma por vez, então um leitor do próprio servidor nunca segura o arquivo durante
+  o `rename` (as novas tentativas ficam para outros programas, como um antivírus); arquivos
+  diferentes andam ao mesmo tempo.
 - **Listagem:** campanhas e fatias em ordem lexicográfica, comparando caracteres (`"1"`, `"10"`,
   `"2"`); entradas que não seguem o padrão (temporários, outros arquivos) ficam de fora.
 

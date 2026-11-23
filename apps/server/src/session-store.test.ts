@@ -197,6 +197,33 @@ describe("saves under contention (Windows readers, simultaneous saves)", () => {
     });
   });
 
+  it("given a read of a slice while its save is renaming when both run then the read waits and gets the new slice", async () => {
+    const dataDir = temporaryFolder();
+    writeTree(dataDir, "campaigns/tavern/slices/1.jsonl", "old\n");
+    const rename = gate();
+    const io: AtomicWriteIo = {
+      ...NODE_IO,
+      rename: async (from, to) => {
+        await rename.opened;
+        await NODE_IO.rename(from, to);
+      },
+    };
+    const store = createSessionStore(dataDir, io);
+    const progress: string[] = [];
+
+    const save = store.writeSlice(id("tavern"), id("1"), Buffer.from("new\n"));
+    const read = store.readSlice(id("tavern"), id("1")).then((slice) => {
+      progress.push("read done");
+      return slice?.toString("utf8");
+    });
+    await nextTurn();
+    const whileSaving = [...progress];
+    rename.open();
+    await save;
+
+    expect({ whileSaving, read: await read }).toEqual({ whileSaving: [], read: "new\n" });
+  });
+
   it("given saves of two different slices at the same time when they run then neither waits for the other", async () => {
     const firstRename = gate();
     const steps: string[] = [];

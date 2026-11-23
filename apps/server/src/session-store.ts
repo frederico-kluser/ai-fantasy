@@ -127,21 +127,24 @@ async function listCampaigns(paths: ReturnType<typeof sessionPaths>): Promise<Ca
 /**
  * The store of the data folder `dataDir` (absolute). `io` is the file layer of
  * the atomic writes; tests replace it to simulate busy files.
+ *
+ * Reads and saves of the same file share one queue: a reader of this server
+ * never holds a file open while its save renames over it (on Windows that
+ * rename would fail). Other programs can still hold it; the save retries then.
  */
 export function createSessionStore(dataDir: string, io: AtomicWriteIo = NODE_IO): SessionStore {
   const paths = sessionPaths(dataDir);
   const { campaignFile, sliceFile } = paths;
   const queued = createKeyedQueue();
+  const read = (file: string) => queued(file, () => unlessMissing(readFile(file), undefined));
   const save = (file: string, content: string | Buffer) =>
     queued(file, () => writeFileAtomically(file, content, io));
   return {
     listCampaigns: async () => listCampaigns(paths),
     hasCampaign: async (campaignId) => isFile(campaignFile(campaignId)),
-    readCampaign: async (campaignId) =>
-      unlessMissing(readFile(campaignFile(campaignId)), undefined),
+    readCampaign: async (campaignId) => read(campaignFile(campaignId)),
     writeCampaign: async (campaignId, content) => save(campaignFile(campaignId), content),
-    readSlice: async (campaignId, sliceId) =>
-      unlessMissing(readFile(sliceFile(campaignId, sliceId)), undefined),
+    readSlice: async (campaignId, sliceId) => read(sliceFile(campaignId, sliceId)),
     writeSlice: async (campaignId, sliceId, content) =>
       save(sliceFile(campaignId, sliceId), content),
   };
