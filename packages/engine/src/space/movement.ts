@@ -60,13 +60,18 @@ function place(ground: Ground, where: Positions, occupant: Occupant): void {
   where.set(occupant.id, cell);
 }
 
+/** The cell of a character this tick, or NONE when it is not in the slice. */
+function cellOf(where: Positions, id: CharacterId): number {
+  return where.get(id) ?? NONE;
+}
+
 /** Whether a goal is reached at `cell`; an approach also ends when its target left. */
 function isMet(grid: Grid, where: Positions, cell: number, goal: MoveGoal): boolean {
   switch (goal.kind) {
     case "CELL":
       return cell === goal.cell;
     case "NEAR": {
-      const target = where.get(goal.target) ?? NONE;
+      const target = cellOf(where, goal.target);
       return target === NONE || cellDistance(grid, cell, target) <= APPROACH_DISTANCE;
     }
     case "EXIT":
@@ -80,7 +85,7 @@ function destinationOf(ground: Ground, where: Positions, cell: number, goal: Mov
     case "CELL":
       return goal.cell;
     case "NEAR":
-      return approachOn(ground, cell, where.get(goal.target) ?? NONE);
+      return approachOn(ground, cell, cellOf(where, goal.target));
     case "EXIT":
       return exitOn(ground, cell);
   }

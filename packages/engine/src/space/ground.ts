@@ -224,6 +224,8 @@ export function nearestWhere(
   let bestCost = Number.MAX_SAFE_INTEGER;
   for (let cell = queue.pop(); cell !== NONE && queue.level <= bestCost; cell = queue.pop()) {
     const reached = itemAt(cost, cell);
+    // No cell popped here costs more than bestCost, so this keeps the cheapest
+    // and, among cells of the same cost (popped in any order), the lowest index.
     if (accept(cell) && (reached < bestCost || cell < best)) {
       best = cell;
       bestCost = reached;
