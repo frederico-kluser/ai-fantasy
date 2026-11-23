@@ -67,8 +67,8 @@ describe("buildPlayerLineCall (dialogue-acts §11)", () => {
     expect(optionsOf("volume")).toEqual(["WHISPER", "NORMAL", "SHOUT"]);
   });
 
-  it("given known people when building then blamed options are them by id, then NONE", () => {
-    expect(optionsOf("blamed")).toEqual(["char_1", "char_4", "char_7", "NONE"]);
+  it("given known people when building then blamed options are them by id, then NONE and OTHER", () => {
+    expect(optionsOf("blamed")).toEqual(["char_1", "char_4", "char_7", "NONE", "OTHER"]);
   });
 
   it("given a listener when building then the target rubric is the name", () => {
@@ -125,6 +125,16 @@ describe("buildPlayerLineCall (dialogue-acts §11)", () => {
 
     const question = buildPlayerLineCall(input, presets()).questions["blamed"];
 
-    expect(Object.keys((question as { criteria: object }).criteria)).toEqual(["char_4", "NONE"]);
+    expect(Object.keys((question as { criteria: object }).criteria)).toEqual([
+      "char_4",
+      "NONE",
+      "OTHER",
+    ]);
+  });
+
+  it("given a scene of strangers with no listener, entity or known person when building then the call follows the route rules", () => {
+    const input = playerLineInput({ listeners: [], entities: [], people: [], knownFacts: [] });
+
+    expect(checkDecisionCall(buildPlayerLineCall(input, presets())).ok).toBe(true);
   });
 });

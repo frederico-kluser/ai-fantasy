@@ -166,6 +166,7 @@ export function readPlayerAnswers(
   answers: ReadAnswers,
 ): PlayerReading {
   const read = pick(answers, "act", [...ACT_IDS, "OTHER"]);
+  // The smaller of two Bp values is a Bp: Math.min only loses the brand.
   const confidence = Math.min(answer(answers, "act").top, answer(answers, "target").top) as Bp;
   const candidate = read === "OTHER" ? undefined : candidateOf(input, presets, read, answers);
   const gaps = candidate?.gaps ?? [];

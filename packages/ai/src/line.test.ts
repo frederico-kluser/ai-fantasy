@@ -100,6 +100,10 @@ describe("validateLine (ai-integration §5.3)", () => {
     ["Fui lá. Depois voltei! Então? Nada… Enfim: Acabou."],
     ["— Vamos embora."],
     ['Ele disse: "Vamos".'],
+    ['Ele gritou, "Corre!"'],
+    ["E ela: — Calma, tudo bem."],
+    ["Ela respondeu, “Nunca”."],
+    ["Bom dia, Dr. Otávio."],
     ["Graças a Deus, senhor. O Senhor é bom."],
     ["Dona Otávio e Seu Otávio, Sr. Otávio."],
     ["Eu sei, NÃO grite."],
@@ -148,5 +152,40 @@ describe("validateLine (ai-integration §5.3)", () => {
 
   it("given a gesture of 120 characters when validating then it passes", () => {
     expect(validateLine({ fala: "Oi.", gesto: "a".repeat(MAX_GESTO_LENGTH) }, KNOWN).ok).toBe(true);
+  });
+
+  it.each([
+    ["Dra"],
+    ["Jesus"],
+    ["Cristo"],
+    ["Vossa"],
+    ["Mercê"],
+    ["Santo"],
+    ["Santa"],
+    ["São"],
+    ["Virgem"],
+    ["Padre"],
+    ["Frei"],
+    ["Natal"],
+    ["Páscoa"],
+  ])("given the pt-BR word %s mid-sentence when validating then it is accepted", (word) => {
+    expect(validateLine({ fala: `Foi assim, ${word} e tudo.`, gesto: "" }, KNOWN).ok).toBe(true);
+  });
+
+  it.each([["Bom dia, Sr. Joaquim."], ["Falei com a Dra. Joaquina."]])(
+    "given %j when validating then the period of a title does not end the sentence",
+    (fala) => {
+      expect(errorOf({ fala, gesto: "" })).toMatchObject({ code: "UNKNOWN_NAME" });
+    },
+  );
+
+  it("given a period after a word that only ends like a title when validating then it ends the sentence", () => {
+    expect(
+      validateLine({ fala: "Foi o Otávio quem disse isso. Vamos.", gesto: "" }, KNOWN).ok,
+    ).toBe(true);
+  });
+
+  it("given a word right after an opening quote mid-sentence when validating then it opens a sentence", () => {
+    expect(validateLine({ fala: "Ela disse «Pronto» e saiu.", gesto: "" }, KNOWN).ok).toBe(true);
   });
 });

@@ -109,16 +109,22 @@ Detalhes fixados na AI-01 (`packages/ai/src/answers.ts` e `convert.ts`):
   limitada à faixa antes de multiplicar (2 → 0, 7,3 → 6625, 10 → 10000).
 - **Validação fechada, pergunta por pergunta**, contra as perguntas enviadas: resposta que não é
   objeto, pergunta sem resposta, resposta a pergunta não feita, campo desconhecido, `type`
-  trocado, `noul` ou `confidence` fora de [0, 1], `score` fora de [2, 10], número não finito,
-  opção (ou chave de `probabilities`) que não foi oferecida e distribuição cuja soma, arredondada
-  para bp, fica a mais de 200 bp (0,02) de 10000 = falha. A primeira falha encontrada vai para o
-  registro com o código e a pergunta.
+  trocado, `noul`, `confidence` ou probabilidade fora de [0, 1], `score` fora de [2, 10], número
+  não finito e opção (ou chave de `probabilities`) que não foi oferecida = falha. A primeira falha
+  encontrada vai para o registro com o código e a pergunta.
+- **Distribuição coerente** (decisão do orquestrador na revisão da AI-01; `choice` e `score`): o fio
+  pode listar só parte das opções, então a soma das probabilidades listadas, arredondada para bp,
+  tem de ser maior que 0 e no máximo 10200 (1,02); a massa que falta é das opções não listadas.
+  Num `choice`, a opção escolhida tem de estar listada com a maior probabilidade (empate vale).
+  Num `score`, que é média ponderada e não um nível, vale só a regra da soma. Fora disso, a
+  distribuição é incoerente = falha. A AI-02 confirma a regra com gravações reais.
 - **Maior probabilidade** de uma pergunta (`top`): a maior das `probabilities`; sem
   distribuição, a `confidence`; sem as duas, 0 (cai na confirmação).
 - **Fala do jogador → ato candidato** (`reading.ts`), pelas regras da
   [seção 11 dos atos](<dialogue-acts.md>): `NOBODY` ⇒ `targets = []`; `GROUP` ⇒ `"GROUP"`;
   `MOVE` com um alvo ⇒ `APPROACH`, sem alvo (ou com `GROUP`) ⇒ lacuna `DESTINATION`; `object` só
-  em `REQUEST` e `OFFER` e diferente de `NONE`; `blamed` só com `isFalse` e diferente de `NONE`;
+  em `REQUEST` e `OFFER` e diferente de `NONE`; `blamed` só com `isFalse` e diferente de `NONE` e de `OTHER` (alguém fora da lista conta
+  como sem culpado);
   ato sem fala ⇒ tópico `NONE`; `SMALL_TALK` dispensa referência; os outros tipos exigem um
   `topicRef` do mesmo tipo, senão o tópico fica `NONE` com a lacuna `TOPIC`. Com `OTHER` não há
   candidato. Confirmação: confiança abaixo de 7000 bp, `OTHER` ou qualquer lacuna. A validação
@@ -139,7 +145,8 @@ fala do jogador, os fatos que o personagem do jogador conhece (no máximo 12, os
 Chaves e lotes fixados na AI-01 (`packages/ai/src/prompts/`):
 
 - **Fala do jogador** (uma chamada, 10 perguntas): as opções de `target` e `blamed` são
-  `char_<id>` (por id crescente, rubrica = nome); as de `topicRef`, `ref_1…ref_n` na ordem das
+  `char_<id>` (por id crescente, rubrica = nome), mais `GROUP` e `NOBODY` em `target` e `NONE` e
+  `OTHER` em `blamed`, para nenhuma pergunta ficar com menos de 2 opções numa cena de estranhos; as de `topicRef`, `ref_1…ref_n` na ordem das
   entidades salientes recebidas (rubrica = descrição). O `state` leva `line`, `speaker`,
   `present`, `scene`, `knownFacts` (os 12 primeiros) e `topics`.
 - **Cena:** `place`, `naturalTag`, `weather`, `dayPhase`, `playerPresent` e, sem linhas de
@@ -221,13 +228,20 @@ conhecidos:
   e `ticks` (sem distinguir maiúsculas) recusam a fala. O modelo escreve números por extenso
   ("três moedas"); "300 anos" com algarismos cai na fala pronta, um falso positivo aceito.
 - **Nomes desconhecidos:** uma palavra que começa com maiúscula é tratada como nome, salvo se
-  abre frase (início do texto ou depois de `.`, `!`, `?`, `…` ou `:`, ignorando espaços, aspas,
-  parênteses e travessões), se está toda em maiúsculas (grito), se está entre as exceções
-  (`Deus`, `Senhor`, `Senhora`, `Dona`, `Dom`, `Seu`, `Sr`, `Sra`, `Doutor`, `Doutora`, `Mestre`)
-  ou se é uma palavra de um dos nomes conhecidos enviados no pedido (presentes e pessoas dos fatos
-  conhecidos; "Maria Clara" deixa passar "Clara"). Limites: um nome escrito em minúscula ou que
-  abre frase passa; lugares e povos com maiúscula que não estejam nos nomes conhecidos são
-  recusados (falso positivo que leva à fala pronta).
+  abre frase, se está toda em maiúsculas (grito), se está entre as exceções ou se é uma palavra de
+  um dos nomes conhecidos enviados no pedido ("Maria Clara" deixa passar "Clara").
+  - **Abre frase:** início do texto; depois de `.`, `!`, `?`, `…` ou `:`, ignorando espaços, aspas,
+    parênteses e travessões; ou logo depois de uma aspa ou travessão que abre fala citada (`"`, `“`,
+    `«`, `—`, `–`), mesmo após vírgula. O ponto de `Sr.`, `Sra.`, `Dr.` e `Dra.` não fecha frase.
+  - **Exceções (pt-BR):** `Senhor`, `Senhora`, `Sr`, `Sra`, `Dona`, `Dom`, `Seu`, `Doutor`,
+    `Doutora`, `Dr`, `Dra`, `Mestre`, `Vossa`, `Mercê`, `Excelência`, `Majestade`, `Alteza`,
+    `Padre`, `Frei`, `Irmã`, `Madre`, `Deus`, `Jesus`, `Cristo`, `Nossa`, `Santo`, `Santa`, `São`,
+    `Virgem`, `Natal`, `Páscoa`, `Carnaval`.
+  - **Nomes conhecidos:** quem chama (AI-03) inclui em `knownNames` os presentes, as pessoas dos
+    fatos conhecidos e os nomes próprios da premissa e da cena (lugares, povos, instituições).
+  - **Limites:** um nome escrito em minúscula, que abre frase ou que vem logo depois de uma aspa
+    reta `"` passa; nomes com maiúscula fora dos nomes conhecidos são recusados (falso positivo que
+    leva à fala pronta).
 - **Falas prontas** (`packages/ai/src/prompts/fallback-data.ts`): pelo menos uma por ato e tom
   (20 × 6), em pt-BR; atos sem fala só têm gesto. O único marcador é o vocativo `, {alvo}`,
   trocado pelo nome do alvo ou removido quando não há um. A escolha é determinística: quem chama

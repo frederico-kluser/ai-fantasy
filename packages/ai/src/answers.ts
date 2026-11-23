@@ -13,9 +13,10 @@ import { noulIsYes, probabilityToBp, scoreToIntensity, SCORE_MAX, SCORE_MIN } fr
 import type { Question } from "./prompts/questions.ts";
 
 /**
- * How far from 1 the sum of a distribution may be, in bp (0.02; ai-integration
+ * How far above 1 the sum of a distribution may be, in bp (0.02; ai-integration
  * §4.2). The sum is rounded to bp before comparing, so the edge does not depend
- * on floating-point noise.
+ * on floating-point noise. A sum below 1 is fine: the route may list only part
+ * of the options, and the missing mass belongs to the options not listed.
  */
 export const DISTRIBUTION_TOLERANCE_BP = 200;
 
@@ -89,12 +90,25 @@ function distributionProblem(
   if (!known || (answer.type === "choice" && !options.includes(answer.choice))) {
     return "UNKNOWN_OPTION";
   }
-  if (answer.probabilities === undefined) {
-    return undefined;
+  return answer.probabilities === undefined || coherent(answer, answer.probabilities)
+    ? undefined
+    : "INCOHERENT_DISTRIBUTION";
+}
+
+/**
+ * A listed distribution is coherent when its sum is above 0 and at most
+ * 1.02, and, in a `choice`, the option chosen has the highest probability
+ * listed (ties allowed). A `score` is a weighted mean, not a level, so only the
+ * sum applies to it.
+ */
+function coherent(answer: RawRanked, probabilities: Readonly<Record<string, number>>): boolean {
+  const values = Object.values(probabilities);
+  const sumBp = Math.round(values.reduce((total, p) => total + p, 0) * BP_MAX);
+  if (sumBp <= 0 || sumBp > BP_MAX + DISTRIBUTION_TOLERANCE_BP) {
+    return false;
   }
-  const sum = Object.values(answer.probabilities).reduce((total, p) => total + p, 0);
-  const offBp = Math.abs(Math.round(sum * BP_MAX) - BP_MAX);
-  return offBp <= DISTRIBUTION_TOLERANCE_BP ? undefined : "INCOHERENT_DISTRIBUTION";
+  const chosen = answer.type === "choice" ? probabilities[answer.choice] : undefined;
+  return answer.type === "score" || (chosen !== undefined && chosen >= Math.max(...values));
 }
 
 function top(answer: RawRanked): Bp {

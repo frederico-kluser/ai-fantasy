@@ -224,4 +224,13 @@ describe("readPlayerAnswers (dialogue-acts §11)", () => {
       "the answer to intensity is not a validated score",
     );
   });
+
+  it("given a lie that blames someone not listed when reading then the label has no one blamed", () => {
+    const reading = read({
+      isFalse: { type: "noul", probability: 8000, yes: true } as ReadAnswer,
+      blamed: choice("OTHER"),
+    });
+
+    expect(reading.candidate).not.toHaveProperty("blamed");
+  });
 });

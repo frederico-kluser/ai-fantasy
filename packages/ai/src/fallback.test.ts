@@ -46,13 +46,13 @@ describe("fallbackLine (ai-integration §5.3)", () => {
 
   it("given a target name when asking then it replaces the placeholder", () => {
     expect(fallbackLine("GREET", "NEUTRAL", 0, "Otávio")).toEqual({
-      fala: "Bom dia, Otávio.",
+      fala: "Olá, Otávio.",
       gesto: "acena com a cabeça",
     });
   });
 
   it("given no target name when asking then the vocative goes away", () => {
-    expect(fallbackLine("GREET", "NEUTRAL", 0).fala).toBe("Bom dia.");
+    expect(fallbackLine("GREET", "NEUTRAL", 0).fala).toBe("Olá.");
   });
 
   it.each([

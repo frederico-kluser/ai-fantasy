@@ -15,22 +15,47 @@ export const MAX_FALA_LENGTH = 400;
 export const MAX_GESTO_LENGTH = 120;
 
 /**
- * Capitalized words that are not names: forms of address and "Deus". They pass
- * the unknown-name check anywhere in a sentence.
+ * Capitalized words that are not names in pt-BR: forms of address, titles,
+ * religious words and holidays. They pass the unknown-name check anywhere in a
+ * sentence.
  */
 export const CAPITALIZED_EXCEPTIONS: ReadonlySet<string> = new Set([
-  "Deus",
   "Senhor",
   "Senhora",
+  "Sr",
+  "Sra",
   "Dona",
   "Dom",
   "Seu",
-  "Sr",
-  "Sra",
   "Doutor",
   "Doutora",
+  "Dr",
+  "Dra",
   "Mestre",
+  "Vossa",
+  "Mercê",
+  "Excelência",
+  "Majestade",
+  "Alteza",
+  "Padre",
+  "Frei",
+  "Irmã",
+  "Madre",
+  "Deus",
+  "Jesus",
+  "Cristo",
+  "Nossa",
+  "Santo",
+  "Santa",
+  "São",
+  "Virgem",
+  "Natal",
+  "Páscoa",
+  "Carnaval",
 ]);
+
+/** Abbreviated titles whose period does not end the sentence ("Sr. Otávio"). */
+const TITLE_ABBREVIATION = /(^|[^\p{L}])(Sr|Sra|Dr|Dra)\.$/u;
 
 const lineSchema = z.strictObject({ fala: z.string(), gesto: z.string() });
 
@@ -55,6 +80,9 @@ const WORD = /\p{L}[\p{L}\p{M}'’-]*/gu;
 /** Signs that may stand between the end of a sentence and the next word. */
 const WRAPPERS = /[\s"“”‘’'«»()—–-]+$/u;
 
+/** Signs that open quoted speech, which starts a sentence of its own. */
+const QUOTE_OPENERS = /["“«—–]/u;
+
 /** Signs that end a sentence (or open a quoted one, after `:`). */
 const SENTENCE_END = /[.!?…:]$/u;
 
@@ -63,8 +91,11 @@ function lengthOf(text: string): number {
 }
 
 function opensSentence(text: string, index: number): boolean {
-  const before = text.slice(0, index).replace(WRAPPERS, "");
-  return before === "" || SENTENCE_END.test(before);
+  const preceding = text.slice(0, index);
+  const wrappers = WRAPPERS.exec(preceding)?.[0] ?? "";
+  const before = preceding.slice(0, preceding.length - wrappers.length);
+  const ends = SENTENCE_END.test(before) && !TITLE_ABBREVIATION.test(before);
+  return before === "" || ends || QUOTE_OPENERS.test(wrappers);
 }
 
 function isShouted(word: string): boolean {

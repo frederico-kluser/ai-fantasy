@@ -142,6 +142,7 @@ function sceneQuestions(
     blamed: choice("If the line is a lie, who does it blame?", {
       ...peopleOptions(input.people),
       NONE: "nobody",
+      OTHER: "someone not listed",
     }),
   };
 }

@@ -4,4 +4,4 @@
  * goes in the text cache key and in the record of every call, and a change
  * means running the golden scenes again (evaluation).
  */
-export const PROMPT_VERSION = "2026-11-23.1";
+export const PROMPT_VERSION = "2026-11-23.2";

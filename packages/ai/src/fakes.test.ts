@@ -129,4 +129,10 @@ describe("FAKE_USAGE", () => {
       latencyMs: 0,
     });
   });
+
+  it("given no scripted line when building the fake text model then it is refused", () => {
+    expect(() => createFakeTextModel({ lines: [] })).toThrow(
+      "the fake text model needs at least one scripted line",
+    );
+  });
 });

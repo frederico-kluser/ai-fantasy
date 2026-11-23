@@ -69,7 +69,10 @@ export function createFakeSystemOne(options: FakeSystemOneOptions = {}): FakeSys
 
 /** How the fake text model answers. */
 export interface FakeTextModelOptions {
-  /** Raw lines, used in turn by call index (cycling); default `{ fala: "Certo.", gesto: "" }`. */
+  /**
+   * Raw lines, used in turn by call index (cycling); default
+   * `{ fala: "Certo.", gesto: "" }`. An empty list is refused at construction.
+   */
   readonly lines?: readonly unknown[];
   /** When set, every call fails with it. */
   readonly failure?: AiFailure;
@@ -82,10 +85,17 @@ export interface FakeTextModel extends TextModelPort {
 
 const DEFAULT_LINE = { fala: "Certo.", gesto: "" };
 
-/** A fake text model: the scripted lines in turn, or always the failure. */
+/**
+ * A fake text model: the scripted lines in turn, or always the failure.
+ *
+ * @throws RangeError if `options.lines` is empty.
+ */
 export function createFakeTextModel(options: FakeTextModelOptions = {}): FakeTextModel {
   const requests: RenderRequest[] = [];
   const lines = options.lines ?? [DEFAULT_LINE];
+  if (lines.length === 0) {
+    throw new RangeError("the fake text model needs at least one scripted line");
+  }
   return {
     requests,
     renderLine(request) {

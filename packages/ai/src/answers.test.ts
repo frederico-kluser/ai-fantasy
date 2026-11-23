@@ -87,7 +87,7 @@ describe("validateAnswers (ai-integration §4.2)", () => {
   });
 
   it("given a choice distribution that does not sum to one when validating then it fails closed", () => {
-    const act = { type: "choice", choice: "TEASE", probabilities: { TEASE: 0.6, GREET: 0.3 } };
+    const act = { type: "choice", choice: "TEASE", probabilities: { TEASE: 0.7, GREET: 0.5 } };
 
     expect(errorOf({ ...VALID, act })).toEqual({
       code: "INCOHERENT_DISTRIBUTION",
@@ -95,31 +95,67 @@ describe("validateAnswers (ai-integration §4.2)", () => {
     });
   });
 
-  it.each([[0.98], [1.02]])(
-    "given a distribution that sums to %s when validating then it is accepted",
+  it.each([[0.9], [0.5], [1.02]])(
+    "given a partial distribution that sums to %s when validating then it is accepted",
     (sum) => {
       const act = {
         type: "choice",
         choice: "TEASE",
-        probabilities: { TEASE: sum - 0.5, GREET: 0.5 },
+        probabilities: { TEASE: sum - 0.2, GREET: 0.2 },
       };
 
       expect(validateAnswers(QUESTIONS, { ...VALID, act }).ok).toBe(true);
     },
   );
 
-  it.each([[0.97], [1.03]])(
-    "given a distribution that sums to %s when validating then it fails closed",
-    (sum) => {
-      const act = {
-        type: "choice",
-        choice: "TEASE",
-        probabilities: { TEASE: sum - 0.5, GREET: 0.5 },
-      };
+  it("given a distribution that sums to 1.03 when validating then it fails closed", () => {
+    const act = { type: "choice", choice: "TEASE", probabilities: { TEASE: 0.53, GREET: 0.5 } };
 
-      expect(validateAnswers(QUESTIONS, { ...VALID, act }).ok).toBe(false);
-    },
-  );
+    expect(errorOf({ ...VALID, act })).toEqual({
+      code: "INCOHERENT_DISTRIBUTION",
+      question: "act",
+    });
+  });
+
+  it("given an empty or all-zero distribution when validating then it fails closed", () => {
+    const empty = { type: "choice", choice: "TEASE", probabilities: {} };
+    const zero = { type: "choice", choice: "TEASE", probabilities: { TEASE: 0 } };
+
+    expect([errorOf({ ...VALID, act: empty }), errorOf({ ...VALID, act: zero })]).toEqual([
+      { code: "INCOHERENT_DISTRIBUTION", question: "act" },
+      { code: "INCOHERENT_DISTRIBUTION", question: "act" },
+    ]);
+  });
+
+  it("given a choice that is not the most probable option listed when validating then it fails closed", () => {
+    const act = { type: "choice", choice: "GREET", probabilities: { TEASE: 0.6, GREET: 0.3 } };
+
+    expect(errorOf({ ...VALID, act })).toEqual({
+      code: "INCOHERENT_DISTRIBUTION",
+      question: "act",
+    });
+  });
+
+  it("given a choice tied with the most probable option when validating then it is accepted", () => {
+    const act = { type: "choice", choice: "GREET", probabilities: { TEASE: 0.5, GREET: 0.5 } };
+
+    expect(validateAnswers(QUESTIONS, { ...VALID, act }).ok).toBe(true);
+  });
+
+  it("given a choice missing from its own distribution when validating then it fails closed", () => {
+    const act = { type: "choice", choice: "GREET", probabilities: { TEASE: 0.9 } };
+
+    expect(errorOf({ ...VALID, act })).toEqual({
+      code: "INCOHERENT_DISTRIBUTION",
+      question: "act",
+    });
+  });
+
+  it("given a partial score distribution when validating then it is accepted", () => {
+    const intensity = { type: "score", score: 9, probabilities: { "5": 0.3, "9": 0.6 } };
+
+    expect(validateAnswers(QUESTIONS, { ...VALID, intensity }).ok).toBe(true);
+  });
 
   it("given a score distribution on levels outside the ruler when validating then it fails closed", () => {
     const intensity = { type: "score", score: 5, probabilities: { "1": 0.5, "5": 0.5 } };
@@ -130,8 +166,8 @@ describe("validateAnswers (ai-integration §4.2)", () => {
     });
   });
 
-  it("given a score distribution that does not sum to one when validating then it fails closed", () => {
-    const intensity = { type: "score", score: 5, probabilities: { "5": 0.5 } };
+  it("given a score distribution that sums above 1.02 when validating then it fails closed", () => {
+    const intensity = { type: "score", score: 5, probabilities: { "5": 0.6, "6": 0.6 } };
 
     expect(errorOf({ ...VALID, intensity })).toEqual({
       code: "INCOHERENT_DISTRIBUTION",
