@@ -4,17 +4,59 @@
  * go through the same checks, and every problem comes back as a value.
  */
 import { BP_MAX } from "../domain/bp.ts";
+import { DOMINANT_DRIVE_WEIGHT } from "../domain/constants.ts";
 import { err, ok, type Result } from "../domain/result.ts";
 import type { Presets } from "../presets/catalogs.ts";
 import { castError, type CastError } from "./errors.ts";
-import { graphErrors, pairKey, pairPlans, type PairPlan } from "./graph.ts";
-import { castInputSchema, type BondSpec, type CastInput } from "./input.ts";
+import { conflictErrors, graphErrors, pairKey, pairPlans, type PairPlan } from "./graph.ts";
+import {
+  castInputSchema,
+  type BondSpec,
+  type CastInput,
+  type CharacterDraft,
+  type DerivedLock,
+} from "./input.ts";
 import { presetById } from "./lookup.ts";
 
 /** A valid input and its pairs, ready for the draws. */
 export interface CastPlan {
   readonly input: CastInput;
   readonly pairs: readonly PairPlan[];
+}
+
+/** Dominant drives of a character: 2 or 3 (simulation-model §5.3). */
+const DOMINANTS = { min: 2, max: 3 };
+
+/** A locked character must be possible: 2 or 3 dominant weights and distinct association tags. */
+function draftErrors(draft: CharacterDraft, path: string): CastError[] {
+  const dominants = Object.values(draft.weights).filter((w) => w >= DOMINANT_DRIVE_WEIGHT).length;
+  const fits = dominants >= DOMINANTS.min && dominants <= DOMINANTS.max;
+  const message = `a character has 2 or 3 dominant drives, got ${dominants}`;
+  const weights = fits ? [] : [castError("IMPOSSIBLE_DRAFT", `${path}.weights`, message)];
+  const tags = draft.associations.map((association) => association.subject.tag);
+  const repeated = tags.flatMap((tag, index) =>
+    tags.indexOf(tag) < index
+      ? [castError("IMPOSSIBLE_DRAFT", `${path}.associations.${index}`, `${tag} is repeated`)]
+      : [],
+  );
+  return [...weights, ...repeated];
+}
+
+function characterErrors(input: CastInput): CastError[] {
+  return input.characters.flatMap(({ locked }, index) =>
+    locked === null ? [] : draftErrors(locked, `characters.${index}.locked`),
+  );
+}
+
+/** A derived lock must name a pair the family adds, side A first, with no secret marks. */
+function derivedErrors(locks: readonly DerivedLock[], pairs: readonly PairPlan[]): CastError[] {
+  const message = "a derived lock names a pair the family adds (side A first) and has no secrets";
+  return locks.flatMap((lock, index) => {
+    const fits =
+      lock.locked.secrets.length === 0 &&
+      pairs.some((pair) => pair.input === null && pair.a === lock.a && pair.b === lock.b);
+    return fits ? [] : [castError("IMPOSSIBLE_DRAFT", `derived.${index}`, message)];
+  });
 }
 
 /** Whether a locked secret mark is possible for an event with this secret chance. */
@@ -98,7 +140,7 @@ export function planCast(presets: Presets, input: unknown): Result<CastPlan, rea
     );
   }
   const data: CastInput = parsed.data;
-  const problems = bondErrors(presets, data);
+  const problems = [...characterErrors(data), ...bondErrors(presets, data)];
   const graph = problems.length > 0 ? problems : graphErrors(data.bonds);
   if (graph.length > 0) {
     return err(graph);
@@ -107,7 +149,9 @@ export function planCast(presets: Presets, input: unknown): Result<CastPlan, rea
     const archetype = presetById(presets.bondArchetypes, id);
     return [archetype.aToB.label, archetype.bToA.label] as const;
   };
-  return ok({ input: data, pairs: pairPlans(data.bonds, sides) });
+  const pairs = pairPlans(data.bonds, sides, data.derived);
+  const later = [...conflictErrors(pairs), ...derivedErrors(data.derived, pairs)];
+  return later.length > 0 ? err(later) : ok({ input: data, pairs });
 }
 
 /**

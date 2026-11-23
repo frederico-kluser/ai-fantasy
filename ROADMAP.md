@@ -120,7 +120,7 @@ uma tarefa atualiza esta tabela no próprio PR.
 | [CORE-03](<docs/planning/prompts/CORE-03.md>) | Catálogos de presets v0 | F2 | CORE-01 | ✅ concluída (#20) |
 | [CORE-04](<docs/planning/prompts/CORE-04.md>) | Status em camadas, ameaça, presença e modelo de memória | F2 | CORE-02, CORE-03 | ✅ concluída (#21) |
 | [CORE-05](<docs/planning/prompts/CORE-05.md>) | Geração de elenco e laços | F2 | CORE-04 | ✅ concluída (#24) |
-| [SOC-01](<docs/planning/prompts/SOC-01.md>) | Atos: validação, custo, quem ouve e interpretação | F3 | CORE-04 | ⏳ pendente |
+| [SOC-01](<docs/planning/prompts/SOC-01.md>) | Atos: validação, custo, quem ouve e interpretação | F3 | CORE-04 | ✅ concluída (#22) |
 | [SOC-02](<docs/planning/prompts/SOC-02.md>) | Sinais e percepção do momento | F3 | SOC-01 | ⏳ pendente |
 | [SOC-03](<docs/planning/prompts/SOC-03.md>) | Consequências: avaliação emocional, pedidos e mentiras | F3 | SOC-02 | ⏳ pendente |
 | [SOC-04](<docs/planning/prompts/SOC-04.md>) | Decisão e turnos | F3 | SOC-03 | ⏳ pendente |
@@ -130,7 +130,7 @@ uma tarefa atualiza esta tabela no próprio PR.
 | [WEB-01](<docs/planning/prompts/WEB-01.md>) | Site base e playground manual | F4 | FND-01, CORE-05 | ⏳ pendente |
 | [WEB-02](<docs/planning/prompts/WEB-02.md>) | Cena e controles (sem IA) | F4 | WEB-01, SOC-05, AI-01 | ⏳ pendente |
 | [WEB-03](<docs/planning/prompts/WEB-03.md>) | Inspetor e sessões | F4 | WEB-02, SRV-01, SOC-06 | ⏳ pendente |
-| [AI-01](<docs/planning/prompts/AI-01.md>) | Portas de IA, perguntas do SOM e falas prontas | F4 | CORE-04 | ⏳ pendente |
+| [AI-01](<docs/planning/prompts/AI-01.md>) | Portas de IA, perguntas do SOM e falas prontas | F4 | CORE-04 | ✅ concluída (#23) |
 | [AI-02](<docs/planning/prompts/AI-02.md>) | SOM via OpenRouter e fala livre do jogador | F5 | AI-01, SRV-01, WEB-02 | ⏳ pendente |
 | [AI-03](<docs/planning/prompts/AI-03.md>) | Modelo de texto via OpenRouter e encenação | F5 | AI-01, SRV-01, WEB-02 | ⏳ pendente |
 | [AI-04](<docs/planning/prompts/AI-04.md>) | Playground por premissa | F5 | AI-02, WEB-01 | ⏳ pendente |

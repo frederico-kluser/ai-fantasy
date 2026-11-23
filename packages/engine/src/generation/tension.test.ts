@@ -10,6 +10,7 @@ import { aBondSpec, aCastInput, defaultPresets, valueOf } from "../../test/suppo
 import { presetById } from "./lookup.ts";
 import { planCast } from "./validate.ts";
 import { drawHook, hasTension, hookPair, TENSION_EVENTS } from "./tension.ts";
+import { possibleSecrets } from "./bond-draft.ts";
 
 const presets = defaultPresets();
 
@@ -97,19 +98,82 @@ describe("hookPair and drawHook (presets §10.1 step 5)", () => {
     expect(hookPair(pairs, characters, [])).toStrictEqual([0, 2]);
   });
 
-  it("given the second author forced when drawing the hook then the higher id did it", () => {
-    const drawer = createDrawer(createRngState({ castSeed: 1, sceneSeed: 1 }), {
+  function forcedDrawer(author: number, event: number) {
+    return createDrawer(createRngState({ castSeed: 1, sceneSeed: 1 }), {
       tick: 0,
       mode: "NORMAL",
       forced: [
-        { selector: { kind: "PURPOSE", purpose: "TENSION_AUTHOR" }, outcome: 1 },
-        { selector: { kind: "PURPOSE", purpose: "TENSION_EVENT" }, outcome: 4 },
+        { selector: { kind: "PURPOSE", purpose: "TENSION_AUTHOR" }, outcome: author },
+        { selector: { kind: "PURPOSE", purpose: "TENSION_EVENT" }, outcome: event },
       ],
     });
-    const hook = drawHook(drawer, [0 as CharacterId, 2 as CharacterId], (id) =>
-      presetById(presets.historyEvents, id),
-    );
+  }
 
-    expect(hook).toStrictEqual({ event: "broken_promise", author: 2, subject: 0, secret: false });
+  const presetOf = (id: Parameters<typeof presetById>[1]) => presetById(presets.historyEvents, id);
+  const PAIR = [0 as CharacterId, 2 as CharacterId] as const;
+
+  it.each([
+    [1, { event: "broken_promise", author: 2, subject: 0, secret: false }],
+    [0, { event: "broken_promise", author: 0, subject: 2, secret: false }],
+  ])(
+    "given the author outcome %i forced when drawing the hook then the hook is %j",
+    (author, hook) => {
+      expect(drawHook(forcedDrawer(author, 4), PAIR, presetOf, () => true)).toStrictEqual(hook);
+    },
+  );
+
+  it("given only one event that would bring tension when drawing the hook then it is the only one that can come out", () => {
+    const drawer = forcedDrawer(0, 4);
+    const hook = drawHook(drawer, PAIR, presetOf, (placed) => placed.event === "secret_affair");
+    const draw = drawer.finish().records.find((record) => record.purpose === "TENSION_EVENT");
+
+    expect([hook.event, draw?.bound, draw?.forced]).toStrictEqual(["secret_affair", 1, undefined]);
   });
+
+  it("given an event that brings tension only when secret when drawing the hook then it is left out", () => {
+    const tenses = (placed: { readonly event: string; readonly secret: boolean }) =>
+      placed.event === "informed_on" || (placed.event === "betrayed_trust" && placed.secret);
+
+    expect(drawHook(forcedDrawer(0, 0), PAIR, presetOf, tenses).event).toBe("informed_on");
+  });
+
+  it.each([
+    ["neighbors", 2, 0],
+    ["neighbors", 0, 2],
+  ])(
+    "given a %s pair from %i to %i when choosing the hook then the lower id comes first",
+    (archetype, a, b) => {
+      const input = aCastInput(["rebel", "merchant", "elder"], [aBondSpec(a, b, archetype)]);
+      const { pairs } = valueOf(planCast(presets, input));
+      const characters = [aCharacter(0, 0), aCharacter(1, 1), aCharacter(2, 2)];
+
+      expect(hookPair(pairs, characters, [])).toStrictEqual([0, 2]);
+    },
+  );
+
+  it("given one tense pair and one calm pair when choosing the hook then no hook is needed", () => {
+    const input = aCastInput(
+      ["rebel", "merchant", "elder"],
+      [aBondSpec(0, 1, "neighbors"), aBondSpec(0, 2, "neighbors")],
+    );
+    const { pairs } = valueOf(planCast(presets, input));
+    const characters = [
+      aCharacter(0, 0, { bonds: [aBond(1), aBond(2, { resentment: 5000 })] }),
+      aCharacter(1, 1),
+      aCharacter(2, 2),
+    ];
+
+    expect(hookPair(pairs, characters, [])).toBeNull();
+  });
+
+  it.each([
+    ["helped_in_crisis", [false]],
+    ["stole", [true]],
+    ["betrayed_trust", [false, true]],
+  ] as const)(
+    "given %s when listing its possible secret marks then they are %j",
+    (event, secrets) => {
+      expect(possibleSecrets(presetById(presets.historyEvents, event))).toStrictEqual(secrets);
+    },
+  );
 });

@@ -6,7 +6,6 @@
 import { z } from "zod";
 
 import { AGE_BANDS, SPEECH_REGISTERS } from "../character/state.ts";
-import { DOMINANT_DRIVE_WEIGHT } from "../domain/constants.ts";
 import { BOND_ARCHETYPE_IDS } from "../presets/bond-archetypes.ts";
 import { BOND_AXIS_IDS } from "../presets/bonds.ts";
 import { CHARACTER_ARCHETYPE_IDS } from "../presets/character-archetypes.ts";
@@ -16,7 +15,6 @@ import { HISTORY_EVENT_IDS } from "../presets/history-events.ts";
 import {
   bipolarSchema,
   bpSchema,
-  reportIssues,
   textSchema,
   uniqueList,
   type DeepReadonly,
@@ -52,9 +50,6 @@ export const DRAWN_DEFICIT_IDS = [
 /** A drive whose initial deficit is drawn. */
 export type DrawnDeficitId = (typeof DRAWN_DEFICIT_IDS)[number];
 
-/** Dominant drives of a character: 2 or 3 (simulation-model §5.3). */
-const DOMINANTS = { min: 2, max: 3 };
-
 const tagAssociationSchema = z.strictObject({
   subject: z.strictObject({ kind: z.literal("TAG"), tag: z.enum(ASSOCIATION_TAG_IDS) }),
   valence: bipolarSchema,
@@ -62,32 +57,17 @@ const tagAssociationSchema = z.strictObject({
 
 /**
  * The drawn values of a character (`CharacterDraft`): traits, aptitudes, the
- * weights of the 15 drives, the drawn deficits and the associations. A locked
- * draft must be possible: 2 or 3 dominant weights and distinct tags.
+ * weights of the 15 drives, the drawn deficits and the associations. Whether a
+ * locked draft is possible (2 or 3 dominants, distinct tags) is checked with
+ * the bonds, as `IMPOSSIBLE_DRAFT` (presets §10.1).
  */
-export const characterDraftSchema = z
-  .strictObject({
-    traits: z.record(z.enum(TRAIT_IDS), bipolarSchema),
-    aptitudes: z.record(z.enum(APTITUDE_IDS), bpSchema),
-    weights: z.record(z.enum(DRIVE_IDS), bpSchema),
-    deficits: z.record(z.enum(DRAWN_DEFICIT_IDS), bpSchema),
-    associations: z.array(tagAssociationSchema).max(ASSOCIATIONS_MAX),
-  })
-  .superRefine((draft, context) => {
-    const dominants = Object.values(draft.weights).filter((w) => w >= DOMINANT_DRIVE_WEIGHT);
-    const message = `a character has 2 or 3 dominant drives, got ${dominants.length}`;
-    const fits = dominants.length >= DOMINANTS.min && dominants.length <= DOMINANTS.max;
-    reportIssues(context, fits ? [] : [{ path: ["weights"], message }]);
-    const tags = draft.associations.map((association) => association.subject.tag);
-    reportIssues(
-      context,
-      tags.flatMap((tag, index) =>
-        tags.indexOf(tag) < index
-          ? [{ path: ["associations", index], message: `${tag} is repeated` }]
-          : [],
-      ),
-    );
-  });
+export const characterDraftSchema = z.strictObject({
+  traits: z.record(z.enum(TRAIT_IDS), bipolarSchema),
+  aptitudes: z.record(z.enum(APTITUDE_IDS), bpSchema),
+  weights: z.record(z.enum(DRIVE_IDS), bpSchema),
+  deficits: z.record(z.enum(DRAWN_DEFICIT_IDS), bpSchema),
+  associations: z.array(tagAssociationSchema).max(ASSOCIATIONS_MAX),
+});
 
 const axesSchema = z.record(z.enum(BOND_AXIS_IDS), bpSchema);
 
@@ -144,6 +124,10 @@ export const castInputSchema = z.strictObject({
   attempt: z.int().min(0).default(0),
   characters: z.array(characterSpecSchema).min(1).max(CAST_MAX),
   bonds: z.array(bondSpecSchema).default(() => []),
+  /** Locked drafts of the pairs the transitive family adds (presets §10.1, "Tentativas e travados"). */
+  derived: z
+    .array(z.strictObject({ a: characterIndex, b: characterIndex, locked: bondDraftSchema }))
+    .default(() => []),
 });
 
 /** The input of the generator as the caller writes it (defaults may be left out). */
@@ -163,6 +147,9 @@ export type EventSpec = BondSpec["events"][number];
 
 /** The drawn values of a character; lock it by passing it back as `locked`. */
 export type CharacterDraft = DeepReadonly<z.output<typeof characterDraftSchema>>;
+
+/** A locked draft of a pair the transitive family adds. */
+export type DerivedLock = CastInput["derived"][number];
 
 /** The drawn values of a bond; lock it by passing it back as `locked`. */
 export type BondDraft = DeepReadonly<z.output<typeof bondDraftSchema>>;

@@ -3,7 +3,7 @@
  * cast generator with its input, validation and errors, and the opening of a
  * scene. The draws, the graph and the assembly stay inside the engine.
  */
-export { generateCast, type Cast, type CastGeneration } from "./cast.ts";
+export { generateCast, type BondDraftEntry, type Cast, type CastGeneration } from "./cast.ts";
 export { dominantDrivesOf } from "./character-draft.ts";
 export type { CastError, CastErrorCode } from "./errors.ts";
 export type { PlacedEvent } from "./history.ts";
@@ -16,6 +16,7 @@ export {
   type CastInputData,
   type CharacterDraft,
   type CharacterSpec,
+  type DerivedLock,
   type DrawnDeficitId,
   type EventSpec,
 } from "./input.ts";
