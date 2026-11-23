@@ -117,7 +117,8 @@ Como medir e impor: [qualidade de código](<code-quality.md>).
 ## 11. Segurança e privacidade
 
 - `.env` fica fora do git; o repositório tem só `.env.example` sem valores.
-- O servidor escuta só em `127.0.0.1`; nunca em `0.0.0.0`.
+- O servidor escuta só em `127.0.0.1`; nunca em `0.0.0.0`. E só atende `Host` e `Origin` do site
+  local ([arquitetura](<../architecture/overview.md>), seção 10).
 - Nada de chave, cabeçalho `Authorization` ou conteúdo completo de pedidos em logs.
 - Sessões gravadas ficam em `data/` (fora do git). Não versione transcrições reais.
 - Texto vindo de modelo é exibido como texto, nunca como HTML.
