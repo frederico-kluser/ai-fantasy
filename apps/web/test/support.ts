@@ -4,6 +4,13 @@
  */
 import { PRESETS_VERSION, type CastInputData, type Result } from "@ai-fantasy/engine";
 
+import {
+  createEngineClient,
+  createInProcessPort,
+  type EngineClient,
+} from "../src/engine/client.ts";
+import { handleRequest } from "../src/engine/handler.ts";
+import { PRESETS } from "../src/engine/presets.ts";
 import type { SceneSetup } from "../src/playground/setup.ts";
 
 /** Seeds used by the tests. */
@@ -61,4 +68,9 @@ export function errorOf<T, E>(result: Result<T, E>): E {
     throw new Error(`expected a failure, got ${JSON.stringify(result.value)}`);
   }
   return result.error;
+}
+
+/** The engine answering in process, through the same protocol as the worker. */
+export function inProcessEngine(): EngineClient {
+  return createEngineClient(createInProcessPort((message) => handleRequest(PRESETS, message)));
 }
