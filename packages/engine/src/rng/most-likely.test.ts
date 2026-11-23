@@ -80,4 +80,26 @@ describe("MOST_LIKELY mode (simulation-model §15)", () => {
       { outcome: 9, value: 1, forced: true, mode: "MOST_LIKELY" },
     ]);
   });
+
+  it("given MOST_LIKELY mode and an impossible forced outcome when drawing then the most likely outcome applies", () => {
+    const drawer = openDrawer({
+      mode: "MOST_LIKELY",
+      forced: [{ selector: { kind: "SEQ", seq: 0 }, outcome: 10 }],
+    });
+
+    expect(drawer.draw("turn", 10, "PICK")).toBe(4);
+    expect(drawer.finish().records).toStrictEqual([
+      {
+        seq: 0,
+        tick: 0,
+        stream: "turn",
+        kind: "RAW",
+        purpose: "PICK",
+        bound: 10,
+        value: 1,
+        outcome: 4,
+        mode: "MOST_LIKELY",
+      },
+    ]);
+  });
 });

@@ -92,10 +92,29 @@ describe("canonical serialization (simulation-model §15)", () => {
     },
   );
 
-  it("given a sparse array when canonicalizing then its holes are rejected as undefined", () => {
-    expect(() => canonicalize(new Array(2))).toThrow(
-      new TypeError("canonicalize: unsupported undefined"),
+  it.each([
+    ["a sparse array", new Array(2)],
+    ["an array with an extra property", Object.assign([1, 2], { extra: 3 })],
+  ])("given %s when canonicalizing then a TypeError is thrown", (_, value) => {
+    expect(() => canonicalize(value)).toThrow(
+      new TypeError("canonicalize: arrays may not have holes or extra properties"),
     );
+  });
+
+  it.each([
+    ["an object", { a: 1, [Symbol("hidden")]: 2 }],
+    ["an array", Object.assign([1], { [Symbol("hidden")]: 2 })],
+  ])("given %s with a symbol key when canonicalizing then a TypeError is thrown", (_, value) => {
+    expect(() => canonicalize(value)).toThrow(
+      new TypeError("canonicalize: symbol keys are not allowed"),
+    );
+  });
+
+  it("given control characters, DEL and a line separator when canonicalizing then only the JSON escapes are used", () => {
+    const text = String.fromCharCode(0x00, 0x08, 0x09, 0x0a, 0x0c, 0x0d, 0x1f, 0x7f, 0x2028);
+    const literal = String.fromCharCode(0x7f, 0x2028);
+
+    expect(canonicalize(text)).toBe(`"\\u0000\\b\\t\\n\\f\\r\\u001f${literal}"`);
   });
 
   it("given JSON-like values with integers when canonicalizing then JSON.parse gives the value back", () => {

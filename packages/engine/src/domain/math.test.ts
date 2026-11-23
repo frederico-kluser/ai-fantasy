@@ -161,3 +161,30 @@ describe("relax (simulation-model §2)", () => {
     expect(() => relax(0.5, 0.5, 9900)).toThrow(/^expected a safe integer, got 0\.5$/);
   });
 });
+
+describe("integer arguments of the bp helpers (simulation-model §2)", () => {
+  // Each case would return an integer if only the product or the result were checked.
+  it.each([
+    ["mulBp(0.5, 20000)", 0.5, () => mulBp(0.5, 20000)],
+    ["mulBp(20000, 0.5)", 0.5, () => mulBp(20000, 0.5)],
+    ["approach(1, 1.5, 2)", 1.5, () => approach(1, 1.5, 2)],
+    ["approach(0, 2, 0.5)", 0.5, () => approach(0, 2, 0.5)],
+    ["relax(0.5, 0, 2)", 0.5, () => relax(0.5, 0, 2)],
+    ["relax(3, 1, 0.5)", 0.5, () => relax(3, 1, 0.5)],
+  ])(
+    "given the non-integer argument of %s when computing then a RangeError is thrown",
+    (_, argument, compute) => {
+      expect(compute).toThrow(new RangeError(`expected a safe integer, got ${String(argument)}`));
+    },
+  );
+
+  it.each([
+    ["approach", () => approach(Number.MAX_SAFE_INTEGER - 9, Number.MAX_SAFE_INTEGER, 20000)],
+    ["relax", () => relax(Number.MAX_SAFE_INTEGER, Number.MAX_SAFE_INTEGER - 9, 20000)],
+  ])(
+    "given a %s result beyond the safe integers when computing then a RangeError is thrown",
+    (_, compute) => {
+      expect(compute).toThrow(new RangeError("expected a safe integer, got 9007199254741000"));
+    },
+  );
+});

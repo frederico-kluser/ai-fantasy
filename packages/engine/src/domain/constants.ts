@@ -35,7 +35,7 @@ export const BOREDOM_RATE = 25;
 export const BOREDOM_SILENCE_RATE = 50;
 /** Boredom relieved by an interesting act heard as `DIRECT` (§17 `BOREDOM_RELIEF`, §5.2). */
 export const BOREDOM_RELIEF = 1000;
-/** Boredom relieved when that interesting act is addressed to the character (§17 `BOREDOM_RELIEF_ADDRESSED`, §5.2). */
+/** Boredom relieved when that interesting act is addressed to the character with a positive valence (§17 `BOREDOM_RELIEF_ADDRESSED`, §5.2). */
 export const BOREDOM_RELIEF_ADDRESSED = 2000;
 /** A drive with at least this weight is dominant (§17 `DOMINANT_DRIVE_WEIGHT`, §5.3). */
 export const DOMINANT_DRIVE_WEIGHT = 7000;
@@ -53,7 +53,7 @@ export const OBLIGATION_BONUS = 4000;
 export const OBLIGATION_TTL_TICKS = 12;
 /** Fixed intensity of the effect of an ignored obligation (§17 `IGNORE_INTENSITY`, §10). */
 export const IGNORE_INTENSITY = 5000;
-/** Emotion gained per tick from a body need in its band (§17 `BODY_EMOTION_RATE`, §5.2). */
+/** Size of the per-tick emotion change from a body condition in its band: +5, or −5 for `joy` (§17 `BODY_EMOTION_RATE`, §5.2). */
 export const BODY_EMOTION_RATE = 5;
 /** Intensity of the `FAREWELL` or `LEAVE` of a character who decides to leave (§17 `LEAVE_ACT_INTENSITY`, §11). */
 export const LEAVE_ACT_INTENSITY = 3000;
@@ -75,7 +75,7 @@ export const URGE_THRESHOLD = 4000;
 export const LEAVE_MARGIN = 3000;
 /** Ticks of silence in a row that end the slice (§17 `SILENCE_END_TICKS`, §11). */
 export const SILENCE_END_TICKS = 60;
-/** Distance, in cells, that a `WITHDRAW` keeps from its target (§17 `WITHDRAW_DISTANCE`, §8.1). */
+/** Least distance, in cells, from its target that a `WITHDRAW` seeks (§17 `WITHDRAW_DISTANCE`, §8.1). */
 export const WITHDRAW_DISTANCE = 4;
 /** A fact copy at or above this importance is a lasting memory (§17 `MEMORY_IMPORTANCE`, §12). */
 export const MEMORY_IMPORTANCE = 6000;
@@ -91,7 +91,7 @@ export const TENDENCY_RATE = 1000;
 export const TENDENCY_WEIGHT = 3000;
 /** Tendency magnitude that counts toward crystallization (§17 `CRYSTAL_THRESHOLD`, §13). */
 export const CRYSTAL_THRESHOLD = 6000;
-/** Acts in a row above the threshold needed to crystallize (§17 `CRYSTAL_ACTS`, §13). */
+/** Acts in a row with the tendency at or above the threshold needed to crystallize (§17 `CRYSTAL_ACTS`, §13). */
 export const CRYSTAL_ACTS = 30;
 /** Slices with such acts needed to crystallize (§17 `CRYSTAL_SLICES`, §13). */
 export const CRYSTAL_SLICES = 2;

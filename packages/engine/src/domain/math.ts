@@ -17,6 +17,13 @@ function requireSafeInteger(value: number): number {
   return value;
 }
 
+/** Checks the three arguments of {@link approach} and {@link relax}. */
+function requireSafeIntegers(first: number, second: number, third: number): void {
+  requireSafeInteger(first);
+  requireSafeInteger(second);
+  requireSafeInteger(third);
+}
+
 /**
  * Integer division truncated toward zero: `div(-7, 2)` is `-3` (simulation-model §2).
  *
@@ -52,9 +59,11 @@ export function clampInt(value: number, min: number, max: number): number {
  * Product in bp: `div(a × b, 10000)`. A factor of ×1.5 is `mulBp(x, 15000)`
  * (simulation-model §2).
  *
- * @throws RangeError if the product is not a safe integer.
+ * @throws RangeError if an argument or the product is not a safe integer.
  */
 export function mulBp(a: number, b: number): number {
+  requireSafeInteger(a);
+  requireSafeInteger(b);
   return div(a * b, BP_SCALE);
 }
 
@@ -62,9 +71,11 @@ export function mulBp(a: number, b: number): number {
  * Moves `value` toward `target` by `rate` bp of the distance:
  * `value + div((target − value) × rate, 10000)` (simulation-model §2).
  *
- * @throws RangeError if an argument or the result is not a safe integer.
+ * @throws RangeError if an argument, an intermediate product or the result is not a safe integer.
  */
 export function approach(value: number, target: number, rate: number): number {
+  requireSafeIntegers(value, target, rate);
+  // The result is checked too: with a rate above 10000 it may pass the safe integers.
   return requireSafeInteger(value + div((target - value) * rate, BP_SCALE));
 }
 
@@ -72,8 +83,10 @@ export function approach(value: number, target: number, rate: number): number {
  * Brings `value` back toward `base`, keeping `rate` bp of the distance:
  * `base + div((value − base) × rate, 10000)` (simulation-model §2).
  *
- * @throws RangeError if an argument or the result is not a safe integer.
+ * @throws RangeError if an argument, an intermediate product or the result is not a safe integer.
  */
 export function relax(value: number, base: number, rate: number): number {
+  requireSafeIntegers(value, base, rate);
+  // The result is checked too: with a rate above 10000 it may pass the safe integers.
   return requireSafeInteger(base + div((value - base) * rate, BP_SCALE));
 }
