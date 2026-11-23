@@ -1,8 +1,9 @@
 /**
- * The drawer: the only way the engine draws (simulation-model §15). A step opens
- * one from the immutable {@link RngState}, draws, and calls `finish()` to get the
- * next state and the records of every draw. The drawer is mutable only inside
- * that step; the engine state stays immutable.
+ * The drawer: the only way the engine draws (simulation-model §15). The engine
+ * opens one from the immutable {@link RngState} for each tick in which it draws,
+ * draws, and calls `finish()` to get the next state and the records of every
+ * draw; a step that spans several ticks chains one drawer per tick. The drawer is
+ * mutable only while it is open; the engine state stays immutable.
  *
  * Every draw consumes its stream exactly as the natural draw does, even when it
  * is forced or in MOST_LIKELY mode, so changing one outcome never shifts the
@@ -49,7 +50,7 @@ export interface ForcedDraw {
 export interface DrawRecord {
   /** Position of the draw in the session: 0, 1, 2… across every step. */
   readonly seq: number;
-  /** Tick of the step that drew. */
+  /** Tick at which the draw happens (the drawer is opened per tick). */
   readonly tick: number;
   readonly stream: StreamName;
   readonly kind: DrawKind;
@@ -71,25 +72,34 @@ export interface DrawRecord {
   readonly mode?: "MOST_LIKELY";
 }
 
-/** How a step draws. */
+/** How the draws of one tick resolve. */
 export interface DrawerOptions {
-  /** Tick of the step, written in each record: a safe integer ≥ 0. */
+  /**
+   * Tick at which these draws happen, written in each record: a safe integer ≥ 0.
+   * A step that spans several ticks opens one drawer per tick, passing each
+   * `finish().rng` to the next.
+   */
   readonly tick: number;
   readonly mode: DrawMode;
-  /** Forced outcomes; for each draw, the first entry whose selector matches decides. */
+  /**
+   * Forced outcomes. For each draw, only the first entry whose selector matches
+   * decides: if its outcome is not possible for that draw, the draw is not forced
+   * and the later entries are not tried. The inspector puts each new `FORCE_DRAW`
+   * at the start of the list, so the most recent one wins.
+   */
   readonly forced: readonly ForcedDraw[];
 }
 
 /** What a finished drawer gives back. */
 export interface DrawerResult {
-  /** The state after every draw of the step. */
+  /** The state after every draw of the drawer. */
   readonly rng: RngState;
   /** The records of the draws, in order. */
   readonly records: readonly DrawRecord[];
 }
 
 /**
- * Draws for one step. Every method checks its arguments before drawing and
+ * Draws for one tick. Every method checks its arguments before drawing and
  * throws a `RangeError` on a programming error, leaving the drawer unchanged.
  */
 export interface Drawer {
@@ -114,7 +124,7 @@ export interface Drawer {
     purpose: string,
     target?: CharacterId,
   ) => number;
-  /** Ends the step: the next state and the records. The drawer cannot be used afterwards. */
+  /** Closes the drawer: the next state and the records. The drawer cannot be used afterwards. */
   readonly finish: () => DrawerResult;
 }
 
@@ -260,7 +270,8 @@ class StreamDrawer implements Drawer {
   #settle<A>(outcomes: DrawOutcomes<A>, about: A, record: DrawRecordDraft): number {
     const forced = firstSelecting(this.#forced, record);
     if (forced !== undefined && outcomes.isPossible(forced.outcome, about)) {
-      record.outcome = forced.outcome;
+      // `+ 0` turns a forced -0 (which compares equal to 0) into 0.
+      record.outcome = forced.outcome + 0;
       record.forced = true;
     } else {
       record.outcome =
@@ -274,7 +285,12 @@ class StreamDrawer implements Drawer {
 }
 
 /**
- * Opens a drawer for one step.
+ * Opens a drawer for the draws of one tick; a step that spans several ticks
+ * chains one drawer per tick through `finish().rng`.
+ *
+ * Rules draw only among valid options: weight 0 for the invalid ones, or an index
+ * into a list of the valid ones. Never "draw again until the result is valid": a
+ * purpose selector would force the same invalid outcome on every new try.
  *
  * @example
  * const drawer = createDrawer(state.rng, { tick, mode: state.drawMode, forced: state.forcedDraws });
