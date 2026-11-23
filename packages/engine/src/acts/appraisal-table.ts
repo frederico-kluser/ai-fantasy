@@ -65,7 +65,7 @@ const TALK_ROWS: readonly AppraisalRow[] = [
   { act: "CHAT", when: (c) => !interests(c), valence: 0, effects: CHAT_DULL },
   {
     act: "ASK",
-    when: (c) => c.secret || c.badFact,
+    when: (c) => c.badFact,
     valence: 0,
     effects: [emotion("shame", 2), emotion("fear", 1)],
   },

@@ -73,9 +73,9 @@ export interface RowContext {
   readonly topicInterests: boolean;
   /** A `TELL` of a fact the reader had no copy of and now holds (dialogue-acts §7.1). */
   readonly newFact: boolean;
-  /** A `TELL` whose topic is a `SECRET`. */
+  /** The topic is a `SECRET` (a `TELL` of it is a confidence). */
   readonly secret: boolean;
-  /** The fact of the topic is bad for the subject (dialogue-acts §4). */
+  /** The fact of the topic is bad for the subject: an offense or a secret of the subject (dialogue-acts §4). */
   readonly badFact: boolean;
   /** An `ACCUSE` whose fact has the subject as an offender (dialogue-acts §4). */
   readonly accusationTrue: boolean;

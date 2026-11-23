@@ -9,9 +9,7 @@
  * Discovering a lie costs the liar trust, sincerity and predictability.
  */
 import { bondToward } from "../character/bonds.ts";
-import { perceptionPreview, perceptionToward } from "../character/perception.ts";
 import type { CharacterState } from "../character/state.ts";
-import { effectiveTrait } from "../character/traits.ts";
 import { toBp, type Bp } from "../domain/bp.ts";
 import { BOND_DELTA_CAP } from "../domain/constants.ts";
 import { compareIds, type CharacterId, type FactId } from "../domain/ids.ts";
@@ -19,6 +17,7 @@ import { clampInt, div } from "../domain/math.ts";
 import type { ActId } from "../presets/acts.ts";
 import type { Drawer } from "../rng/drawer.ts";
 import type { SignalPerceived } from "../signals/perceive.ts";
+import { sincerityOf } from "./appraisal-context.ts";
 import type { StateDelta } from "./deltas.ts";
 import type { ActLabel } from "./label.ts";
 
@@ -92,12 +91,6 @@ export function detectionChance(perceptiveness: Bp, eloquence: Bp): Bp {
 /** The chance that a hearer without a copy believes the lie: `clamp((trust + sincerity) / 2, 500, 9500)`. */
 export function beliefChance(trust: Bp, sincerity: Bp): Bp {
   return toBp(clampInt(div(trust + sincerity, 2), BELIEF_MIN, BELIEF_MAX));
-}
-
-function sincerityOf(hearer: CharacterState, author: CharacterId): Bp {
-  const trust = effectiveTrait(hearer.traits, hearer.tendencies, "trustInOthers");
-  const preview = perceptionPreview(bondToward(hearer.bonds, author), trust);
-  return perceptionToward(hearer.perceptions, author, preview).perceivedSincerity;
 }
 
 function settle(drawer: Drawer, input: FactLieInput, hearer: CharacterState): LieOutcome {
