@@ -116,7 +116,7 @@ uma tarefa atualiza esta tabela no próprio PR.
 | --- | --- | --- | --- | --- |
 | [FND-01](<docs/planning/prompts/FND-01.md>) | Monorepo TypeScript, gates e CI | F1 | — | ✅ concluída (#16) |
 | [CORE-01](<docs/planning/prompts/CORE-01.md>) | Domínio, aritmética em bp, sorteio e registro | F2 | FND-01 | ✅ concluída (#17) |
-| [CORE-02](<docs/planning/prompts/CORE-02.md>) | Tempo, contexto e grade | F2 | CORE-01 | ⏳ pendente |
+| [CORE-02](<docs/planning/prompts/CORE-02.md>) | Tempo, contexto e grade | F2 | CORE-01 | ✅ concluída (#19) |
 | [CORE-03](<docs/planning/prompts/CORE-03.md>) | Catálogos de presets v0 | F2 | CORE-01 | ⏳ pendente |
 | [CORE-04](<docs/planning/prompts/CORE-04.md>) | Status em camadas, ameaça, presença e modelo de memória | F2 | CORE-02, CORE-03 | ⏳ pendente |
 | [CORE-05](<docs/planning/prompts/CORE-05.md>) | Geração de elenco e laços | F2 | CORE-04 | ⏳ pendente |
