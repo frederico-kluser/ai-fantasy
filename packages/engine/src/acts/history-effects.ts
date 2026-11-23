@@ -101,15 +101,15 @@ export function applyDeferredHistory(
 ): CharacterState[] {
   return after.map((character) => {
     const old = before.find((entry) => entry.id === character.id);
-    const known = new Set<FactId>(old?.memories.map((copy) => copy.fact) ?? []);
-    const learned = facts.filter(
-      (fact) =>
-        old !== undefined &&
-        !known.has(fact.id) &&
-        character.memories.some((copy) => copy.fact === fact.id),
-    );
-    return learned
-      .sort((a, b) => a.id - b.id)
+    if (old === undefined) {
+      return character;
+    }
+    const known = new Set<FactId>(old.memories.map((copy) => copy.fact));
+    // The record is in increasing id order, so the events apply in that order.
+    return facts
+      .filter(
+        (fact) => !known.has(fact.id) && character.memories.some((copy) => copy.fact === fact.id),
+      )
       .flatMap((fact) => deferredFor(character, fact, events))
       .reduce(applyEvent, character);
   });

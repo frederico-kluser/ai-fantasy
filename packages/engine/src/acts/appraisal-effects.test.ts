@@ -71,6 +71,14 @@ describe("toneModulation (dialogue-acts §7.2)", () => {
     expect(toneModulation("PLAYFUL", aView({ affection: 5000 }), 1).valence).toBe(1);
   });
 
+  it("given a PLAYFUL tone between friends when modulating an act of valence 0 then it stays 0", () => {
+    expect(toneModulation("PLAYFUL", aView({ affection: 5000 }), 0).valence).toBe(0);
+  });
+
+  it("given an IRONIC act of valence 1 when modulating then it mocks", () => {
+    expect(toneModulation("IRONIC", aView(), 1).extras).toHaveLength(4);
+  });
+
   it("given a PLAYFUL tone with affection 4999 when modulating then negatives stay whole", () => {
     const modulation = toneModulation("PLAYFUL", aView({ affection: 4999 }), -2);
 
@@ -171,6 +179,34 @@ describe("termDeltas (dialogue-acts §7.1 and §7.2, order of calculation)", () 
     );
 
     expect(deltas.map((delta) => delta.delta)).toEqual([480, -480, -480, 200, 100, 200, -100]);
+  });
+
+  it.each(["trust", "affection", "respect", "attraction", "closeness"] as const)(
+    "given a rise of %s when scaling then it is good and takes the positive multiplier",
+    (axis) => {
+      const [delta] = termDeltas(
+        [bondTerm(axis, 1)],
+        reader,
+        one,
+        { unit: 400, positive: 12000, negative: 5000 },
+        noDrive,
+      );
+
+      expect(delta?.delta).toBe(240);
+    },
+  );
+
+  it("given a fear without the THREATEN factor when scaling then fearOf does not count", () => {
+    const scared = aCharacter(2, 0, { bonds: [aBond(1, { fearOf: 5000 })] });
+    const [delta] = termDeltas(
+      [emotionTerm("fear", 1)],
+      scared,
+      one,
+      { unit: 400, ...NEUTRAL_SCALING },
+      noDrive,
+    );
+
+    expect(delta?.delta).toBe(400);
   });
 
   it("given neutral effects when scaling then no multiplier applies", () => {

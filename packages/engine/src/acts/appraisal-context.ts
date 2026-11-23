@@ -7,7 +7,9 @@
 import { bondToward } from "../character/bonds.ts";
 import { DIRECTED_DRIVE_IDS } from "../character/drives.ts";
 import { perceptionPreview, perceptionToward } from "../character/perception.ts";
-import type { CharacterState } from "../character/state.ts";
+import type { AssociationSubject, CharacterState } from "../character/state.ts";
+import type { AssociationTagId } from "../presets/tags.ts";
+import { canonicalize } from "../session/canonical.ts";
 import { effectiveTrait } from "../character/traits.ts";
 import type { Bp } from "../domain/bp.ts";
 import { compareIds, type CharacterId } from "../domain/ids.ts";
@@ -40,30 +42,29 @@ function personInterests(
   return person === reader.id || (present.includes(person) && strong) || wanted;
 }
 
-type InterestRule = (
+type InterestRule<T extends Topic = Topic> = (
   reader: CharacterState,
-  topic: Topic,
+  topic: T,
   present: readonly CharacterId[],
 ) => boolean;
+
+/** Whether `reader` has an association with `subject` (simulation-model §5.7). */
+function associated(reader: CharacterState, subject: AssociationSubject): boolean {
+  const wanted = canonicalize(subject);
+  return reader.associations.some((entry) => canonicalize(entry.subject) === wanted);
+}
 
 const NEVER: InterestRule = () => false;
 const KNOWN_FACT: InterestRule = (reader, topic) =>
   "fact" in topic && reader.memories.some((copy) => copy.fact === topic.fact);
 
 /** simulation-model §5.2, "Um ato interessa a X quando…", by topic type. */
-const INTEREST: Readonly<Record<TopicType, InterestRule>> = {
-  PERSON: (reader, topic, present) =>
-    topic.type === "PERSON" && personInterests(reader, topic.person, present),
-  THING: (reader, topic) =>
-    topic.type === "THING" &&
-    reader.associations.some(
-      ({ subject }) => subject.kind === "THING" && subject.thing === topic.thing,
-    ),
+const INTEREST: { readonly [K in TopicType]: InterestRule<Extract<Topic, { type: K }>> } = {
+  PERSON: (reader, topic, present) => personInterests(reader, topic.person, present),
+  THING: (reader, topic) => associated(reader, { kind: "THING", thing: topic.thing }),
+  // The place of the scene ("SCENE") is no association tag, so it never matches.
   PLACE: (reader, topic) =>
-    topic.type === "PLACE" &&
-    reader.associations.some(
-      ({ subject }) => subject.kind === "TAG" && subject.tag === topic.place,
-    ),
+    associated(reader, { kind: "TAG", tag: topic.place as AssociationTagId }),
   EVENT: KNOWN_FACT,
   SECRET: KNOWN_FACT,
   RUMOR: KNOWN_FACT,
@@ -85,7 +86,9 @@ export function topicInterests(
   topic: Topic,
   present: readonly CharacterId[],
 ): boolean {
-  return INTEREST[topic.type](reader, topic, present);
+  // The rule of a topic type takes exactly the topics of that type.
+  const rule = INTEREST[topic.type] as InterestRule;
+  return rule(reader, topic, present);
 }
 
 /**

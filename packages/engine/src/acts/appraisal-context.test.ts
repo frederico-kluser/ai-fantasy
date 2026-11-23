@@ -29,7 +29,10 @@ describe("topicInterests (simulation-model §5.2)", () => {
       { subject: { kind: "THING", thing: 9 as ThingId }, valence: toBipolarBp(-4000) },
       { subject: { kind: "TAG", tag: "forest" }, valence: toBipolarBp(3000) },
     ],
-    memories: [createCopy(factIdOf(7), { perspective: "SEEN" }, toBp(0))],
+    memories: [
+      createCopy(factIdOf(3), { perspective: "SEEN" }, toBp(0)),
+      createCopy(factIdOf(7), { perspective: "SEEN" }, toBp(0)),
+    ],
   });
   const present = ids(1, 2, 3, 4);
 
@@ -86,6 +89,12 @@ describe("fact versions (dialogue-acts §4 and §5)", () => {
       expect(toldOffenders(lie, offended, undefined)).toEqual(offenders);
     },
   );
+
+  it("given a true TELL without the teller's copy when reading the version told then it is the fact's", () => {
+    const told = aLabel({ act: "TELL", topic: aboutFact("EVENT", 0) });
+
+    expect(toldOffenders(told, offended, undefined)).toEqual([three]);
+  });
 
   it("given a secret when finding who the fact is bad for then its author joins the offenders, once", () => {
     const secret = aHistoryFact(0, 2, 3, { secret: true });
@@ -170,6 +179,77 @@ describe("rowContext (dialogue-acts §7.1)", () => {
     expect(contextOf(aLabel({ act: "TELL", topic: aboutFact("SECRET", 0) })).secret).toBe(true);
     expect(contextOf(aLabel({ act: "ASK", topic: aboutFact("SECRET", 0) })).secret).toBe(true);
   });
+
+  it("given several facts and copies when building the context of a TELL then the fact told and the teller's copy of it count", () => {
+    const facts2 = [
+      { ...anActFact(0, 3, aLabel()), offenders: [three] },
+      { ...anActFact(1, 3, aLabel()), offenders: [three] },
+    ];
+    const teller = aCharacter(1, 0, {
+      memories: [
+        createCopy(factIdOf(0), { perspective: "DIRECT" }, toBp(0)),
+        createCopy(factIdOf(1), { perspective: "DIRECT" }, toBp(0), [two]),
+      ],
+    });
+    const reader = aCharacter(2, 0, {
+      memories: [createCopy(factIdOf(0), { perspective: "DIRECT" }, toBp(0))],
+    });
+    const context = rowContext({
+      author: teller,
+      label: aLabel({ act: "TELL", topic: aboutFact("EVENT", 1) }),
+      facts: facts2,
+      present: ids(1, 2),
+      reader,
+      subject: two,
+      tone: "NEUTRAL",
+      answer: null,
+      believers: null,
+    });
+
+    expect([context.newFact, context.badFact]).toEqual([true, true]);
+  });
+
+  it("given an ASK about a fact the asker holds in a false version when building the context then the record decides", () => {
+    const teller = aCharacter(1, 0, {
+      memories: [createCopy(factIdOf(0), { perspective: "DIRECT" }, toBp(0), [three])],
+    });
+    const context = rowContext({
+      author: teller,
+      label: aLabel({ act: "ASK", topic: aboutFact("EVENT", 0) }),
+      facts,
+      present: ids(1, 2),
+      reader: aCharacter(2, 0),
+      subject: two,
+      tone: "NEUTRAL",
+      answer: null,
+      believers: null,
+    });
+
+    expect([context.badFact, context.accusationTrue]).toEqual([true, false]);
+  });
+
+  it.each([
+    ["a TELL about a person", aLabel({ act: "TELL", topic: { type: "PERSON", person: three } })],
+    [
+      "an ACCUSE of a fact not in the record",
+      aLabel({ act: "ACCUSE", topic: aboutFact("EVENT", 9) }),
+    ],
+    ["a CHAT about small talk", aLabel()],
+  ])(
+    "given %s heard by someone with memories when building the context then nothing about a fact holds",
+    (_case, label) => {
+      const reader = aCharacter(2, 0, {
+        memories: [createCopy(factIdOf(0), { perspective: "DIRECT" }, toBp(0))],
+      });
+      const context = contextOf(label, null, reader);
+
+      expect([context.newFact, context.badFact, context.accusationTrue]).toEqual([
+        false,
+        false,
+        false,
+      ]);
+    },
+  );
 
   it("given a CHAT about small talk when building the context then nothing about a fact holds", () => {
     const context = contextOf();

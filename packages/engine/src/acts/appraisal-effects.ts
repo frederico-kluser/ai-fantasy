@@ -200,10 +200,26 @@ const GOODNESS: {
 };
 
 /** The trait factors of the emotion gains from acts (simulation-model §5.6). */
-const TRAIT_FACTORS: Readonly<Partial<Record<EmotionId, { trait: TraitId; sign: number }>>> = {
-  anger: { trait: "temper", sign: 1 },
-  fear: { trait: "courage", sign: -1 },
-  guilt: { trait: "honesty", sign: 1 },
+type TraitFactor = (who: CharacterState) => number;
+
+/** `10000 + sign × trait / 2`, with the effective trait. */
+function factorOf(trait: TraitId, sign: number): TraitFactor {
+  return (who) => BP_SCALE + sign * div(effectiveTrait(who.traits, who.tendencies, trait), 2);
+}
+
+const NO_FACTOR: TraitFactor = () => BP_SCALE;
+
+const TRAIT_FACTORS: Readonly<Record<EmotionId, TraitFactor>> = {
+  joy: NO_FACTOR,
+  sadness: NO_FACTOR,
+  fear: factorOf("courage", -1),
+  anger: factorOf("temper", 1),
+  disgust: NO_FACTOR,
+  surprise: NO_FACTOR,
+  shame: NO_FACTOR,
+  guilt: factorOf("honesty", 1),
+  jealousy: NO_FACTOR,
+  boredom: NO_FACTOR,
 };
 
 function goodness(term: EffectTerm): number {
@@ -215,12 +231,12 @@ function goodness(term: EffectTerm): number {
 /** `k × u`, or `k × (u / 2)` for a bond, through the tone multiplier. */
 function multiplied(term: EffectTerm, scaling: Scaling): number {
   const amount = term.k * (term.kind === "BOND" ? div(scaling.unit, 2) : scaling.unit);
-  const polarity = Math.sign(amount) * goodness(term);
-  const factors = new Map([
-    [1, scaling.positive],
-    [-1, scaling.negative],
-  ]);
-  return mulBp(amount, factors.get(polarity) ?? BP_SCALE);
+  const good = goodness(term);
+  if (good === 0) {
+    return amount;
+  }
+  // Good when the change goes the way that is good for whoever feels it.
+  return mulBp(amount, Math.sign(amount) === good ? scaling.positive : scaling.negative);
 }
 
 /** The trait factor of an emotion gain, then the special factor of the row. */
@@ -230,12 +246,8 @@ function emotionAmount(
   who: CharacterState,
   toward: CharacterId,
 ): number {
-  const factor = TRAIT_FACTORS[term.emotion];
-  const trait = factor === undefined ? 0 : effectiveTrait(who.traits, who.tendencies, factor.trait);
-  const gained =
-    factor !== undefined && amount > 0
-      ? mulBp(amount, BP_SCALE + factor.sign * div(trait, 2))
-      : amount;
+  // Only the gain takes the factor: the loss part is kept as it is.
+  const gained = mulBp(Math.max(amount, 0), TRAIT_FACTORS[term.emotion](who)) + Math.min(amount, 0);
   const fearOf = bondToward(who.bonds, toward).axes.fearOf;
   return term.byFearOf === true ? mulBp(gained, BP_SCALE + fearOf) : gained;
 }

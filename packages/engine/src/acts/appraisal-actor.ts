@@ -17,7 +17,7 @@ import { IGNORED_ROW } from "./appraisal-table.ts";
 import type { StateDelta } from "./deltas.ts";
 import { bondTerm as bond, driveTerm as drive, emotionTerm as emotion } from "./effect-terms.ts";
 import type { Obligation } from "./obligations.ts";
-import { responderTerms } from "./request-answers.ts";
+import { requestDrives, responderTerms } from "./request-answers.ts";
 
 const HURTFUL_VALENCE = -2;
 const LOVED = 6000;
@@ -106,7 +106,7 @@ export function ignoringDeltas(
           creditor,
           owed.debtor,
           { unit, ...NEUTRAL_SCALING },
-          () => null,
+          requestDrives(null, []),
         );
   });
 }

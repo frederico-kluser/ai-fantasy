@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   aboutFact,
+  aHistoryFact,
   aDrawer,
   aLabel,
   anActFact,
@@ -715,5 +716,408 @@ describe("appraiseAct: importance and ranges (simulation-model §12 and §18)", 
         },
       ),
     );
+  });
+});
+
+describe("appraiseAct: edges (mutation review)", () => {
+  const plain = [aCharacter(1, 0), aCharacter(2, 1), aCharacter(3, 2)];
+
+  it("given an act without a row in an AGGRESSIVE tone when appraising then the tone adds no extras", () => {
+    const input = anInput(
+      {
+        act: "REQUEST",
+        tone: "AGGRESSIVE",
+        targets: [y],
+        object: "HELP",
+        topic: { type: "PERSON", person: y },
+      },
+      [heard(2, "DIRECT", "AGGRESSIVE")],
+      plain,
+    );
+
+    expect(deltasOf(input)).toEqual([]);
+  });
+
+  it("given a GREET to a stranger when appraising then every delta is exactly the target's row and perception", () => {
+    const input = anInput(
+      { act: "GREET", targets: [y], topic: { type: "PERSON", person: y } },
+      [heard(2, "DIRECT", "NEUTRAL")],
+      plain,
+    );
+
+    expect(deltasOf(input)).toEqual([
+      { kind: "EMOTION", who: y, emotion: "joy", delta: U },
+      { kind: "BOND", who: y, toward: z, axis: "affection", delta: U / 2 },
+      { kind: "BOND", who: y, toward: z, axis: "trust", delta: U / 2 },
+      { kind: "BOND", who: y, toward: z, axis: "closeness", delta: U / 2 },
+      { kind: "DRIVE", who: y, drive: "company", toward: null, delta: -2 * U },
+      { kind: "PERCEPTION", who: y, toward: z, value: "perceivedInterest", delta: 500 },
+    ]);
+  });
+
+  it("given a CHAT about someone present the target resents when appraising then the topic interests it", () => {
+    const target = aCharacter(2, 1, { bonds: [aBond(3, { resentment: 5000 })] });
+    const input = anInput(
+      { act: "CHAT", targets: [y], topic: { type: "PERSON", person: w } },
+      [heard(2, "DIRECT", "NEUTRAL")],
+      [aCharacter(1, 0), target, aCharacter(3, 2)],
+    );
+
+    expect(amount(deltasOf(input), y, "joy")).toBe(U);
+  });
+
+  it.each([
+    ["a GREET from someone resented", { resentment: 6000 }, "GREET"],
+    ["a GREET from someone loved", { affection: 6000 }, "GREET"],
+    ["a TEASE from someone loved", { affection: 6000 }, "TEASE"],
+    ["a THREATEN from someone barely loved", { affection: 5999 }, "THREATEN"],
+  ] as const)("given %s when appraising then there is no surprise", (_case, axes, act) => {
+    const input = anInput(
+      { act, targets: [y], topic: { type: "PERSON", person: y } },
+      [heard(2, "DIRECT", "NEUTRAL")],
+      [aCharacter(1, 0), aCharacter(2, 1, { bonds: [aBond(1, axes)] })],
+    );
+
+    expect(amount(deltasOf(input), y, "surprise")).toBeUndefined();
+  });
+
+  it("given a CHAT to nobody heard by someone it interests when appraising then the listener feels no row and its valence is 0", () => {
+    const input = anInput(
+      { act: "CHAT", targets: [], topic: { type: "PERSON", person: y } },
+      [heard(2, "DIRECT", "NEUTRAL")],
+      plain,
+    );
+    const appraisal = appraiseAct(aDrawer(), input);
+
+    expect(appraisal.deltas).toEqual([]);
+    expect(appraisal.valences).toEqual([{ id: y, valence: 0 }]);
+  });
+
+  it("given a THREATEN to nobody when appraising then the witnesses perceive no hostility", () => {
+    const input = anInput(
+      { act: "THREATEN", targets: [], topic: { type: "SMALL_TALK" } },
+      [heard(3, "DIRECT", "NEUTRAL")],
+      plain,
+    );
+
+    expect(amount(deltasOf(input), w, "perceivedHostility")).toBeUndefined();
+  });
+
+  it.each([
+    ["a GREET", "GREET", 6000],
+    ["a TEASE", "TEASE", 6000],
+    ["a THREATEN of someone barely loved", "THREATEN", 5999],
+  ] as const)(
+    "given %s seen by a friend of the target when appraising then the witness feels no care",
+    (_case, act, affection) => {
+      const friend = aCharacter(3, 2, { bonds: [aBond(2, { affection })] });
+      const input = anInput(
+        { act, targets: [y], topic: { type: "PERSON", person: y } },
+        [heard(2, "DIRECT", "NEUTRAL"), heard(3, "DIRECT", "NEUTRAL")],
+        [aCharacter(1, 0), aCharacter(2, 1), friend],
+      );
+
+      expect(amount(deltasOf(input), w, "care")).toBeUndefined();
+    },
+  );
+
+  it("given a TEASE seen by a witness when appraising then valence -1 brings it no hostility", () => {
+    const input = anInput(
+      { act: "TEASE", targets: [y], topic: { type: "PERSON", person: y } },
+      [heard(2, "DIRECT", "NEUTRAL"), heard(3, "DIRECT", "NEUTRAL")],
+      plain,
+    );
+
+    expect(amount(deltasOf(input), w, "perceivedHostility")).toBeUndefined();
+  });
+
+  it("given a TELL of a fact the teller holds in a false version when appraising then the witness judges by that version, among other facts", () => {
+    const facts: Fact[] = [
+      { ...anActFact(0, 4, aLabel()), offenders: [v] },
+      { ...anActFact(1, 2, aLabel()), offenders: [y] },
+    ];
+    const author = aCharacter(1, 0, {
+      memories: [
+        createCopy(factIdOf(0), { perspective: "DIRECT" }, toBp(0)),
+        createCopy(factIdOf(1), { perspective: "DIRECT" }, toBp(0), [w]),
+      ],
+    });
+    const avenger = aCharacter(3, 2, {
+      drives: someDrives({
+        directed: {
+          justice: [
+            [3, 4000],
+            [2, 4000],
+            [4, 4000],
+          ],
+        },
+      }),
+    });
+    const input = anInput(
+      { act: "TELL", targets: [], topic: aboutFact("EVENT", 1) },
+      [heard(3, "DIRECT", "NEUTRAL")],
+      [author, aCharacter(2, 9), avenger, aCharacter(4, 8)],
+      { facts },
+    );
+    const justice = deltasOf(input).filter(
+      (delta) => delta.kind === "DRIVE" && delta.drive === "justice",
+    );
+
+    expect(justice).toEqual([
+      { kind: "DRIVE", who: w, drive: "justice", toward: w, delta: -3 * U },
+    ]);
+  });
+
+  it("given an ASK about a fact bad for Y heard by someone with justice toward Y when appraising then nobody is exposed", () => {
+    const facts: Fact[] = [{ ...anActFact(0, 2, aLabel()), offenders: [y] }];
+    const avenger = aCharacter(3, 2, {
+      drives: someDrives({ directed: { justice: [[2, 4000]] } }),
+    });
+    const input = anInput(
+      { act: "ASK", targets: [], topic: aboutFact("EVENT", 0) },
+      [heard(3, "DIRECT", "NEUTRAL")],
+      [aCharacter(1, 0), aCharacter(2, 9), avenger],
+      { facts },
+    );
+
+    expect(amount(deltasOf(input), w, "justice")).toBeUndefined();
+  });
+
+  it("given a TELL of a fact bad for Y heard by someone without justice toward Y when appraising then its justice is untouched", () => {
+    const facts: Fact[] = [{ ...anActFact(0, 2, aLabel()), offenders: [y] }];
+    const author = aCharacter(1, 0, {
+      memories: [createCopy(factIdOf(0), { perspective: "DIRECT" }, toBp(0))],
+    });
+    const input = anInput(
+      { act: "TELL", targets: [], topic: aboutFact("EVENT", 0) },
+      [heard(3, "DIRECT", "NEUTRAL")],
+      [author, aCharacter(2, 9), aCharacter(3, 2)],
+      { facts },
+    );
+
+    expect(amount(deltasOf(input), w, "justice")).toBeUndefined();
+  });
+
+  it.each([
+    ["a WARM CHAT of valence 0", "CHAT", { type: "SMALL_TALK" }, undefined],
+    ["a WARM GREET of valence 1", "GREET", { type: "PERSON", person: y }, 2 * U],
+  ] as const)(
+    "given %s to Y seen by Y's partner when appraising then jealousy is %s",
+    (_case, act, topic, jealousy) => {
+      const partner = aCharacter(3, 9, { bonds: [aBond(2, {}, ["PARTNER"])] });
+      const input = anInput(
+        { act, tone: "WARM", targets: [y], topic },
+        [heard(2, "DIRECT", "WARM"), perceived(3, "SEEN")],
+        [aCharacter(1, 0), aCharacter(2, 1), partner],
+      );
+
+      expect(amount(deltasOf(input), w, "jealousy")).toBe(jealousy);
+    },
+  );
+
+  it("given a target attracted to itself when appraising a WARM GREET then it is not jealous of itself", () => {
+    const vain = aCharacter(2, 1, { bonds: [aBond(2, { attraction: 9000 })] });
+    const input = anInput(
+      { act: "GREET", tone: "WARM", targets: [y], topic: { type: "PERSON", person: y } },
+      [heard(2, "DIRECT", "WARM")],
+      [aCharacter(1, 0), vain],
+    );
+
+    expect(amount(deltasOf(input), y, "jealousy")).toBeUndefined();
+  });
+
+  it.each([
+    ["a TEASE (valence -1) of someone loved", "TEASE", { affection: 6000 }, undefined],
+    ["an ACCUSE (valence -2) of someone loved", "ACCUSE", { affection: 6000 }, U],
+    ["a THREATEN of a stranger", "THREATEN", {}, undefined],
+  ] as const)(
+    "given %s when appraising then the author's guilt is %s",
+    (_case, act, axes, guilt) => {
+      const facts: Fact[] = [anActFact(0, 3, aLabel())];
+      const author = aCharacter(1, 0, {
+        bonds: [aBond(2, axes)],
+        memories: [createCopy(factIdOf(0), { perspective: "DIRECT" }, toBp(0))],
+      });
+      const input = anInput(
+        { act, targets: [y], topic: aboutFact("EVENT", 0) },
+        [heard(2, "DIRECT", "NEUTRAL")],
+        [author, aCharacter(2, 1)],
+        { facts },
+      );
+
+      expect(amount(deltasOf(input), z, "guilt")).toBe(guilt);
+    },
+  );
+
+  it("given an author with effective temper 0 and justice toward the target when threatening then it feels relief but no joy", () => {
+    const author = aCharacter(1, 0, { drives: someDrives({ directed: { justice: [[2, 5000]] } }) });
+    const input = anInput(
+      { act: "THREATEN", targets: [y], topic: { type: "PERSON", person: y } },
+      [heard(2, "DIRECT", "NEUTRAL")],
+      [author, aCharacter(2, 1)],
+    );
+
+    expect(deltasOf(input).filter((delta) => delta.who === z)).toEqual([
+      { kind: "DRIVE", who: z, drive: "justice", toward: y, delta: -2 * U },
+    ]);
+  });
+
+  it("given a threat to a stranger by an author who wants no justice when appraising then only the target changes", () => {
+    const input = anInput(
+      { act: "THREATEN", targets: [y], topic: { type: "PERSON", person: y } },
+      [heard(2, "DIRECT", "NEUTRAL")],
+      plain,
+    );
+
+    expect(deltasOf(input).filter((delta) => delta.who !== y)).toEqual([]);
+  });
+
+  it("given a missing character when appraising then the error names it", () => {
+    const input = anInput(
+      { act: "GREET", targets: [y] },
+      [heard(2, "DIRECT", "NEUTRAL")],
+      [aCharacter(1, 0)],
+    );
+
+    expect(() => appraiseAct(aDrawer(), input)).toThrow("the character 2 is not present");
+  });
+
+  it("given two requests in the record when answering the second then its object counts", () => {
+    const facts: Fact[] = [
+      anActFact(0, 2, aLabel({ act: "REQUEST", object: "HELP" })),
+      anActFact(1, 2, aLabel({ act: "REQUEST", object: "MONEY" })),
+    ];
+    const owed: Obligation = {
+      debtor: z,
+      creditor: y,
+      fact: factIdOf(1),
+      act: "REQUEST",
+      topic: { type: "PERSON", person: z },
+      tick: 0,
+    };
+    const input = anInput(
+      { act: "ACCEPT", targets: [y], topic: { type: "PERSON", person: z } },
+      [heard(2, "DIRECT", "NEUTRAL")],
+      plain,
+      { facts, obligations: [owed], band: "ACCEPT" },
+    );
+
+    expect(amount(deltasOf(input), y, "material_security")).toBe(-3 * U);
+  });
+
+  it("given an answer to a request missing from the record when appraising then there is no object", () => {
+    const owed: Obligation = {
+      debtor: z,
+      creditor: y,
+      fact: factIdOf(5),
+      act: "REQUEST",
+      topic: { type: "PERSON", person: z },
+      tick: 0,
+    };
+    const input = anInput(
+      { act: "ACCEPT", targets: [y], topic: { type: "PERSON", person: z } },
+      [heard(2, "DIRECT", "NEUTRAL")],
+      plain,
+      { obligations: [owed], band: "ACCEPT" },
+    );
+
+    expect(amount(deltasOf(input), y, "influence")).toBe(-2 * U);
+  });
+
+  it("given a history fact after the last act when interrupting then only the debtors of the last act are interrupted", () => {
+    const facts: Fact[] = [
+      anActFact(0, 4, aLabel({ act: "ASK" })),
+      anActFact(1, 3, aLabel({ act: "ASK" })),
+      aHistoryFact(2, 3, 4),
+    ];
+    const older: Obligation = {
+      debtor: v,
+      creditor: v,
+      fact: factIdOf(0),
+      act: "ASK",
+      topic: { type: "SMALL_TALK" },
+      tick: 0,
+    };
+    const owed: Obligation = {
+      debtor: y,
+      creditor: w,
+      fact: factIdOf(1),
+      act: "ASK",
+      topic: { type: "SMALL_TALK" },
+      tick: 1,
+    };
+    const input = anInput({ act: "CHAT", targets: [] }, [], [...plain, aCharacter(4, 3)], {
+      facts,
+      obligations: [older, owed],
+    });
+
+    expect([...new Set(deltasOf(input).map((delta) => delta.who))]).toEqual([y]);
+  });
+
+  it("given a lie denying an accusation when appraising then the accuser settles it", () => {
+    const facts: Fact[] = [
+      { ...anActFact(0, 1, aLabel()), offenders: [z] },
+      anActFact(1, 2, aLabel({ act: "ACCUSE", topic: aboutFact("EVENT", 0) })),
+    ];
+    const accuser = aCharacter(2, 1, {
+      memories: [createCopy(factIdOf(0), { perspective: "DIRECT" }, toBp(0))],
+    });
+    const owed: Obligation = {
+      debtor: z,
+      creditor: y,
+      fact: factIdOf(1),
+      act: "ACCUSE",
+      topic: aboutFact("EVENT", 0),
+      tick: 0,
+    };
+    const input = anInput(
+      { act: "REFUSE", targets: [y], topic: aboutFact("EVENT", 0), isFalse: true },
+      [heard(2, "DIRECT", "NEUTRAL")],
+      [aCharacter(1, 0), accuser],
+      { facts, obligations: [owed] },
+    );
+
+    expect(appraiseAct(aDrawer([forcing("LIE_DETECT", 1, 2)]), input).lies).toEqual([
+      { listener: y, kind: "DETECTED" },
+    ]);
+  });
+
+  it("given listeners out of order and a topic about someone who only saw the act when appraising then importances follow id order and the topic person is involved", () => {
+    const input = anInput(
+      { act: "TEASE", targets: [y], topic: { type: "PERSON", person: w } },
+      [perceived(3, "SEEN"), heard(2, "DIRECT", "NEUTRAL")],
+      plain,
+    );
+    const importances = appraiseAct(aDrawer(), input).record.importances ?? [];
+
+    expect(importances.map((entry) => entry.id)).toEqual([z, y, w]);
+    expect(importances[2]?.importance).toBe(3000);
+  });
+
+  it("given a believer of a lie when appraising then its importance has no bonus of detection", () => {
+    const facts: Fact[] = [anActFact(0, 1, aLabel())];
+    const liar = aCharacter(1, 0, {
+      memories: [createCopy(factIdOf(0), { perspective: "DIRECT" }, toBp(0))],
+    });
+    const input = anInput(
+      { act: "TELL", targets: [], topic: aboutFact("EVENT", 0), isFalse: true, intensity: toBp(0) },
+      [heard(2, "DIRECT", "NEUTRAL")],
+      [liar, aCharacter(2, 1)],
+      { facts },
+    );
+    const appraisal = appraiseAct(aDrawer([forcing("LIE_BELIEF", 1, 2)]), input);
+
+    expect(appraisal.record.importances?.find((entry) => entry.id === y)?.importance).toBe(0);
+  });
+
+  it("given a PLAYFUL TEASE that amuses one target and offends the other when appraising then the author is an offender", () => {
+    const friend = aCharacter(2, 1, { bonds: [aBond(1, { affection: 6000 })] });
+    const input = anInput(
+      { act: "TEASE", tone: "PLAYFUL", targets: [y, w], topic: { type: "SMALL_TALK" } },
+      [heard(2, "DIRECT", "PLAYFUL"), heard(3, "DIRECT", "PLAYFUL")],
+      [aCharacter(1, 0), friend, aCharacter(3, 2)],
+    );
+
+    expect(appraiseAct(aDrawer(), input).record.offenders).toEqual([z]);
   });
 });

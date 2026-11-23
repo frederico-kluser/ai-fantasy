@@ -136,6 +136,33 @@ describe("applyDeferredHistory (presets §7: effects on B wait for B's first cop
     expect(victim?.historyApplied).toEqual([0, 2, 4]);
   });
 
+  it("given an event missing from the catalog when the victim learns it then nothing happens", () => {
+    const before = aCharacter(2, 0);
+    const after = { ...before, memories: [told()] };
+
+    expect(applyDeferredHistory([before], [after], [BETRAYAL], [])).toEqual([after]);
+  });
+
+  it("given two characters where only the second learns the fact when applying then only it changes", () => {
+    const other = aCharacter(3, 0);
+    const victim = aCharacter(2, 0);
+    const result = applyDeferredHistory(
+      [other, victim],
+      [other, { ...victim, memories: [told()] }],
+      [BETRAYAL],
+      EVENTS,
+    );
+
+    expect(result.map((character) => character.historyApplied)).toEqual([[], [0]]);
+  });
+
+  it("given a secret betrayal the victim learned nothing of when applying then nothing happens", () => {
+    const victim = aCharacter(2, 0);
+    const after = { ...victim, memories: [told(3)] };
+
+    expect(applyDeferredHistory([victim], [after], [BETRAYAL], EVENTS)).toEqual([after]);
+  });
+
   it("given a character who was not present before when applying then it is left as it is", () => {
     const after = { ...aCharacter(2, 0), memories: [told()] };
 

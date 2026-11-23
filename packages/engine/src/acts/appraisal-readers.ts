@@ -87,17 +87,20 @@ export function readAct(
   const { label, author } = scene;
   const context = contextFor(scene, reader, subject, tone);
   const rows = appraisalRows(label.act, context);
+  if (rows.length === 0) {
+    // "Um ato sem linha aplicável tem valência 0 e nenhum efeito" (dialogue-acts §7.1).
+    return { valence: 0, deltas: [], context };
+  }
   const toneFree = TONE_FREE_ACTS.includes(label.act);
   const view = {
     bond: context.bond,
     romanticBoldness: effectiveTrait(reader.traits, reader.tendencies, "romanticBoldness"),
   };
   const modulation = toneModulation(toneFree ? "NEUTRAL" : tone, view, combinedValence(rows));
-  const extras = rows.length === 0 ? [] : modulation.extras;
   const scaling = { unit: scene.unit, ...modulation };
   const deltas = [
     ...termDeltas(termsOf(rows), reader, author.id, scaling, scene.drives),
-    ...plainDeltas(scene, extras, reader, author.id),
+    ...plainDeltas(scene, modulation.extras, reader, author.id),
   ];
   return { valence: modulation.valence, deltas, context };
 }
@@ -135,7 +138,8 @@ function perceptionDelta(
   value: Extract<StateDelta, { kind: "PERCEPTION" }>["value"],
   delta: number,
 ): StateDelta[] {
-  return delta === 0 ? [] : [{ kind: "PERCEPTION", who, toward, value, delta }];
+  // A delta of 0 is dropped by finalizeDeltas.
+  return [{ kind: "PERCEPTION", who, toward, value, delta }];
 }
 
 /**
@@ -181,12 +185,13 @@ export function targetReading(scene: ActScene, target: CharacterState, tone: Ton
 function exposed(scene: ActScene): CharacterId[] {
   const { label, author } = scene;
   const { topic } = label;
-  const fact = "fact" in topic ? scene.facts.find((held) => held.id === topic.fact) : undefined;
-  if (label.act !== "TELL" || fact === undefined) {
-    return [];
-  }
-  const tellerCopy = author.memories.find((copy) => copy.fact === fact.id);
-  return badSubjects(fact, toldOffenders(label, fact, tellerCopy), topic.type);
+  const told = label.act === "TELL" && "fact" in topic ? [topic.fact] : [];
+  return scene.facts
+    .filter((held) => told.includes(held.id))
+    .flatMap((fact) => {
+      const tellerCopy = author.memories.find((copy) => copy.fact === fact.id);
+      return badSubjects(fact, toldOffenders(label, fact, tellerCopy), topic.type);
+    });
 }
 
 /**
