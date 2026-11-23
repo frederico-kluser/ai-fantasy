@@ -59,15 +59,22 @@ function companyRise(input: DriveTickInput): number {
   return RATES.company + silence;
 }
 
-/** Each listed target's deficit approaches its value at `rate`; the others stay. */
+/**
+ * Each listed target's deficit approaches its value at `rate`; the others stay.
+ * A missing entry reads 0 and is created only when the rule moves it away from
+ * 0 (simulation-model §4: an entry is created when a rule changes it).
+ */
 function approachEach(
   list: readonly DirectedDeficit[],
   goals: readonly TowardValue[],
   rate: number,
 ): readonly DirectedDeficit[] {
   return goals.reduce<readonly DirectedDeficit[]>((current, { target, value }) => {
-    const deficit = current.find((entry) => entry.target === target)?.deficit ?? 0;
-    return withDirectedDeficit(current, target, approach(deficit, value, rate));
+    const entry = current.find((each) => each.target === target);
+    const deficit = approach(entry?.deficit ?? 0, value, rate);
+    return entry === undefined && deficit === 0
+      ? current
+      : withDirectedDeficit(current, target, deficit);
   }, list);
 }
 

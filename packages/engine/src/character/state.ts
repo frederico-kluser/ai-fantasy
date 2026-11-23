@@ -12,7 +12,7 @@ import type { AssociationTagId } from "../presets/tags.ts";
 import type { Body } from "./body.ts";
 import type { Bond } from "./bonds.ts";
 import type { Drives } from "./drives.ts";
-import type { Emotions } from "./emotions.ts";
+import { emotionBaselines, type EmotionShifts, type Emotions } from "./emotions.ts";
 import type { Perception } from "./perception.ts";
 import type { Aptitudes, Traits } from "./traits.ts";
 
@@ -43,7 +43,12 @@ export interface CharacterState {
   /** The recent tendency of each trait (simulation-model §13); 0 at first. */
   readonly tendencies: Traits;
   readonly aptitudes: Aptitudes;
-  /** The emotion baselines (simulation-model §5.2): recomputed only when a trait crystallizes. */
+  /** The baseline shifts left by the history (presets §7); never limited. */
+  readonly baselineShifts: EmotionShifts;
+  /**
+   * The emotion baselines (simulation-model §5.2): always
+   * `emotionBaselines(traits, baselineShifts)`; see {@link refreshBaselines}.
+   */
   readonly baselines: Emotions;
   readonly emotions: Emotions;
   readonly body: Body;
@@ -79,6 +84,8 @@ export interface CharacterIdentity {
   /** The archetype the character was generated from, for display; `null` when made by hand. */
   readonly archetype: CharacterArchetypeId | null;
   readonly ageBand: AgeBand;
+  /** The role in the story ("o ferreiro", "a filha do prefeito"): free text for display. */
+  readonly role: string;
   readonly speechRegister: SpeechRegister;
 }
 
@@ -90,4 +97,13 @@ export function tagValences(
   return associations.flatMap(({ subject, valence }) =>
     subject.kind === "TAG" && present.includes(subject.tag) ? [valence] : [],
   );
+}
+
+/**
+ * The character with its baselines recomputed from the traits and the history
+ * shifts (simulation-model §5.2): at generation and whenever a trait
+ * crystallizes (§13 item 5).
+ */
+export function refreshBaselines(character: CharacterState): CharacterState {
+  return { ...character, baselines: emotionBaselines(character.traits, character.baselineShifts) };
 }

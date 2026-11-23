@@ -12,6 +12,7 @@ import type { BondAxisId } from "../presets/bonds.ts";
 import type { EmotionId } from "../presets/emotions.ts";
 import type { RequestObjectId } from "../presets/request-objects.ts";
 import type { AssociationTagId } from "../presets/tags.ts";
+import type { TopicTypeId } from "../presets/topics.ts";
 import type { ToneId } from "../presets/tones.ts";
 import type { Volume } from "../space/hearing.ts";
 
@@ -50,8 +51,15 @@ export type Topic =
   | { readonly type: "SMALL_TALK" }
   | { readonly type: "NONE" };
 
-/** The type of a {@link Topic}: the ids of the `topicTypes` catalog. */
-export type TopicType = Topic["type"];
+/** `A` when every member of `A` is in `B`; a compile error otherwise. */
+type Within<A extends B, B> = A;
+
+/**
+ * The type of a {@link Topic}: exactly the ids of the `topicTypes` catalog
+ * (CORE-03): `Within` both ways makes a type missing on either side a
+ * compile error.
+ */
+export type TopicType = Within<Topic["type"], Within<TopicTypeId, Topic["type"]>>;
 
 /**
  * Who an act is addressed to (dialogue-acts §1 and §5): one or more characters,
@@ -93,6 +101,11 @@ export interface ActLabel {
   readonly object?: RequestObjectId;
   /** The cell index the character goes to: only in `MOVE`. */
   readonly destination?: number;
+  /**
+   * Who the lie blames, the false offender (dialogue-acts §5 and §11): only
+   * with `isFalse`; without it, a lie about a fact denies (nobody is to blame).
+   */
+  readonly blamed?: CharacterId;
 }
 
 /**
