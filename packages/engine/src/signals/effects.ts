@@ -31,11 +31,11 @@ export const PERCEPTION_EFFECTS: Readonly<
 /** The causes that mark the apparent state, each with the mark of the same id (simulation-model §5.5). */
 const MARK_CAUSES: readonly ApparentMarkId[] = ["cold", "fatigue", "pain", "intoxication"];
 
-function isEmotion(cause: SignalCauseId): cause is EmotionId {
+function isEmotion(cause: SignalCauseId): cause is SignalCauseId & EmotionId {
   return (EMOTION_IDS as readonly string[]).includes(cause);
 }
 
-function isMark(cause: SignalCauseId): cause is ApparentMarkId {
+function isMark(cause: SignalCauseId): cause is SignalCauseId & ApparentMarkId {
   return (MARK_CAUSES as readonly string[]).includes(cause);
 }
 

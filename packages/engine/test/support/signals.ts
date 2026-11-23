@@ -22,9 +22,12 @@ export function defaultSignals(): SignalRules {
 }
 
 const anyBp = fc.integer({ min: 0, max: 10000 });
-const markIds = fc.constantFrom("fatigue", "cold", "pain", "intoxication") as fc.Arbitrary<
-  "fatigue" | "cold" | "pain" | "intoxication"
->;
+const markIds = fc.constantFrom<"fatigue" | "cold" | "pain" | "intoxication">(
+  "fatigue",
+  "cold",
+  "pain",
+  "intoxication",
+);
 
 /** A random perception of `target`: any values, maybe an apparent emotion, up to 2 marks. */
 export function arbitraryPerception(target: number): fc.Arbitrary<Perception> {
