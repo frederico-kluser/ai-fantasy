@@ -95,3 +95,10 @@ export function aDrawer(forced: readonly ForcedDraw[] = []): Drawer {
 export function forcing(purpose: string, outcome: number, target: number): ForcedDraw {
   return { selector: { kind: "PURPOSE", purpose, target: target as CharacterId }, outcome };
 }
+
+/** The error code of a result, or `"OK"` when it succeeded. */
+export function codeOrOk<C extends string>(
+  result: { readonly ok: true } | { readonly ok: false; readonly error: { readonly code: C } },
+): C | "OK" {
+  return result.ok ? "OK" : result.error.code;
+}
