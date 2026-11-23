@@ -1,6 +1,6 @@
 # Atos de conversa
 
-> **Especificação v1.4 — 2026-11-23.** Toda fala e toda ação na fatia é um **ato**: ato × tom ×
+> **Especificação v1.5 — 2026-11-23.** Toda fala e toda ação na fatia é um **ato**: ato × tom ×
 > tópico, com valores (D-13). O motor decide e resolve atos; o SOM converte a fala livre do
 > jogador num ato; o modelo de texto encena o ato. As regras gerais estão no
 > [modelo de simulação](<simulation-model.md>), cujas convenções valem aqui (`/` é divisão
@@ -8,7 +8,8 @@
 > da v1 por números, definiu os valores dos atos dos NPCs, as respostas e os vieses da decisão;
 > a v1.2 deu valência às respostas e fixou a versão falsa das mentiras e a ordem de cálculo; a
 > v1.3 deu nomes de exibição aos objetos de pedido (CORE-03); a v1.4 fixou a referência de cada
-> tipo de tópico e o destino como índice de célula (CORE-04). As tabelas das seções 2 a 4 são
+> tipo de tópico e o destino como índice de célula (CORE-04); a v1.5 fixou a validação de
+> um ato e os sorteios da leitura do tom (SOC-01). As tabelas das seções 2 a 4 são
 > dados do motor ([presets](<presets.md>), seção 1).
 
 ## 1. Estrutura de um ato
@@ -36,6 +37,42 @@ mentira nega (ninguém é o ofensor).
 Interrupção não é escolhida: o motor a marca quando acontece ([modelo de
 simulação](<simulation-model.md>), seção 11). Um ato com `targets = []` é ouvido normalmente, mas
 não cria obrigação de resposta.
+
+### 1.1 Validação
+
+Todo ato passa pela validação antes de ser resolvido (`validateAct`, em
+`packages/engine/src/acts/validate.ts`; [modelo de simulação](<simulation-model.md>), seção 16,
+passo 5.1). Um ato inválido não muda nada e volta como erro tipado, que o site mostra como "ato
+inválido: …". As regras são conferidas nesta ordem, e o primeiro problema é a resposta:
+
+1. **Valores:** intensidade inteira em `0..10000` (`BAD_INTENSITY`); `blamed` só com `isFalse`
+   (`BLAME_WITHOUT_LIE`).
+2. **Campos:** `object` em `REQUEST` e `OFFER`, e só neles (`OBJECT_REQUIRED`,
+   `OBJECT_NOT_ALLOWED`); `destination` em `MOVE`, e só nele (`DESTINATION_REQUIRED`,
+   `DESTINATION_NOT_ALLOWED`), numa célula atravessável da grade (`BAD_DESTINATION`).
+3. **Forma dos alvos:** atos de fala aceitam uma lista, `GROUP` ou `[]`; `STAY_SILENT`, `MOVE` e
+   `LEAVE`, só `[]` (`NO_TARGET_ALLOWED`); `APPROACH` e `WITHDRAW`, exatamente um alvo
+   (`ONE_TARGET_REQUIRED`); `TOUCH`, um ou mais (`TARGET_REQUIRED`); `GROUP` não vale nesses três
+   (`GROUP_NOT_ALLOWED`).
+4. **Alvos da lista:** em ordem crescente e sem repetição (`TARGETS_NOT_SORTED`), sem o autor
+   (`SELF_TARGET`) e presentes (`TARGET_ABSENT`).
+5. **Alcance:** num ato de fala, cada alvo ouviria o ato como `DIRECT` no volume dado
+   (`TARGET_OUT_OF_EARSHOT`); `TOUCH` exige cada alvo a 1 célula (`TARGET_TOO_FAR`). Os outros atos
+   sem fala só exigem o alvo presente.
+6. **Tipo do tópico** aceito pelo ato (seção 4; `TOPIC_NOT_ACCEPTED`).
+7. **Referência do tópico:** o fato de `EVENT`, `SECRET` ou `RUMOR` existe (`FACT_NOT_FOUND`); um
+   `SECRET` é um fato marcado como segredo (`NOT_A_SECRET`); `TELL` e `ACCUSE` de um fato exigem
+   cópia do autor (`FACT_UNKNOWN`); no `ACCUSE`, cada alvo da lista é ofensor segundo a cópia do
+   autor, a versão falsa quando houver (`NOT_THE_OFFENDER`); em `GREET`, `FAREWELL`, `REQUEST`,
+   `OFFER`, `APOLOGIZE` e `THREATEN`, a pessoa de um tópico `PERSON` é um alvo da lista (em
+   `GROUP`, um presente que não é o autor; `PERSON_NOT_TARGET`).
+8. **Resposta:** `ACCEPT` e `REFUSE` (tópico "do ato respondido") exigem uma obrigação pendente
+   do autor que eles respondam pela regra do [modelo de simulação](<simulation-model.md>), seção
+   10: dirigidos ao autor do ato respondido e com o mesmo tópico; `ACCEPT` só responde a pedidos
+   (`NOTHING_TO_ANSWER`).
+
+A validação não repete as pré-condições da decisão (seção 9.1), que só valem para os candidatos
+de um NPC: o jogador pode, por exemplo, contar um segredo em voz normal.
 
 ## 2. Atos
 
@@ -102,6 +139,13 @@ misread = clamp(
 Ao ler errado, o ouvinte sorteia entre as confusões típicas do tom. Peso de uma confusão "pior":
 `10000 + resentment(ouvinte→autor) + max(0, −trustInOthers(ouvinte))`; de uma "melhor":
 `10000 + affection(ouvinte→autor) + attraction(ouvinte→autor)`.
+
+Os dois sorteios usam a stream `perception`, com o ouvinte como alvo do registro: `TONE_MISREAD`
+(a chance acima) e, só se ele ler errado, `TONE_CONFUSION` (ponderado entre as confusões do tom,
+na ordem da tabela, mesmo quando há uma só, para que o inspetor possa forçar sempre do mesmo
+jeito). A distância é a de Chebyshev entre autor e ouvinte, e o ruído é o da cena (lugar mais
+clima). Cada ouvinte `DIRECT`, em ordem de id, lê o tom por si; a leitura é dele, e o fato guarda
+o tom real.
 
 ## 4. Tópicos e objetos
 
