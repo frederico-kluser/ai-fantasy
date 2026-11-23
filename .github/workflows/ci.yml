@@ -7,10 +7,13 @@
 #  - nenhum job depende de modelos, chaves, GPU ou rede fora do GitHub e do npm;
 #  - actions fixadas por SHA (ver oss-pin-actions.sh).
 #
-# Ordem (testing-strategy §13; `npm run check` repete localmente): instalar → lint →
-# tipos → testes com cobertura → cobertura das linhas novas → licenças → E2E →
-# benchmark (se o motor mudou) → mutação incremental → documentação → `build`.
-# `node`, `e2e`, `mutation` e `docs` rodam em paralelo; `build` agrega todos.
+# Ordem (testing-strategy §13): instalar → lint → tipos → testes com cobertura →
+# cobertura das linhas novas → licenças → E2E → benchmark (se o motor mudou) →
+# mutação incremental → documentação e governança → `build`. `node`, `e2e`,
+# `mutation` e `docs` rodam em paralelo; `build` agrega todos.
+# `npm run check` repete localmente todos esses passos, menos dois que só o CI faz:
+# os links da documentação (lychee) e as mensagens dos commits (job `build`; na
+# máquina, o hook commit-msg e o oss-gate.sh fazem esse papel).
 # =============================================================================
 
 name: CI
@@ -36,6 +39,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
 
       - name: Markdown lint
         uses: DavidAnson/markdownlint-cli2-action@696eb3f2509270d7b882d2aa68347bc676e7af34 # v25.0.0
@@ -48,19 +53,15 @@ jobs:
           args: --offline --no-progress --accept 200,204,206,429 "**/*.md"
           fail: true
 
+      - name: Node.js (versão do .node-version)
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .node-version
+
+      # Arquivos obrigatórios e espelho CLAUDE.md ↔ AGENTS.md (só usa módulos do Node;
+      # não precisa de npm ci). O mesmo script roda no `npm run check`.
       - name: Governança mínima
-        run: |
-          set -euo pipefail
-          for f in LICENSE README.md CONTRIBUTING.md SECURITY.md CODEOWNERS \
-                   CODE_OF_CONDUCT.md CLAUDE.md AGENTS.md GOVERNANCE.md \
-                   docs/architecture/overview.md \
-                   docs/engineering/development-rules.md \
-                   docs/engineering/testing-strategy.md; do
-            test -s "$f" || { echo "::error::falta ou está vazio: $f"; exit 1; }
-          done
-          # CLAUDE.md e AGENTS.md são espelhos (a primeira linha pode diferir).
-          diff <(tail -n +2 CLAUDE.md) <(tail -n +2 AGENTS.md) \
-            || { echo "::error::CLAUDE.md e AGENTS.md divergem"; exit 1; }
+        run: npm run governance
 
   preflight:
     name: preflight
