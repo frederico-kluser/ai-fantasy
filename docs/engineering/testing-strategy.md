@@ -53,6 +53,10 @@ describe("presence", () => {
   resolvidos por id.
 - Construa estados com funções de fábrica (`aCharacter().withTrait("temper", 8000)`), nunca com
   objetos gigantes copiados.
+- **Dados × documentos:** os catálogos de presets são comparados com as tabelas das
+  especificações por `packages/engine/src/presets/spec.test.ts`, que lê os documentos com o
+  leitor de `packages/engine/test/support/`. Mudou uma tabela, mude o dado no mesmo PR (e
+  vice-versa); o teste também mata os mutantes dos arquivos de dados.
 
 ## 5. Propriedades
 
