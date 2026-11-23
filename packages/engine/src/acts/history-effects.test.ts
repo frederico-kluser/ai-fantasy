@@ -144,7 +144,7 @@ describe("applyDeferredHistory (presets §7: effects on B wait for B's first cop
   });
 
   it("given two characters where only the second learns the fact when applying then only it changes", () => {
-    const other = aCharacter(3, 0);
+    const other = aCharacter(3, 0, { memories: [told()] });
     const victim = aCharacter(2, 0);
     const result = applyDeferredHistory(
       [other, victim],

@@ -46,6 +46,12 @@ describe("generateCast (presets §10.1)", () => {
     expect(hashState(second.cast.characters)).toBe(hashState(first.cast.characters));
   });
 
+  it("given a generated cast when reading the deferred history marks then nobody has any yet", () => {
+    const { cast } = valueOf(generateCast(presets, FAMILY, SEEDS));
+
+    expect(cast.characters.flatMap((character) => character.historyApplied)).toStrictEqual([]);
+  });
+
   it("given another scene seed when generating then the cast is the same and only generation was drawn", () => {
     const first = valueOf(generateCast(presets, FAMILY, SEEDS));
     const other = valueOf(generateCast(presets, FAMILY, { ...SEEDS, sceneSeed: 99 }));

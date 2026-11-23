@@ -137,7 +137,7 @@ const TALK_ROWS: readonly AppraisalRow[] = [
   {
     act: "ACCUSE",
     when: (c) => c.accusationTrue,
-    valence: -2,
+    valence: 0,
     effects: [emotion("shame", 2), emotion("guilt", 2)],
   },
   {

@@ -185,9 +185,8 @@ export function targetReading(scene: ActScene, target: CharacterState, tone: Ton
 function exposed(scene: ActScene): CharacterId[] {
   const { label, author } = scene;
   const { topic } = label;
-  const told = label.act === "TELL" && "fact" in topic ? [topic.fact] : [];
   return scene.facts
-    .filter((held) => told.includes(held.id))
+    .filter((held) => label.act === "TELL" && "fact" in topic && held.id === topic.fact)
     .flatMap((fact) => {
       const tellerCopy = author.memories.find((copy) => copy.fact === fact.id);
       return badSubjects(fact, toldOffenders(label, fact, tellerCopy), topic.type);
@@ -211,7 +210,6 @@ export function witnessReading(
   const author = scene.author.id;
   const subject = targets[0] ?? author;
   const reading = readAct(scene, witness, subject, tone);
-  const read = targets.length === 0 ? [] : reading.deltas;
   const hostile = targets.length > 0 && reading.valence <= HOSTILE_VALENCE;
   const loved = targets.filter(
     (target) => hostile && bondToward(witness.bonds, target).axes.affection >= LOVED,
@@ -220,8 +218,8 @@ export function witnessReading(
     (person) => directedDeficit(witness.drives, "justice", person) > 0,
   );
   const deltas = [
-    ...read
-      .filter((delta) => delta.kind === "EMOTION")
+    ...reading.deltas
+      .filter((delta) => targets.length > 0 && delta.kind === "EMOTION")
       .map((delta) => ({ ...delta, delta: mulBp(delta.delta, WITNESS_SHARE) })),
     ...(reading.context.newFact
       ? plainDeltas(scene, [drive("curiosity", -1)], witness, author)

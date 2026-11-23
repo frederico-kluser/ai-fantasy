@@ -109,6 +109,7 @@ describe("acceptanceChance (dialogue-acts §8.1)", () => {
     ["OFFER", "COMPANY", { company: 7000 }, 1500],
     ["THREATEN", null, { dignity: 7000 }, -1500],
     ["REQUEST", "HELP", { physical_safety: 7000 }, 0],
+    ["REQUEST", "INFORMATION", { influence: 7000, fun: 7000 }, 1500],
   ] as const)(
     "given a %s of %s and dominant drives %j when computing the chance then the drive adjustment is %i",
     (act, object, weights, adjustment) => {

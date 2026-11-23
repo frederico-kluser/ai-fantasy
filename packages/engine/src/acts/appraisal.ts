@@ -13,8 +13,8 @@ import type { CharacterState } from "../character/state.ts";
 import { toBp } from "../domain/bp.ts";
 import { compareIds, type CharacterId } from "../domain/ids.ts";
 import { div } from "../domain/math.ts";
-import type { Fact } from "../memory/fact.ts";
-import type { RecordAppraisal } from "../memory/record.ts";
+import type { ActFact, Fact } from "../memory/fact.ts";
+import { involvedIn, type RecordAppraisal } from "../memory/record.ts";
 import type { Drawer } from "../rng/drawer.ts";
 import { effectUnit } from "./appraisal-effects.ts";
 import { authorDeltas, ignoringDeltas, interruptionDeltas } from "./appraisal-actor.ts";
@@ -91,6 +91,17 @@ export interface Appraisal {
 
 const OFFENSIVE_VALENCE = -1;
 
+/** A fact shell: only its author and label matter to who is involved (simulation-model §12). */
+const NO_FACT: Omit<ActFact, "author" | "label"> = {
+  kind: "ACT",
+  // Any id: involvement does not read it.
+  id: 0 as ActFact["id"],
+  tick: 0,
+  band: null,
+  offenders: [],
+  secret: false,
+};
+
 function stateOf(input: AppraisalInput, id: CharacterId): CharacterState {
   const found = input.characters.find((character) => character.id === id);
   if (found === undefined) {
@@ -113,13 +124,11 @@ function answerOf(input: AppraisalInput, answered: Obligation | undefined): ActS
 
 /** The debtors of the last act's obligations, when the author interrupts (simulation-model §11). */
 function interrupted(input: AppraisalInput): CharacterState[] {
-  if (!isInterruption(input.obligations, input.facts, input.author)) {
-    return [];
-  }
   const last = input.facts.findLast((fact) => fact.kind === "ACT");
-  return input.obligations
-    .filter((owed) => owed.fact === last?.id)
-    .map((owed) => stateOf(input, owed.debtor));
+  const owed = input.obligations.filter((obligation) => obligation.fact === last?.id);
+  return isInterruption(input.obligations, input.facts, input.author)
+    ? owed.map((obligation) => stateOf(input, obligation.debtor))
+    : [];
 }
 
 function sceneOf(input: AppraisalInput, answered: Obligation | undefined, lies: LieInfo): ActScene {
@@ -197,20 +206,16 @@ function readingsOf(scene: ActScene, input: AppraisalInput, direct: readonly Lis
 function importances(
   input: AppraisalInput,
   deltas: readonly StateDelta[],
-  addressees: readonly CharacterId[],
   outcomes: readonly LieOutcome[],
 ) {
-  const { topic } = input.label;
-  const involved = [
-    input.author,
-    ...addressees,
-    ...(topic.type === "PERSON" ? [topic.person] : []),
-  ];
-  const perceivers = input.listeners.map((view) => view.id).sort(compareIds);
+  const fact: ActFact = { ...NO_FACT, author: input.author, label: input.label };
+  const heard = input.listeners.map(({ id, perspective }) => ({ id, perspective }));
+  const ids = [input.author, ...input.listeners.map((view) => view.id).sort(compareIds)];
+  const involved = ids.filter((id) => involvedIn(fact, id, heard));
   const detectors = outcomes
     .filter((entry) => entry.kind === "DETECTED")
     .map((entry) => entry.listener);
-  return importancesOf(deltas, [input.author, ...perceivers], involved).map((entry) => ({
+  return importancesOf(deltas, ids, involved).map((entry) => ({
     ...entry,
     importance: toBp(
       entry.importance + (detectors.includes(entry.id) ? DISCOVERED_LIE_IMPORTANCE : 0),
@@ -247,7 +252,7 @@ export function appraiseAct(drawer: Drawer, input: AppraisalInput): Appraisal {
     direct.map((view) => stateOf(input, view.id)),
   );
   const scene = sceneOf(input, answered, lie);
-  const { addressees, targets, witnesses, real } = readingsOf(scene, input, direct);
+  const { targets, witnesses, real } = readingsOf(scene, input, direct);
   const readings = [...targets, ...witnesses];
   const deltas = finalizeDeltas([
     ...readings.flatMap((reading) => reading.deltas),
@@ -263,7 +268,7 @@ export function appraiseAct(drawer: Drawer, input: AppraisalInput): Appraisal {
     characters: applyDeltas(input.characters, deltas),
     record: {
       offenders: real.some((entry) => entry.valence <= OFFENSIVE_VALENCE) ? [input.author] : [],
-      importances: importances(input, deltas, addressees, lie.outcomes),
+      importances: importances(input, deltas, lie.outcomes),
       ...(lie.believers === null ? {} : { believers: lie.believers }),
       ...(band === null ? {} : { band }),
     },

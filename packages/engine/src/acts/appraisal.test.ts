@@ -1110,6 +1110,68 @@ describe("appraiseAct: edges (mutation review)", () => {
     expect(appraisal.record.importances?.find((entry) => entry.id === y)?.importance).toBe(0);
   });
 
+  it("given a WARM TOUCH of a friend when appraising then the row is per tone and takes no multiplier", () => {
+    const friend = aCharacter(2, 1, { bonds: [aBond(1, { affection: 4000 })] });
+    const input = anInput(
+      { act: "TOUCH", tone: "WARM", targets: [y], topic: { type: "NONE" } },
+      [heard(2, "DIRECT", "WARM")],
+      [aCharacter(1, 0), friend],
+    );
+
+    expect(amount(deltasOf(input), y, "joy")).toBe(2 * U);
+  });
+
+  it("given a target of higher id than the witness when appraising then the valences are in id order", () => {
+    const input = anInput(
+      { act: "GREET", targets: [w], topic: { type: "PERSON", person: w } },
+      [heard(2, "DIRECT", "NEUTRAL"), heard(3, "DIRECT", "NEUTRAL")],
+      plain,
+    );
+
+    expect(appraiseAct(aDrawer(), input).valences).toEqual([
+      { id: y, valence: 1 },
+      { id: w, valence: 1 },
+    ]);
+  });
+
+  it("given a WARM GREET of Y heard directly by Y's partner when appraising then the partner is jealous", () => {
+    const partner = aCharacter(3, 2, { bonds: [aBond(2, {}, ["PARTNER"])] });
+    const input = anInput(
+      { act: "GREET", tone: "WARM", targets: [y], topic: { type: "PERSON", person: y } },
+      [heard(2, "DIRECT", "WARM"), heard(3, "DIRECT", "WARM")],
+      [aCharacter(1, 0), aCharacter(2, 1), partner],
+    );
+
+    expect(amount(deltasOf(input), w, "jealousy")).toBe(2 * U);
+  });
+
+  it("given an act that answers nothing when appraising then the record has no band", () => {
+    const input = anInput(
+      { act: "GREET", targets: [y], topic: { type: "PERSON", person: y } },
+      [heard(2, "DIRECT", "NEUTRAL")],
+      plain,
+    );
+
+    expect(Object.keys(appraiseAct(aDrawer(), input).record).sort()).toEqual([
+      "importances",
+      "offenders",
+    ]);
+  });
+
+  it("given pending obligations with no act in the record when appraising then nobody is interrupted", () => {
+    const owed: Obligation = {
+      debtor: y,
+      creditor: w,
+      fact: factIdOf(0),
+      act: "ASK",
+      topic: { type: "SMALL_TALK" },
+      tick: 0,
+    };
+    const input = anInput({ act: "CHAT", targets: [] }, [], plain, { obligations: [owed] });
+
+    expect(deltasOf(input)).toEqual([]);
+  });
+
   it("given a PLAYFUL TEASE that amuses one target and offends the other when appraising then the author is an offender", () => {
     const friend = aCharacter(2, 1, { bonds: [aBond(1, { affection: 6000 })] });
     const input = anInput(

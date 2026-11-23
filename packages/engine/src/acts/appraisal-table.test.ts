@@ -117,6 +117,39 @@ describe("appraisal rows (dialogue-acts §7.1)", () => {
     expect(termsOf(rows)).toContainEqual({ kind: "EMOTION", emotion: "fear", k: 1 });
   });
 
+  it("given an APPROACH from a stranger when selecting rows then the valence is 0 and nothing frightens", () => {
+    const rows = appraisalRows("APPROACH", aContext());
+
+    expect([combinedValence(rows), termsOf(rows)]).toEqual([
+      0,
+      [{ kind: "DRIVE", drive: "company", k: -1 }],
+    ]);
+  });
+
+  it("given an APPROACH from someone loved who is not feared when selecting rows then the valence is +1", () => {
+    const rows = appraisalRows("APPROACH", aContext({ bond: aBond(1, { attraction: 6000 }).axes }));
+
+    expect(combinedValence(rows)).toBe(1);
+  });
+
+  it("given a NEUTRAL TEASE between friends when selecting rows then it offends", () => {
+    const context = aContext({ bond: aBond(1, { affection: 6000 }).axes });
+
+    expect(combinedValence(appraisalRows("TEASE", context))).toBe(-1);
+  });
+
+  it.each(["APOLOGIZE", "THREATEN", "REQUEST", "OFFER"] as const)(
+    "given an ENTHUSIASTIC acceptance of a %s when selecting rows then the valence is +3",
+    (act) => {
+      const rows = appraisalRows(
+        "ACCEPT",
+        aContext({ answer: answer(act, "ENTHUSIASTIC", "HELP") }),
+      );
+
+      expect(combinedValence(rows)).toBe(3);
+    },
+  );
+
   it("given an APPROACH from someone only feared when selecting rows then the valence is -1", () => {
     const context = aContext({ bond: aBond(1, { attraction: 5999, fearOf: 5000 }).axes });
 
