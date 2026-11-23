@@ -46,11 +46,16 @@ export const NOT_MUTATED: readonly { readonly pattern: RegExp; readonly reason: 
     pattern: /^(packages|apps)\/[^/]+\/(test|e2e|bench)\//,
     reason: "test support, E2E specs and the benchmark",
   },
+  // Anchored to the repository root or a package root: a module called
+  // `*.config.ts` inside `src/` is production code and must be mutated.
   {
-    pattern: /(^|\/)[^/]+\.config\.[cm]?[jt]s$/,
-    reason: "tool configuration (Vite, Vitest, ESLint…)",
+    pattern: /^(?:(?:packages|apps)\/[^/]+\/)?[^/]+\.config\.[cm]?[jt]s$/,
+    reason: "tool configuration at the repository or package root (Vite, Vitest, ESLint…)",
   },
-  { pattern: /(^|\/)vitest\.setup\.[cm]?[jt]s$/, reason: "test setup" },
+  {
+    pattern: /^(?:(?:packages|apps)\/[^/]+\/)?vitest\.setup\.[cm]?[jt]s$/,
+    reason: "test setup at the repository or package root",
+  },
   { pattern: /^stryker\.base\.mjs$/, reason: "shared Stryker configuration" },
 ];
 

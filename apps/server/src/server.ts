@@ -10,8 +10,6 @@ import fastifyStatic from "@fastify/static";
 import Fastify from "fastify";
 import type { FastifyInstance } from "fastify";
 
-import { WEB_DIST_DIR } from "./paths.ts";
-
 /**
  * The only address the server listens on. It is a constant on purpose: nothing
  * can make the server listen elsewhere (ADR 0014, development-rules §11).
@@ -23,8 +21,8 @@ export const DEFAULT_PORT = 4318;
 
 /** Options of {@link buildApp}. */
 export interface AppOptions {
-  /** Folder of the built site; defaults to {@link WEB_DIST_DIR}. */
-  readonly webDistDir?: string;
+  /** Folder of the built site (`apps/web/dist`, see `repositoryPaths`). */
+  readonly webDistDir: string;
 }
 
 /** Options of {@link startServer}. */
@@ -39,12 +37,11 @@ export interface StartOptions extends AppOptions {
  * Routes: `GET /api/health` answers `{ status: "ok" }`; the built site is served
  * from `webDistDir` when it has an `index.html`.
  */
-export function buildApp(options: AppOptions = {}): FastifyInstance {
+export function buildApp(options: AppOptions): FastifyInstance {
   const app = Fastify();
   app.get("/api/health", () => ({ status: "ok" }));
-  const webDistDir = options.webDistDir ?? WEB_DIST_DIR;
-  if (existsSync(join(webDistDir, "index.html"))) {
-    void app.register(fastifyStatic, { root: webDistDir });
+  if (existsSync(join(options.webDistDir, "index.html"))) {
+    void app.register(fastifyStatic, { root: options.webDistDir });
   }
   return app;
 }

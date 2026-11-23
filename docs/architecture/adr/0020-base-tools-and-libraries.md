@@ -45,9 +45,10 @@ compatíveis entre si.
    configurável). Portas: 4318 por padrão (`PORT`), 4319 no E2E, 5173 no Vite de
    desenvolvimento, que encaminha `/api` para o servidor. O `.env` da raiz é lido com
    `process.loadEnvFile` (sem dotenv); variáveis já definidas no ambiente vencem. A raiz do
-   repositório é a pasta acima mais próxima cujo `package.json` declara `workspaces`, para que o
-   `.env` e `apps/web/dist` sejam achados de onde quer que o código rode (inclusive na cópia que o
-   Stryker faz do pacote).
+   repositório é a pasta acima mais próxima cujo `package.json` declara `workspaces`, achada sob
+   demanda quando o servidor inicia (nada é calculado ao importar), para que o `.env` e
+   `apps/web/dist` sejam achados de onde quer que o código rode, inclusive na cópia que o
+   Stryker faz do pacote; fora do repositório, o servidor sai com `Erro: … — Solução: …`.
 5. **Qualidade estática:** ESLint 10 (configuração plana em `eslint.config.js`), typescript-eslint
    8 (`strictTypeChecked`, com tipos pelo `projectService`), eslint-plugin-sonarjs 4 (só a regra
    `cognitive-complexity`), eslint-plugin-react-hooks 7 no site e eslint-config-prettier; Prettier

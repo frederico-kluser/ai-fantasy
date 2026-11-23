@@ -23,10 +23,11 @@ As regras vivem em `eslint.config.js` ([ADR 0020](<../architecture/adr/0020-base
 e são testadas no limite exato (o primeiro valor acima do limite falha, o limite passa) por
 `scripts/eslint-config.test.ts`. Detalhes:
 
-- **Testes** (`*.test.ts(x)` e specs do E2E) estão isentos dos limites de linhas por função e por
-  arquivo, porque a preparação pode ser longa; nunca podem ter lógica: `if`, ternário, `switch`,
-  `for`, `for…in`, `for…of`, `while`, `do…while` e `try` são proibidos. `??` e `||` são
-  permitidos.
+- **Testes** (`*.test.ts(x)` e specs do E2E, `e2e/**/*.spec.ts`) estão isentos dos limites de
+  linhas por função e por arquivo, porque a preparação pode ser longa; nunca podem ter lógica:
+  `if`, ternário, `switch`, `for`, `for…in`, `for…of`, `while`, `do…while` e `try` são
+  proibidos. `??` e `||` são permitidos. Helpers do E2E (os outros arquivos de `e2e/`) são
+  código comum: podem ter lógica e seguem os limites.
 - **Motor, código e testes** (`packages/engine/src` e `packages/engine/test`): proibidos relógio
   (`Date`, `performance`), aleatoriedade (`Math.random`, `crypto`), agendamento (`setTimeout`,
   `setInterval`, `setImmediate`, `queueMicrotask`), locale (`Intl`, `localeCompare`,
