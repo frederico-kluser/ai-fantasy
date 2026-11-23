@@ -8,6 +8,15 @@ import fc from "fast-check";
 import { toBipolarBp, toBp, type BipolarBp, type Bp } from "../../src/domain/bp.ts";
 import type { CharacterId } from "../../src/domain/ids.ts";
 import { DRIVE_IDS, type DriveId } from "../../src/presets/drives.ts";
+import { BOND_AXIS_IDS, type BondAxisId, type BondLabelId } from "../../src/presets/bonds.ts";
+import type { Bond } from "../../src/character/bonds.ts";
+import {
+  relaxPerception,
+  type ApparentEmotion,
+  type ApparentMark,
+  type Perception,
+  type PerceptionValues,
+} from "../../src/character/perception.ts";
 import type { BodyNeedId } from "../../src/presets/body.ts";
 import { EMOTION_IDS, type EmotionId } from "../../src/presets/emotions.ts";
 import { TRAIT_IDS, type TraitId } from "../../src/presets/traits.ts";
@@ -176,4 +185,50 @@ export function arbitraryRaisedLowDeficit(): fc.Arbitrary<RaisedLowDeficit> {
       after: raise(drives, low, target as CharacterId, amount),
       higher,
     }));
+}
+
+/** A bond toward `target` with every axis at 0, with the overrides and labels given. */
+export function aBond(
+  target: number,
+  axes: Partial<Record<BondAxisId, number>> = {},
+  labels: readonly BondLabelId[] = [],
+): Bond {
+  const entries = BOND_AXIS_IDS.map((id): [BondAxisId, Bp] => [id, toBp(axes[id] ?? 0)]);
+  // Every axis id has just been given a value.
+  return {
+    target: target as CharacterId,
+    axes: Object.fromEntries(entries) as Bond["axes"],
+    labels,
+  };
+}
+
+/** A perception of `target` with every value at 0, with the overrides given. */
+export function aPerception(
+  target: number,
+  values: Partial<Record<keyof PerceptionValues, number>> = {},
+  apparentEmotion: ApparentEmotion | null = null,
+  apparentState: readonly ApparentMark[] = [],
+): Perception {
+  return {
+    target: target as CharacterId,
+    perceivedThreat: toBp(values.perceivedThreat ?? 0),
+    perceivedHostility: toBp(values.perceivedHostility ?? 0),
+    perceivedInterest: toBp(values.perceivedInterest ?? 0),
+    perceivedSincerity: toBp(values.perceivedSincerity ?? 0),
+    apparentEmotion,
+    apparentState,
+  };
+}
+
+/** The perception after `ticks` ticks without updates. */
+export function ticksOfPerception(
+  perception: Perception,
+  preview: PerceptionValues,
+  ticks: number,
+): Perception {
+  let current = perception;
+  for (let tick = 0; tick < ticks; tick += 1) {
+    current = relaxPerception(current, preview);
+  }
+  return current;
 }
