@@ -70,7 +70,10 @@ describe("misreadChance (dialogue-acts §3)", () => {
   });
 
   it("given a sharp friend when interpreting then the chance is clamped at 0", () => {
-    const reader = aReader({ perceptiveness: toBp(10000), bond: aBond(1, { affection: 10000 }).axes });
+    const reader = aReader({
+      perceptiveness: toBp(10000),
+      bond: aBond(1, { affection: 10000 }).axes,
+    });
 
     expect(misreadChance(300, 1, toBp(0), reader)).toBe(0);
   });
@@ -144,9 +147,7 @@ describe("readTone (dialogue-acts §3, stream perception)", () => {
       misread: false,
       chance: misreadChance(2500, 1, toBp(0), DISTRUSTFUL),
     });
-    expect(drawer.finish().records.map((record) => record.purpose)).toStrictEqual([
-      "TONE_MISREAD",
-    ]);
+    expect(drawer.finish().records.map((record) => record.purpose)).toStrictEqual(["TONE_MISREAD"]);
   });
 
   it.each<[number, ToneId]>([
