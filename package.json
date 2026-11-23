@@ -1,0 +1,51 @@
+{
+  "name": "ai-fantasy",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Web simulator of conversations with NPCs that simulate people.",
+  "license": "MIT",
+  "type": "module",
+  "engines": {
+    "node": ">=24"
+  },
+  "workspaces": [
+    "packages/*",
+    "apps/*"
+  ],
+  "scripts": {
+    "lint": "eslint . --max-warnings=0 && prettier --check .",
+    "format": "prettier --write .",
+    "typecheck": "npm run typecheck --workspaces --if-present && tsc -p tsconfig.json",
+    "test": "vitest run",
+    "coverage": "vitest run --coverage",
+    "coverage:diff": "node scripts/diff-coverage.ts",
+    "licenses": "node scripts/check-licenses.ts",
+    "e2e": "playwright test",
+    "mutation": "npm run mutation --workspaces --if-present",
+    "mutation:changed": "node scripts/mutation-changed.ts",
+    "bench": "node packages/engine/bench/run.ts",
+    "build": "npm run build --workspace @ai-fantasy/web",
+    "start": "npm run build && node apps/server/src/main.ts",
+    "dev": "node scripts/dev.ts",
+    "docs:lint": "markdownlint-cli2 \"**/*.md\"",
+    "check": "npm run lint && npm run typecheck && npm run coverage && npm run coverage:diff && npm run licenses && npm run e2e && npm run bench && npm run mutation:changed && npm run docs:lint"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "@playwright/test": "^1.65.1",
+    "@stryker-mutator/core": "^10.1.1",
+    "@stryker-mutator/vitest-runner": "^10.1.1",
+    "@types/node": "^24.19.2",
+    "@vitest/coverage-v8": "^5.1.1",
+    "eslint": "^10.15.0",
+    "eslint-config-prettier": "^10.1.8",
+    "eslint-plugin-react-hooks": "^7.1.1",
+    "eslint-plugin-sonarjs": "^4.2.2",
+    "markdownlint-cli2": "^0.24.2",
+    "prettier": "^3.10.1",
+    "typescript": "~6.0.3",
+    "typescript-eslint": "^8.73.0",
+    "vite": "^8.3.8",
+    "vitest": "^5.1.1"
+  }
+}

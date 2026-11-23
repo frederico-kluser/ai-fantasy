@@ -4,16 +4,17 @@
 # de execução ficam na máquina de cada pessoa (ver docs/architecture/ai-integration.md).
 # ---------------------------------------------------------------------------
 
-# Build e ferramentas do monorepo TypeScript
+# Build e ferramentas do monorepo TypeScript (em qualquer pacote)
 node_modules/
 dist/
 build/
 .vite/
 *.tsbuildinfo
-/reports/
+reports/
 .stryker-tmp/
-/playwright-report/
-/blob-report/
+.vitest/
+playwright-report/
+blob-report/
 
 # Rust/WebAssembly (só se a tarefa PERF-01 for ativada)
 /target/
@@ -50,10 +51,10 @@ build/
 *.pem
 *.key
 
-# Cobertura, mutação e relatórios
-/coverage/
+# Cobertura, mutação e relatórios (em qualquer pacote)
+coverage/
 /lcov.info
-/test-results/
+test-results/
 
 # Ferramentas e sistemas
 __pycache__/

@@ -1,0 +1,18 @@
+# Prettier formata só código e configuração. Documentação (Markdown) é verificada pelo
+# markdownlint; workflows e governança em .github/ seguem o próprio estilo.
+*.md
+docs/
+.agents/
+.claude/
+.github/
+package-lock.json
+CHANGELOG.md
+
+# Saídas geradas (o .gitignore também é respeitado)
+**/dist/
+**/coverage/
+**/reports/
+**/.stryker-tmp/
+**/.vitest/
+playwright-report/
+test-results/
