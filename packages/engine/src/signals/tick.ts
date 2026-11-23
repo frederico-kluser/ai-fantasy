@@ -48,6 +48,7 @@ function emitAll(
 ): SeenEmission[] {
   return sorted.flatMap((emitter) =>
     emissionsOf(drawer, input.signals, {
+      tick: input.tick,
       emitter: emitter.id,
       intensities: causeIntensities(emitter, {
         attraction: visibleAttraction(emitter, sorted, input.scene.grid, vision),

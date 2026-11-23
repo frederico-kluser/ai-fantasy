@@ -4,7 +4,9 @@ import { aDrawer, forcing } from "../../test/support/acts.ts";
 import { defaultSignals } from "../../test/support/signals.ts";
 import { idOf } from "../../test/support/space.ts";
 import type { SignalCauseId } from "../presets/signals.ts";
-import { emissionChance, emitSignals } from "./emission.ts";
+import type { Drawer } from "../rng/drawer.ts";
+import type { SignalRules } from "./rules.ts";
+import { emissionChance, emissionsOf, type EmissionInput, type EmittedSignal } from "./emission.ts";
 
 const SIGNALS = defaultSignals();
 
@@ -56,7 +58,16 @@ describe("emissionChance (simulation-model §7, emission)", () => {
   });
 });
 
-describe("emitSignals (simulation-model §7, emission on the signal stream)", () => {
+/** The signals emitted at tick 0, without their presets. */
+function emitSignals(
+  drawer: Drawer,
+  signals: SignalRules,
+  input: Omit<EmissionInput, "tick">,
+): EmittedSignal[] {
+  return emissionsOf(drawer, signals, { ...input, tick: 0 }).map((emission) => emission.emitted);
+}
+
+describe("emissionsOf (simulation-model §7, emission on the signal stream)", () => {
   it("given only fear at 9000 forced to emit when emitting then the five signals of fear come out, in the order of the table", () => {
     const drawer = aDrawer([forcing("SIGNAL_EMIT", 1, 4)]);
 
@@ -85,8 +96,8 @@ describe("emitSignals (simulation-model §7, emission on the signal stream)", ()
     });
 
     expect([first, second]).toStrictEqual([
-      { emitter: 4, signal: "tremor", channel: "VISUAL", cause: "fear" },
-      { emitter: 4, signal: "shakyVoice", channel: "VOCAL", cause: "fear" },
+      { tick: 0, emitter: 4, signal: "tremor", channel: "VISUAL", cause: "fear" },
+      { tick: 0, emitter: 4, signal: "shakyVoice", channel: "VOCAL", cause: "fear" },
     ]);
   });
 
@@ -112,7 +123,7 @@ describe("emitSignals (simulation-model §7, emission on the signal stream)", ()
     });
 
     expect(emitted.filter((entry) => entry.signal === "blush")).toStrictEqual([
-      { emitter: 4, signal: "blush", channel: "VISUAL", cause: "anger" },
+      { tick: 0, emitter: 4, signal: "blush", channel: "VISUAL", cause: "anger" },
     ]);
   });
 
@@ -142,7 +153,7 @@ describe("emitSignals (simulation-model §7, emission on the signal stream)", ()
     });
 
     expect(emitted).toStrictEqual([
-      { emitter: 4, signal: "blush", channel: "VISUAL", cause: "shame" },
+      { tick: 0, emitter: 4, signal: "blush", channel: "VISUAL", cause: "shame" },
     ]);
   });
 

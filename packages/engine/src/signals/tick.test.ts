@@ -12,7 +12,7 @@ import {
   someEmotions,
   someTraits,
 } from "../../test/support/character.ts";
-import { aScene } from "../../test/support/context.ts";
+import { aScene, openGrid } from "../../test/support/context.ts";
 import {
   arbitraryPerception,
   defaultSignals,
@@ -21,6 +21,7 @@ import {
 import { gridOf, idOf } from "../../test/support/space.ts";
 import { createDrawer, type ForcedDraw } from "../rng/drawer.ts";
 import { createRngState } from "../rng/state.ts";
+import { WEATHER_IDS } from "../presets/weathers.ts";
 import { hashState } from "../session/hash.ts";
 import { signalsTick, type SignalTickInput } from "./tick.ts";
 
@@ -71,7 +72,7 @@ describe("signalsTick: emission (simulation-model §7)", () => {
     const result = signalsTick(aDrawer([EMIT_ALL]), [liar], { ...INPUT, lying: [idOf(1)] });
 
     expect(result.emitted).toStrictEqual([
-      { emitter: 1, signal: "avertedGaze", channel: "VISUAL", cause: "lying" },
+      { tick: 0, emitter: 1, signal: "avertedGaze", channel: "VISUAL", cause: "lying" },
     ]);
   });
 
@@ -326,6 +327,129 @@ describe("signalsTick: perception of the moment (simulation-model §7 and §5.5)
   });
 });
 
+describe("signalsTick: review cases (simulation-model §7)", () => {
+  const onlyTremor = INPUT.signals.filter((signal) => signal.id === "tremor");
+
+  it("given a noticed signal when ticking then SIGNAL_NOTICE is a chance on the perception stream about the observer", () => {
+    const drawer = aDrawer([EMIT_ALL, NOTICE_ALL]);
+
+    signalsTick(drawer, [AFRAID, NEIGHBOR], INPUT);
+
+    const notice = drawer.finish().records.find((record) => record.purpose === "SIGNAL_NOTICE");
+    expect(notice).toMatchObject({ stream: "perception", kind: "CHANCE", target: 2 });
+  });
+
+  it("given a noticed signal when ticking then SIGNAL_INTERPRET is a weighted draw on the perception stream about the observer", () => {
+    const drawer = aDrawer([EMIT_ALL, NOTICE_ALL]);
+
+    signalsTick(drawer, [AFRAID, NEIGHBOR], INPUT);
+
+    const reading = drawer.finish().records.find((record) => record.purpose === "SIGNAL_INTERPRET");
+    expect(reading).toMatchObject({ stream: "perception", kind: "WEIGHTED", target: 2 });
+  });
+
+  it("given two observers given out of order around one emitter when ticking then they notice in increasing id order", () => {
+    const emitter = aCharacter(2, 1, { emotions: someEmotions({ fear: 9000 }) });
+    const drawer = aDrawer([forcing("SIGNAL_EMIT", 1, 2)]);
+
+    signalsTick(drawer, [aCharacter(3, 2), emitter, aCharacter(1, 0)], {
+      ...INPUT,
+      signals: onlyTremor,
+    });
+
+    const notices = drawer.finish().records.filter((record) => record.purpose === "SIGNAL_NOTICE");
+    expect(notices.map((record) => record.target)).toStrictEqual([1, 3]);
+  });
+
+  it("given two observers given out of order that both notice when ticking then the events come by observer id", () => {
+    const emitter = aCharacter(2, 1, { emotions: someEmotions({ fear: 9000 }) });
+    const everyNotice: ForcedDraw = {
+      selector: { kind: "PURPOSE", purpose: "SIGNAL_NOTICE" },
+      outcome: 1,
+    };
+
+    const result = signalsTick(
+      aDrawer([forcing("SIGNAL_EMIT", 1, 2), everyNotice]),
+      [aCharacter(3, 2), emitter, aCharacter(1, 0)],
+      { ...INPUT, signals: onlyTremor },
+    );
+
+    expect(result.events.map((event) => event.observer)).toStrictEqual([1, 3]);
+  });
+
+  it("given selfControl 0 with a tendency of 10000 when ticking then the effective selfControl 3000 makes the chance 6800", () => {
+    const tending = { ...AFRAID, tendencies: someTraits({ selfControl: 10000 }) };
+    const drawer = aDrawer();
+
+    signalsTick(drawer, [tending], INPUT);
+
+    expect(drawer.finish().records[0]?.p).toBe(6800);
+  });
+
+  it("given trustInOthers 0 with a tendency of -10000 when a perception relaxes then the preview reads the effective -3000: hostility 15", () => {
+    const wary = aCharacter(2, 1, {
+      tendencies: someTraits({ trustInOthers: -10000 }),
+      perceptions: [aPerception(3, { perceivedHostility: 0 })],
+    });
+
+    const result = signalsTick(aDrawer(), [wary, aCharacter(3, 2)], INPUT);
+
+    expect(result.characters[0]?.perceptions[0]?.perceivedHostility).toBe(15);
+  });
+
+  it("given snow, the emitter under a roof and the observer outside when ticking then cold is not doubled: total weight 25000", () => {
+    const scene = aScene({ weather: "snow", grid: openGrid(25, [0]) });
+    const drawer = aDrawer([EMIT_ALL, NOTICE_ALL]);
+
+    signalsTick(drawer, [AFRAID, NEIGHBOR], { ...INPUT, scene, signals: onlyTremor });
+
+    const reading = drawer.finish().records.find((record) => record.purpose === "SIGNAL_INTERPRET");
+    expect(reading?.bound).toBe(25000);
+  });
+
+  it("given snow, the emitter outside and the observer under a roof when ticking then cold is doubled: total weight 35000", () => {
+    const scene = aScene({ weather: "snow", grid: openGrid(25, [1]) });
+    const drawer = aDrawer([EMIT_ALL, NOTICE_ALL]);
+
+    signalsTick(drawer, [AFRAID, NEIGHBOR], { ...INPUT, scene, signals: onlyTremor });
+
+    const reading = drawer.finish().records.find((record) => record.purpose === "SIGNAL_INTERPRET");
+    expect(reading?.bound).toBe(35000);
+  });
+
+  const smitten = aCharacter(1, 0, { bonds: [aBond(2, { attraction: 9000 })] });
+  const onlySmile = INPUT.signals.filter((signal) => signal.id === "smile");
+
+  it("given the loved one 10 cells away in the morning when ticking then it is in sight and the smile comes out", () => {
+    const result = signalsTick(aDrawer([EMIT_ALL]), [smitten, aCharacter(2, 10)], {
+      ...INPUT,
+      signals: onlySmile,
+    });
+
+    expect(result.emitted.map((entry) => entry.signal)).toStrictEqual(["smile"]);
+  });
+
+  it("given the loved one 10 cells away in the dim evening when ticking then it is out of the sight range of 8 and nothing comes out", () => {
+    const result = signalsTick(aDrawer([EMIT_ALL]), [smitten, aCharacter(2, 10)], {
+      ...INPUT,
+      scene: aScene({ startMinute: 1100 }),
+      signals: onlySmile,
+    });
+
+    expect(result.emitted).toStrictEqual([]);
+  });
+
+  it("given a signal at tick 7 when ticking then the emitted signal carries the tick", () => {
+    const result = signalsTick(aDrawer([EMIT_ALL]), [AFRAID], {
+      ...INPUT,
+      tick: 7,
+      signals: onlyTremor,
+    });
+
+    expect(result.emitted[0]?.tick).toBe(7);
+  });
+});
+
 describe("signalsTick: shape and ranges (simulation-model §18 invariant 2)", () => {
   it("given characters out of id order when ticking then the result is sorted by id", () => {
     const result = signalsTick(aDrawer(), [aCharacter(5, 0), aCharacter(2, 4)], INPUT);
@@ -356,15 +480,18 @@ describe("signalsTick: shape and ranges (simulation-model §18 invariant 2)", ()
             perceptions: fc.tuple(arbitraryPerception(2), arbitraryPerception(3)),
             seed: fc.integer({ min: 0, max: 0xffffffff }),
             hour: fc.integer({ min: 0, max: 1439 }),
+            weather: fc.constantFrom(...WEATHER_IDS),
+            roofed: fc.uniqueArray(fc.integer({ min: 0, max: 48 }), { maxLength: 49 }),
           }),
         ),
-        ({ characters: [first, ...rest], perceptions, seed, hour }) => {
+        ({ characters: [first, ...rest], perceptions, seed, hour, weather, roofed }) => {
           const drawer = createDrawer(createRngState({ castSeed: 1, sceneSeed: seed }), {
             tick: 0,
             mode: "NORMAL",
             forced: [],
           });
-          const scene = aScene({ grid: gridOf(Array(7).fill(".......")), startMinute: hour });
+          const grid = gridOf(Array(7).fill("......."), { roofed });
+          const scene = aScene({ grid, startMinute: hour, weather });
           const result = signalsTick(drawer, [{ ...first, perceptions }, ...rest], {
             ...INPUT,
             scene,

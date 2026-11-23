@@ -16,8 +16,8 @@
 > do tick, quem conta na presença, o envelhecimento da percepção e o modelo de fatos e cópias
 > (CORE-04); a v1.7 fixou os sorteios da escuta, as respostas às obrigações e a gravação de
 > um ato em fatos e cópias (SOC-01); a v1.8 fixou a ordem e as finalidades dos sorteios dos sinais,
-quem pode notar, a ordem dos pesos da interpretação e o que conta como atualização da percepção
-(SOC-02).
+> quem pode notar, a ordem dos pesos da interpretação e o que conta como atualização da percepção
+> (SOC-02).
 
 ## 1. Princípios
 

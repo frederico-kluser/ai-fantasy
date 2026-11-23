@@ -20,6 +20,8 @@ const SELF_CONTROL_DIVISOR = 2;
 
 /** A signal that came out this tick. */
 export interface EmittedSignal {
+  /** The tick when the signal came out. */
+  readonly tick: number;
   readonly emitter: CharacterId;
   readonly signal: SignalId;
   readonly channel: SignalChannel;
@@ -29,6 +31,8 @@ export interface EmittedSignal {
 
 /** Who emits, how strong each cause is and the emitter's effective `selfControl`. */
 export interface EmissionInput {
+  /** The tick being simulated. */
+  readonly tick: number;
   readonly emitter: CharacterId;
   readonly intensities: Readonly<Record<SignalCauseId, number>>;
   readonly selfControl: number;
@@ -99,18 +103,15 @@ export function emissionsOf(
       ? []
       : [
           {
-            emitted: { emitter: input.emitter, signal: rule.id, channel: rule.channel, cause },
+            emitted: {
+              tick: input.tick,
+              emitter: input.emitter,
+              signal: rule.id,
+              channel: rule.channel,
+              cause,
+            },
             rule,
           },
         ];
   });
-}
-
-/** The signals one character emits this tick (see {@link emissionsOf}), without their presets. */
-export function emitSignals(
-  drawer: Drawer,
-  signals: SignalRules,
-  input: EmissionInput,
-): EmittedSignal[] {
-  return emissionsOf(drawer, signals, input).map((emission) => emission.emitted);
 }

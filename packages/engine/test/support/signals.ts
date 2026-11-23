@@ -7,6 +7,7 @@ import fc from "fast-check";
 
 import type { Perception } from "../../src/character/perception.ts";
 import { toBp } from "../../src/domain/bp.ts";
+import { APPARENT_EMOTION_FLOOR } from "../../src/domain/constants.ts";
 import type { CharacterId } from "../../src/domain/ids.ts";
 import { EMOTION_IDS } from "../../src/presets/emotions.ts";
 import { loadPresets } from "../../src/presets/load.ts";
@@ -65,11 +66,18 @@ export function perceptionProblems(perception: Perception): string[] {
     perception.perceivedHostility,
     perception.perceivedInterest,
     perception.perceivedSincerity,
-    perception.apparentEmotion?.intensity ?? 10000,
   ];
+  const faded =
+    perception.apparentEmotion !== null &&
+    perception.apparentEmotion.intensity < APPARENT_EMOTION_FLOOR
+      ? [perception.apparentEmotion.intensity]
+      : [];
   const marks = perception.apparentState.map((mark) => mark.ticksUnconfirmed);
   return [
-    ...values.filter((value) => !Number.isSafeInteger(value) || value < 0 || value > 10000),
+    ...[...values, perception.apparentEmotion?.intensity ?? 10000].filter(
+      (value) => !Number.isSafeInteger(value) || value < 0 || value > 10000,
+    ),
+    ...faded,
     ...marks.filter((ticks) => ticks < 0 || ticks >= 60),
   ].map((value) => `${perception.target}: ${value}`);
 }
