@@ -477,4 +477,13 @@ describe("validateCast (presets §10.1)", () => {
 
     expect(validateCast(presets, input).ok).toBe(true);
   });
+
+  it("given three rivals in a triangle when validating then no parent cycle is found", () => {
+    const input = aCastInput(
+      ["rebel", "merchant", "elder"],
+      [aBondSpec(0, 1, "rivals"), aBondSpec(1, 2, "rivals"), aBondSpec(2, 0, "rivals")],
+    );
+
+    expect(validateCast(presets, input).ok).toBe(true);
+  });
 });

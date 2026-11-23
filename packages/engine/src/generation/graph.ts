@@ -155,19 +155,11 @@ function comparePairKeys(x: string, y: string): number {
  * distinct, existing characters.
  */
 export function graphErrors(bonds: readonly BondSpec[]): CastError[] {
-  const cycle = cycleBonds(bonds);
-  if (cycle.length > 0) {
-    const message = "PARENT bonds form a cycle: someone would be their own ancestor";
-    const cycleErrors = cycle.map((edge) =>
-      castError(
-        "PARENT_CYCLE",
-        `bonds.${edge.index}`,
-        `${message} (${edge.parent} → ${edge.child})`,
-      ),
-    );
-    return [...onceOnlyErrors(bonds), ...cycleErrors];
-  }
-  return onceOnlyErrors(bonds);
+  const message = "PARENT bonds form a cycle: someone would be their own ancestor";
+  const cycleErrors = cycleBonds(bonds).map((edge) =>
+    castError("PARENT_CYCLE", `bonds.${edge.index}`, `${message} (${edge.parent} → ${edge.child})`),
+  );
+  return [...onceOnlyErrors(bonds), ...cycleErrors];
 }
 
 function inCatalogOrder(labels: readonly BondLabelId[]): BondLabelId[] {
