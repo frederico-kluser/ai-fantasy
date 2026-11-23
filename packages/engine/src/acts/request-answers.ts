@@ -182,7 +182,7 @@ export function isRequestDriveRef(ref: DriveRef): ref is RequestDriveRef {
   return (REQUEST_DRIVE_REFS as readonly string[]).includes(ref);
 }
 
-function isRequestAct(act: ActId): act is RequestActId {
+export function isRequestAct(act: ActId): act is RequestActId {
   return REQUESTS.includes(act);
 }
 

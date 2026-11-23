@@ -33,7 +33,7 @@ describe("topicInterests (simulation-model §5.2)", () => {
   });
   const present = ids(1, 2, 3, 4);
 
-  it.each([
+  it.each<[string, Topic, boolean]>([
     ["the reader itself", person(2), true],
     ["someone present it resents (5000)", person(3), true],
     ["someone present it barely likes (4999)", person(4), false],

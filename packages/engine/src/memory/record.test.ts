@@ -201,6 +201,12 @@ describe("recordAct: what the appraisal adds (SOC-03)", () => {
     expect(recordAct(input).fact.offenders).toStrictEqual(ids(1));
   });
 
+  it("given the band of an answer from the appraisal when recording then the fact keeps it", () => {
+    const input = { ...recording(), appraisal: { band: "PARTIAL" as const } };
+
+    expect(recordAct(input).fact.band).toBe("PARTIAL");
+  });
+
   it("given an importance from the appraisal when recording then that character's copy has it", () => {
     const perceived: Perceived[] = [{ id: idOf(2), perspective: "DIRECT" }];
     const importances = [{ id: idOf(2), importance: toBp(7000) }];

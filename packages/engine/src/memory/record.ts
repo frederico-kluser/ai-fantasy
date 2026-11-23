@@ -10,7 +10,7 @@
  * and a copy has the neutral importance of {@link neutralImportance}: 3000 for
  * whoever is in the fact (author, target or topic), 0 for the others.
  */
-import type { ActLabel, ActTargets } from "../acts/label.ts";
+import type { ActLabel, ActTargets, OutcomeBand } from "../acts/label.ts";
 import type { ActPerspective, Perceived } from "../acts/perspectives.ts";
 import type { CharacterState } from "../character/state.ts";
 import type { Bp } from "../domain/bp.ts";
@@ -44,8 +44,8 @@ export interface CharacterImportance {
 /**
  * What the appraisal (SOC-03) adds to the record. Every field is optional and
  * defaults to the neutral value: no offenders, the importance of
- * {@link neutralImportance}, and no belief decided (every `TOLD` copy carries
- * the teller's version).
+ * {@link neutralImportance}, no belief decided (every `TOLD` copy carries the
+ * teller's version) and no outcome band.
  */
 export interface RecordAppraisal {
   /** The offenders of the new fact, sorted by id (default `[]`). */
@@ -59,6 +59,8 @@ export interface RecordAppraisal {
    * Absent: belief is not decided yet and every `TOLD` copy carries the teller's version.
    */
   readonly believers?: readonly CharacterId[];
+  /** The outcome band of a request this act answers (dialogue-acts §8.2; default none). */
+  readonly band?: OutcomeBand | null;
 }
 
 /** The recorded act: the new fact, the record with it, and the characters with their copies. */
@@ -207,7 +209,7 @@ function toldOrRefreshed(
 
 /**
  * Records an act (simulation-model §12): the fact, with the next id, the real
- * label, no outcome band, the appraisal's offenders (none by default) and no
+ * label, the appraisal's outcome band (none by default), the appraisal's offenders (none by default) and no
  * secret mark;
  * a `DIRECT` copy for the author and a copy with its perspective for each one
  * who perceived the act; and, in a `TELL` about a fact, the `TOLD` copies and
@@ -222,7 +224,7 @@ export function recordAct(input: RecordInput): Recorded {
     tick: input.tick,
     author: input.author,
     label: input.label,
-    band: null,
+    band: input.appraisal?.band ?? null,
     offenders: input.appraisal?.offenders ?? [],
     secret: false,
   };
