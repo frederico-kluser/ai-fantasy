@@ -1,19 +1,11 @@
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { fileURLToPath } from "node:url";
 
 import type { FastifyInstance } from "fastify";
 import { afterAll, describe, expect, it, onTestFinished } from "vitest";
 
-import {
-  buildApp,
-  DEFAULT_PORT,
-  HOST,
-  listeningAddresses,
-  startServer,
-  WEB_DIST_DIR,
-} from "./server.ts";
+import { buildApp, DEFAULT_PORT, HOST, listeningAddresses, startServer } from "./server.ts";
 
 const scratch = mkdtempSync(join(tmpdir(), "ai-fantasy-server-"));
 const emptyDir = join(scratch, "empty");
@@ -111,9 +103,5 @@ describe("routes", () => {
     const response = await app.inject({ method: "GET", url: "/asset.txt" });
 
     expect(response.statusCode).toBe(404);
-  });
-
-  it("given the default site folder when reading it then it is apps/web/dist", () => {
-    expect(WEB_DIST_DIR).toBe(fileURLToPath(new URL("../../web/dist/", import.meta.url)));
   });
 });

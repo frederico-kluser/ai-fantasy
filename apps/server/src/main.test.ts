@@ -1,11 +1,11 @@
 import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { fileURLToPath } from "node:url";
 
-import { afterAll, describe, expect, it, onTestFinished } from "vitest";
+import { afterAll, describe, expect, it, onTestFinished, vi } from "vitest";
 
-import { main, ROOT_ENV_FILE, type MainResult } from "./main.ts";
+import { defaultMainOptions, main, type MainResult } from "./main.ts";
+import { ROOT_ENV_FILE } from "./paths.ts";
 import { listeningAddresses, startServer } from "./server.ts";
 
 const scratch = mkdtempSync(join(tmpdir(), "ai-fantasy-main-"));
@@ -79,7 +79,18 @@ describe("server entry point", () => {
     });
   });
 
-  it("given the repository layout when locating the .env file then it is at the repository root", () => {
-    expect(ROOT_ENV_FILE).toBe(fileURLToPath(new URL("../../../.env", import.meta.url)));
+  it("given the process when building the default options then they use its environment and the root .env", () => {
+    expect(defaultMainOptions()).toMatchObject({ env: process.env, envFile: ROOT_ENV_FILE });
+  });
+
+  it("given a line to log with the default options then it goes to the console", () => {
+    const log = vi.spyOn(console, "log").mockImplementation(() => undefined);
+    onTestFinished(() => {
+      log.mockRestore();
+    });
+
+    defaultMainOptions().log("server line");
+
+    expect(log.mock.calls).toEqual([["server line"]]);
   });
 });
