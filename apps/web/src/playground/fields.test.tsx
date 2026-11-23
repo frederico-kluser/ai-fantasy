@@ -357,8 +357,8 @@ describe("bond fields", () => {
       within(card("Laço 1")).getByLabelText<HTMLInputElement>("ressentimento, Ana → Bia").value,
       within(card("Laço 1")).getByLabelText<HTMLInputElement>("ressentimento, Bia → Ana").value,
     ]).toStrictEqual([
-      String(view.drafts.bonds[0]?.aToB.resentment),
-      String(view.drafts.bonds[0]?.bToA.resentment),
+      String(view.drafts.bonds[0]?.draft.aToB.resentment),
+      String(view.drafts.bonds[0]?.draft.bToA.resentment),
     ]);
   });
 

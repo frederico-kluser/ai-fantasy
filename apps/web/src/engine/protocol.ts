@@ -101,7 +101,15 @@ export const castViewSchema = z.strictObject({
   ),
   drafts: z.strictObject({
     characters: z.array(characterDraftDataSchema),
-    bonds: z.array(bondDraftDataSchema),
+    /** The chosen bonds in the order of the input, then the pairs the family added (`derived`). */
+    bonds: z.array(
+      z.strictObject({
+        a: characterIdSchema,
+        b: characterIdSchema,
+        derived: z.boolean(),
+        draft: bondDraftDataSchema,
+      }),
+    ),
   }),
   hook: z
     .strictObject({

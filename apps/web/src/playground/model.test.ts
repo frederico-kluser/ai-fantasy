@@ -64,6 +64,7 @@ describe("initialPlayground", () => {
       startMinute: 1200,
       characters: [],
       bonds: [],
+      derived: [],
       positions: [],
       player: null,
       revision: 0,
@@ -133,7 +134,16 @@ describe("castInputOf", () => {
       bonds: [
         { a: 0, b: 1, archetype: "rivals", events: [{ event: "stole", author: 1 }], locked: null },
       ],
+      derived: [],
     });
+  });
+
+  it("given a derived pair locked when building the cast input then its lock is carried", () => {
+    const locked = { aToB: {}, bToA: {}, secrets: [] } as never;
+
+    expect(castInputOf(withCast({ derived: [{ a: 0, b: 2, locked }] })).derived).toStrictEqual([
+      { a: 0, b: 2, locked },
+    ]);
   });
 
   it("given a drive picked second only when building then it is the one pick", () => {

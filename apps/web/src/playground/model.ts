@@ -62,6 +62,13 @@ export interface BondForm {
   readonly locked: BondDraftData | null;
 }
 
+/** A pair the transitive family added, locked to its drawn values (presets §10.1, `derived`). */
+export interface DerivedForm {
+  readonly a: number;
+  readonly b: number;
+  readonly locked: BondDraftData;
+}
+
 /** The manual playground form. */
 export interface PlaygroundState {
   readonly seeds: RngSeeds;
@@ -74,6 +81,8 @@ export interface PlaygroundState {
   readonly startMinute: number;
   readonly characters: readonly CharacterForm[];
   readonly bonds: readonly BondForm[];
+  /** The locked pairs the family added; any change to the bonds drops them. */
+  readonly derived: readonly DerivedForm[];
   /** A cell chosen by hand for each character, by id, or `null` to draw it. */
   readonly positions: readonly (CellPos | null)[];
   readonly player: number | null;
@@ -98,6 +107,7 @@ export function initialPlayground(seeds: RngSeeds): PlaygroundState {
     startMinute: DEFAULT_START_MINUTE,
     characters: [],
     bonds: [],
+    derived: [],
     positions: [],
     player: null,
     revision: 0,
@@ -147,6 +157,7 @@ export function castInputOf(state: PlaygroundState): CastInputData {
       events: bond.events.map((event) => ({ ...event })),
       locked: bond.locked,
     })),
+    derived: state.derived.map((pair) => ({ ...pair })),
   };
 }
 

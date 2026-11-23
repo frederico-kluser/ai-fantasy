@@ -217,7 +217,7 @@ export function BondFields({
           bond={bond}
           index={index}
           names={names}
-          draft={bond.locked ?? state.generated?.drafts.bonds[index]}
+          draft={bond.locked ?? state.generated?.drafts.bonds[index]?.draft}
           dispatch={dispatch}
         />
       ))}

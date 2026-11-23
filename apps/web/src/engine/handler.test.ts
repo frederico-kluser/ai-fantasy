@@ -70,7 +70,11 @@ describe("handleRequest (engine worker protocol)", () => {
       cast: {
         drafts: {
           characters: [{ traits: {} }, { traits: {} }, { traits: {} }],
-          bonds: [{ secrets: [] }, { secrets: [] }],
+          bonds: [
+            { a: 0, b: 1, derived: false, draft: { secrets: [] } },
+            { a: 1, b: 2, derived: false, draft: { secrets: [] } },
+            { a: 0, b: 2, derived: true, draft: { secrets: [] } },
+          ],
         },
       },
     });

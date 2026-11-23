@@ -53,7 +53,12 @@ export function castViewOf(cast: Cast): CastView {
           valence,
         })),
       })),
-      bonds: cast.drafts.bonds.map((draft) => ({ ...draft, secrets: [...draft.secrets] })),
+      bonds: cast.drafts.bonds.map(({ a, b, derived, draft }) => ({
+        a,
+        b,
+        derived,
+        draft: { ...draft, secrets: [...draft.secrets] },
+      })),
     },
     hook: cast.hook === null ? null : { ...cast.hook },
   };

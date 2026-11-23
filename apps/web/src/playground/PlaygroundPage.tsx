@@ -153,9 +153,7 @@ export function PlaygroundPage({ engine, seeds }: Props): JSX.Element {
         busy={actions.busy}
         onGenerate={(again) => void actions.generate(again)}
       />
-      {state.generated === null ? null : (
-        <GeneratedCast view={state.generated} attempt={state.attempt} />
-      )}
+      <GeneratedCast state={state} dispatch={dispatch} />
       <PositionFields state={state} dispatch={dispatch} />
       <Problems problems={actions.problems} />
       <p role="status">{actions.busy ? "O motor está trabalhando…" : ""}</p>

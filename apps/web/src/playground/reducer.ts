@@ -38,6 +38,12 @@ export type PlaygroundAction =
       readonly axis: BondAxisId;
       readonly value: number;
     }
+  | {
+      readonly type: "lockDerived";
+      readonly a: number;
+      readonly b: number;
+      readonly locked: boolean;
+    }
   | { readonly type: "setPosition"; readonly index: number; readonly position: CellPos | null }
   | { readonly type: "setPlayer"; readonly player: number | null }
   | {
@@ -66,6 +72,25 @@ function castChanged(state: PlaygroundState, changes: Partial<PlaygroundState>):
   return { ...state, ...changes, revision: state.revision + 1, generated: null };
 }
 
+/** A new state of the bonds: the locks of the pairs the family added go too. */
+function graphChanged(state: PlaygroundState, changes: Partial<PlaygroundState>): PlaygroundState {
+  return castChanged(state, { ...changes, derived: [] });
+}
+
+function lockDerived(
+  state: PlaygroundState,
+  { a, b, locked }: Extract<PlaygroundAction, { type: "lockDerived" }>,
+): PlaygroundState {
+  const entry = state.generated?.drafts.bonds.find(
+    (pair) => pair.derived && pair.a === a && pair.b === b,
+  );
+  if (entry === undefined) {
+    return state;
+  }
+  const others = state.derived.filter((pair) => pair.a !== a || pair.b !== b);
+  return { ...state, derived: locked ? [...others, { a, b, locked: entry.draft }] : others };
+}
+
 function replaceAt<T>(list: readonly T[], index: number, item: (old: T) => T): T[] {
   return list.map((old, at) => (at === index ? item(old) : old));
 }
@@ -86,7 +111,7 @@ function withoutCharacter(state: PlaygroundState, index: number): PlaygroundStat
     }));
   const player =
     state.player === index || state.player === null ? null : shifted(state.player, index);
-  return castChanged(state, {
+  return graphChanged(state, {
     characters: state.characters.filter((_, at) => at !== index),
     bonds,
     positions: state.positions.filter((_, at) => at !== index),
@@ -113,7 +138,7 @@ function editBondAxis(
   action: Extract<PlaygroundAction, { type: "editBondAxis" }>,
 ): PlaygroundState {
   const bond = state.bonds[action.index];
-  const base = bond?.locked ?? state.generated?.drafts.bonds[action.index];
+  const base = bond?.locked ?? state.generated?.drafts.bonds[action.index]?.draft;
   if (base === undefined) {
     return state;
   }
@@ -157,20 +182,20 @@ const HANDLERS: Handlers = {
   addBond: (state) =>
     state.characters.length < 2
       ? state
-      : castChanged(state, {
+      : graphChanged(state, {
           bonds: [
             ...state.bonds,
             { a: 0, b: 1, archetype: "acquaintances", events: [], locked: null },
           ],
         }),
   updateBond: (state, { index, changes }) =>
-    castChanged(state, {
+    graphChanged(state, {
       bonds: replaceAt(state.bonds, index, (old) => ({ ...old, ...changes, locked: null })),
     }),
   removeBond: (state, { index }) =>
-    castChanged(state, { bonds: state.bonds.filter((_, at) => at !== index) }),
+    graphChanged(state, { bonds: state.bonds.filter((_, at) => at !== index) }),
   lockBond: (state, { index, locked }) => {
-    const draft = state.generated?.drafts.bonds[index];
+    const draft = state.generated?.drafts.bonds[index]?.draft;
     if (draft === undefined) {
       return state;
     }
@@ -178,6 +203,7 @@ const HANDLERS: Handlers = {
     return { ...state, bonds: replaceAt(state.bonds, index, (old) => ({ ...old, locked: lock })) };
   },
   editBondAxis,
+  lockDerived,
   setPosition: (state, { index, position }) => ({
     ...state,
     positions: replaceAt(state.positions, index, () => position),

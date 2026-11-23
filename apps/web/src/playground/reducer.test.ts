@@ -169,11 +169,13 @@ describe("playgroundReducer: locks", () => {
 
     const again = generate(locked, locked.attempt + 1);
 
-    expect([again.attempt, again.generated?.drafts.bonds[0]]).toStrictEqual([
+    expect([again.attempt, again.generated?.drafts.bonds[0]?.draft]).toStrictEqual([
       1,
-      first.generated?.drafts.bonds[0],
+      first.generated?.drafts.bonds[0]?.draft,
     ]);
-    expect(again.generated?.drafts.bonds[1]).not.toStrictEqual(first.generated?.drafts.bonds[1]);
+    expect(again.generated?.drafts.bonds[1]?.draft).not.toStrictEqual(
+      first.generated?.drafts.bonds[1]?.draft,
+    );
   });
 
   it("given a generated character when locking then its drawn values are kept; unlocking clears them", () => {
@@ -237,8 +239,8 @@ describe("playgroundReducer: locks", () => {
     });
 
     expect(state.bonds[0]?.locked).toStrictEqual({
-      ...first.generated?.drafts.bonds[0],
-      bToA: { ...first.generated?.drafts.bonds[0]?.bToA, trust: 4321 },
+      ...first.generated?.drafts.bonds[0]?.draft,
+      bToA: { ...first.generated?.drafts.bonds[0]?.draft.bToA, trust: 4321 },
     });
   });
 
@@ -276,6 +278,90 @@ describe("playgroundReducer: locks", () => {
     expect(
       run(TRIO, { type: "editBondAxis", index: 0, side: "aToB", axis: "trust", value: 1 }),
     ).toBe(TRIO);
+  });
+});
+
+const FAMILY = run(
+  initialPlayground({ ...SEEDS }),
+  { type: "addCharacter", archetype: "elder" },
+  { type: "addCharacter", archetype: "caretaker" },
+  { type: "addCharacter", archetype: "child" },
+  { type: "updateCharacter", index: 0, changes: { name: "Rosa" } },
+  { type: "updateCharacter", index: 1, changes: { name: "Marta" } },
+  { type: "updateCharacter", index: 2, changes: { name: "Joca" } },
+  { type: "addBond" },
+  { type: "addBond" },
+  { type: "updateBond", index: 0, changes: { archetype: "parent_child" } },
+  { type: "updateBond", index: 1, changes: { a: 1, b: 2, archetype: "parent_child" } },
+);
+
+function derivedDraft(state: PlaygroundState) {
+  return state.generated?.drafts.bonds.find((entry) => entry.derived)?.draft;
+}
+
+describe("playgroundReducer: derived pairs", () => {
+  it("given a family cast when regenerating with the derived pair locked then its draft stays", () => {
+    const first = generate(FAMILY);
+    const locked = run(first, { type: "lockDerived", a: 0, b: 2, locked: true });
+
+    const again = generate(locked, 1);
+
+    expect([locked.derived, derivedDraft(again)]).toStrictEqual([
+      [{ a: 0, b: 2, locked: derivedDraft(first) }],
+      derivedDraft(first),
+    ]);
+  });
+
+  it("given a family cast when regenerating without locks then the derived pair is drawn again", () => {
+    const first = generate(FAMILY);
+
+    expect(derivedDraft(generate(first, 1))).not.toStrictEqual(derivedDraft(first));
+  });
+
+  it("given a derived pair locked when unlocking then the lock goes away", () => {
+    const locked = run(generate(FAMILY), { type: "lockDerived", a: 0, b: 2, locked: true });
+
+    expect(run(locked, { type: "lockDerived", a: 0, b: 2, locked: false }).derived).toStrictEqual(
+      [],
+    );
+  });
+
+  it("given a derived pair locked when locking it again then it is kept once", () => {
+    const locked = run(generate(FAMILY), { type: "lockDerived", a: 0, b: 2, locked: true });
+
+    expect(run(locked, { type: "lockDerived", a: 0, b: 2, locked: true }).derived).toHaveLength(1);
+  });
+
+  it("given a pair the family did not add when locking then nothing changes", () => {
+    const first = generate(FAMILY);
+
+    expect(run(first, { type: "lockDerived", a: 0, b: 1, locked: true })).toBe(first);
+  });
+
+  it("given nothing generated when locking a derived pair then nothing changes", () => {
+    expect(run(FAMILY, { type: "lockDerived", a: 0, b: 2, locked: true })).toBe(FAMILY);
+  });
+
+  it.each([
+    { type: "updateBond", index: 0, changes: { archetype: "siblings" } },
+    { type: "removeBond", index: 0 },
+    { type: "addBond" },
+    { type: "removeCharacter", index: 2 },
+  ] as const)(
+    "given a derived pair locked when the graph changes by $type then the lock goes away",
+    (action) => {
+      const locked = run(generate(FAMILY), { type: "lockDerived", a: 0, b: 2, locked: true });
+
+      expect(run(locked, action).derived).toStrictEqual([]);
+    },
+  );
+
+  it("given a derived pair locked when renaming then the lock stays", () => {
+    const locked = run(generate(FAMILY), { type: "lockDerived", a: 0, b: 2, locked: true });
+
+    expect(
+      run(locked, { type: "updateCharacter", index: 0, changes: { name: "Rosa Maria" } }).derived,
+    ).toHaveLength(1);
   });
 });
 

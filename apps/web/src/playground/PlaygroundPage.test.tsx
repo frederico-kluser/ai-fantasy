@@ -233,6 +233,43 @@ describe("manual playground: generation", () => {
   });
 });
 
+describe("manual playground: family pairs", () => {
+  it("given a family when generating then the pair the family added can be locked and stays locked", async () => {
+    renderPage();
+    addCast(["Rosa", "elder"], ["Marta", "caretaker"], ["Joca", "child"]);
+    click("Adicionar laço");
+    click("Adicionar laço");
+    choose("Arquétipo do laço", "parent_child", group("Laço 1"));
+    choose("Lado A", "1", group("Laço 2"));
+    choose("Lado B", "2", group("Laço 2"));
+    choose("Arquétipo do laço", "parent_child", group("Laço 2"));
+    click("Gerar elenco");
+    await generated();
+    fireEvent.click(
+      within(group("Pares acrescentados pela família")).getByLabelText("Travar Rosa – Joca"),
+    );
+
+    click("Sortear de novo");
+    await screen.findByRole("heading", { name: "Elenco gerado (tentativa 1)" });
+
+    expect(
+      within(group("Pares acrescentados pela família")).getByLabelText<HTMLInputElement>(
+        "Travar Rosa – Joca",
+      ).checked,
+    ).toBe(true);
+  });
+
+  it("given no family when generating then no added pair is offered", async () => {
+    renderPage();
+    addCast(["Ana", "caretaker"]);
+
+    click("Gerar elenco");
+    await generated();
+
+    expect(screen.queryByRole("group", { name: "Pares acrescentados pela família" })).toBeNull();
+  });
+});
+
 describe("manual playground: review sheet", () => {
   it("given a manual playground when confirming then the review sheet shows the chosen cast and a valid setup", async () => {
     renderPage();

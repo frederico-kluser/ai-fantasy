@@ -3,11 +3,14 @@
  * dominant drives and associations, the bonds with labels (the family the
  * generator added included) and the tension hook.
  */
-import type { JSX } from "react";
+import type { Dispatch, JSX } from "react";
 
 import { PRESETS } from "../engine/presets.ts";
 import type { CastView } from "../engine/protocol.ts";
+import { LockField } from "./CastFields.tsx";
 import { displayName, nameIn } from "./labels.ts";
+import type { DerivedForm, PlaygroundState } from "./model.ts";
+import type { PlaygroundAction } from "./reducer.ts";
 
 interface Props {
   readonly view: CastView;
@@ -72,17 +75,55 @@ function Hook({ view }: Props): JSX.Element | null {
   );
 }
 
-/** The generated cast as a section of the form. */
+interface DerivedProps extends Props {
+  readonly derived: readonly DerivedForm[];
+  readonly dispatch: Dispatch<PlaygroundAction>;
+}
+
+/** The pairs the transitive family added (presets §6), each lockable (presets §10.1, `derived`). */
+function DerivedPairs({ view, derived, dispatch }: DerivedProps): JSX.Element | null {
+  const names = namesOf(view);
+  const pairs = view.drafts.bonds.filter((entry) => entry.derived);
+  if (pairs.length === 0) {
+    return null;
+  }
+  return (
+    <fieldset>
+      <legend>Pares acrescentados pela família</legend>
+      {pairs.map(({ a, b }) => (
+        <LockField
+          key={`${String(a)}-${String(b)}`}
+          label={`Travar ${nameAt(names, a)} – ${nameAt(names, b)}`}
+          locked={derived.some((pair) => pair.a === a && pair.b === b)}
+          canLock
+          onLock={(locked) => {
+            dispatch({ type: "lockDerived", a, b, locked });
+          }}
+        />
+      ))}
+    </fieldset>
+  );
+}
+
+/** The generated cast as a section of the form, when there is one. */
 export function GeneratedCast({
-  view,
-  attempt,
-}: Props & { readonly attempt: number }): JSX.Element {
+  state,
+  dispatch,
+}: {
+  readonly state: PlaygroundState;
+  readonly dispatch: Dispatch<PlaygroundAction>;
+}): JSX.Element | null {
+  const view = state.generated;
+  if (view === null) {
+    return null;
+  }
   return (
     <section aria-labelledby="generated-heading">
-      <h3 id="generated-heading">{`Elenco gerado (tentativa ${String(attempt)})`}</h3>
+      <h3 id="generated-heading">{`Elenco gerado (tentativa ${String(state.attempt)})`}</h3>
       <Characters view={view} />
       <Relations view={view} />
       <Hook view={view} />
+      <DerivedPairs view={view} derived={state.derived} dispatch={dispatch} />
     </section>
   );
 }
