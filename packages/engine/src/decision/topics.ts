@@ -12,7 +12,6 @@ import { TOPICS_MAX } from "../domain/constants.ts";
 import type { CharacterId } from "../domain/ids.ts";
 import type { FactCopy } from "../memory/copy.ts";
 import type { Fact } from "../memory/fact.ts";
-import { involvedIn } from "../memory/record.ts";
 import type { ActId } from "../presets/acts.ts";
 import type { BondAxisId } from "../presets/bonds.ts";
 import { canonicalize } from "../session/canonical.ts";
@@ -66,9 +65,8 @@ function drivenTargets(scene: DecisionScene): Topic[] {
 }
 
 function importantFact(scene: DecisionScene): Topic[] {
-  const present = otherIds(scene);
   const found = mostImportant(scene.author, scene.facts, ({ fact }) =>
-    present.some((id) => involvedIn(fact, id, [])),
+    scene.others.some((other) => fact.author === other.id || concerns(fact, other)),
   );
   return found === null ? [] : [factTopic(found.fact, found.copy)];
 }
@@ -117,8 +115,8 @@ export function salientTopics(scene: DecisionScene, target: CharacterState | nul
  * one the act accepts, and a `TELL` of a fact needs the author's copy.
  */
 export function acceptsTopic(scene: DecisionScene, act: ActId, topic: Topic): boolean {
-  const accepted = actEntry(scene.rules, act).topics;
-  const typeFits = accepted !== "ANSWERED" && accepted.includes(topic.type);
+  // An answer takes the topic answered ("ANSWERED"), never a topic of its own.
+  const typeFits = [actEntry(scene.rules, act).topics].flat().includes(topic.type);
   const needsCopy = act === "TELL" && "fact" in topic;
   return typeFits && (!needsCopy || scene.author.memories.some((copy) => copy.fact === topic.fact));
 }
@@ -155,32 +153,35 @@ export function offenceBy(scene: DecisionScene, who: CharacterId, secretOnly = f
 
 type TopicRule = (scene: DecisionScene, target: CharacterState | null) => Topic[];
 
+/** A rule about one target: an act toward the `GROUP` or nobody has no such topic. */
+const single =
+  (rule: (scene: DecisionScene, target: CharacterState) => Topic[]): TopicRule =>
+  (scene, target) =>
+    target === null ? [] : rule(scene, target);
+
 const ofTarget: TopicRule = (_scene, target) => [target === null ? SMALL_TALK : person(target.id)];
 
-const accusation: TopicRule = (scene, target) => {
-  const fact = target === null ? null : offenceBy(scene, target.id);
+const accusation = single((scene, target) => {
+  const fact = offenceBy(scene, target.id);
   return fact === null ? [] : [{ type: "EVENT", fact: fact.id }];
-};
+});
 
-const apology: TopicRule = (scene, target) => {
-  const found =
-    target === null
-      ? null
-      : mostImportant(
-          scene.author,
-          scene.facts,
-          (known) => offends(known, scene.author.id) && concerns(known.fact, target),
-        );
-  return found === null ? ofTarget(scene, target) : [{ type: "EVENT", fact: found.fact.id }];
-};
+const apology = single((scene, target) => {
+  const found = mostImportant(
+    scene.author,
+    scene.facts,
+    (known) => offends(known, scene.author.id) && concerns(known.fact, target),
+  );
+  return [found === null ? person(target.id) : { type: "EVENT", fact: found.fact.id }];
+});
 
-const threat: TopicRule = (scene, target) => {
-  const secret = target === null ? null : offenceBy(scene, target.id, true);
+const threat = single((scene, target) => {
+  const secret = offenceBy(scene, target.id, true);
   return [
-    ...ofTarget(scene, target),
+    person(target.id),
     ...(secret === null ? [] : [{ type: "SECRET" as const, fact: secret.id }]),
   ];
-};
+});
 
 const telling: TopicRule = (scene, target) => {
   const secret = mostImportant(scene.author, scene.facts, ({ fact }) => fact.secret);

@@ -13,6 +13,7 @@ import { toBipolarBp, toBp } from "../domain/bp.ts";
 import type { CharacterId, ThingId } from "../domain/ids.ts";
 import { idOf } from "../../test/support/space.ts";
 import { createCopy } from "../memory/copy.ts";
+import { satisfaction } from "./satisfaction.ts";
 import {
   deficitToward,
   repetitions,
@@ -211,17 +212,18 @@ describe("satisfactionContext", () => {
     },
   );
 
-  it("given a REFUSE that answers a request when reading the context then nothing is answered", () => {
+  it("given a REFUSE that answers a THREATEN when reading the satisfaction then the drive the threat serves is not served", () => {
     const topic = { type: "PERSON", person: idOf(1) } as const;
     const request = anActFact(0, 2, aLabel({ act: "THREATEN", targets: ids(1), topic }));
     const scene = aDecisionScene(aCharacter(1, 0), {
       facts: [request],
       obligations: [anObligation(1, 2, 0, "THREATEN", topic)],
     });
+    const refuse = aLabel({ act: "REFUSE", targets: ids(2), topic });
 
     expect(
-      satisfactionContext(scene, aLabel({ act: "REFUSE", targets: ids(2), topic })).answered,
-    ).toBeNull();
+      satisfaction("REFUSE", "NEUTRAL", "physical_safety", satisfactionContext(scene, refuse)),
+    ).toBe(0);
   });
 
   it("given a TELL of a fact with an offender, by the author's copy, when reading the context then the fact is bad", () => {

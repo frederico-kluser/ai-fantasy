@@ -26,17 +26,14 @@ export function sliceActs(facts: readonly Fact[], sliceStart: number): ActFact[]
   return facts.filter((fact): fact is ActFact => fact.kind === "ACT" && fact.id >= sliceStart);
 }
 
-/** The act fact of highest id, if any. */
+/** The act fact of highest id, if any: the last one of the record, which is in id order. */
 export function lastAct(facts: readonly Fact[]): ActFact | undefined {
-  return facts.reduce<ActFact | undefined>(
-    (last, fact) => (fact.kind === "ACT" && fact.id > (last?.id ?? -1) ? fact : last),
-    undefined,
-  );
+  return facts.findLast((fact): fact is ActFact => fact.kind === "ACT");
 }
 
 /** The act fact of highest id addressed to `who`, if any. */
 export function lastActTo(facts: readonly Fact[], who: CharacterState): ActFact | undefined {
-  return lastAct(facts.filter((fact) => fact.kind === "ACT" && isDirectedTo(fact, who)));
+  return facts.findLast((fact): fact is ActFact => fact.kind === "ACT" && isDirectedTo(fact, who));
 }
 
 /** The offenders of a fact by a character's copy: the false version when it has one (dialogue-acts §4). */

@@ -32,7 +32,7 @@ const row = (acts: BiasWeights["acts"], tones: BiasWeights["tones"] = {}): BiasW
 });
 
 /** dialogue-acts §9.3, "Emoções do autor". */
-export const EMOTION_BIASES: Readonly<Partial<Record<EmotionId, BiasWeights>>> = {
+export const EMOTION_BIASES: Readonly<Record<EmotionId, BiasWeights>> = {
   joy: row(
     { CHAT: 1500, PRAISE: 1500, GREET: 1000, TEASE: 1000 },
     { WARM: 1500, PLAYFUL: 1500, AGGRESSIVE: -1500 },
@@ -55,7 +55,7 @@ export const EMOTION_BIASES: Readonly<Partial<Record<EmotionId, BiasWeights>>> =
 };
 
 /** dialogue-acts §9.3, "Traços efetivos do autor" (the lie weight of `honesty` is {@link LIE_WEIGHT}). */
-export const TRAIT_BIASES: Readonly<Partial<Record<TraitId, BiasWeights>>> = {
+export const TRAIT_BIASES: Readonly<Record<TraitId, BiasWeights>> = {
   humor: row({ TEASE: 1000 }, { PLAYFUL: 2000 }),
   romanticBoldness: row({}, { SEDUCTIVE: 2500 }),
   temper: row({ ACCUSE: 1000, THREATEN: 1000 }, { AGGRESSIVE: 2000 }),
@@ -72,7 +72,7 @@ export const TRAIT_BIASES: Readonly<Partial<Record<TraitId, BiasWeights>>> = {
 export const LIE_WEIGHT = -3000;
 
 /** dialogue-acts §9.3, "Laço do autor com o alvo". */
-export const BOND_BIASES: Readonly<Partial<Record<BondAxisId, BiasWeights>>> = {
+export const BOND_BIASES: Readonly<Record<BondAxisId, BiasWeights>> = {
   affection: row(
     { PRAISE: 1000, OFFER: 1000, TOUCH: 500, THREATEN: -2000, ACCUSE: -1000 },
     { WARM: 2000, AGGRESSIVE: -2000 },
@@ -113,8 +113,8 @@ const INTENSITY_BASE = 3000;
 const INTENSITY_SPAN = 7000;
 
 /** `act weight + tone weight` of a row (absent weights are 0). */
-export function rowWeight(weights: BiasWeights | undefined, act: ActId, tone: ToneId): number {
-  return (weights?.acts[act] ?? 0) + (weights?.tones[tone] ?? 0);
+export function rowWeight(weights: BiasWeights, act: ActId, tone: ToneId): number {
+  return (weights.acts[act] ?? 0) + (weights.tones[tone] ?? 0);
 }
 
 /** Each emotion's part of the bias, in catalog order: `mulBp(emotion, weight)`. */
@@ -127,6 +127,24 @@ export function emotionBias(emotions: Emotions, act: ActId, tone: ToneId): numbe
   return emotionParts(emotions, act, tone).reduce((sum, part) => sum + part, 0);
 }
 
+/** The bias of the rows of the author's effective traits (dialogue-acts §9.3), without the lie. */
+export function traitRows(author: CharacterState, act: ActId, tone: ToneId): number {
+  return TRAIT_IDS.reduce(
+    (sum, id) =>
+      sum +
+      mulBp(
+        effectiveTrait(author.traits, author.tendencies, id),
+        rowWeight(TRAIT_BIASES[id], act, tone),
+      ),
+    0,
+  );
+}
+
+/** What a lie variant adds (dialogue-acts §9.3): `mulBp(honesty, −3000)`, honesty effective. */
+export function lieBias(author: CharacterState): number {
+  return mulBp(effectiveTrait(author.traits, author.tendencies, "honesty"), LIE_WEIGHT);
+}
+
 /**
  * The bias of the author's effective traits (dialogue-acts §9.3), with the
  * `honesty` weight of a lie variant when `isFalse`.
@@ -137,12 +155,7 @@ export function traitBias(
   tone: ToneId,
   isFalse: boolean,
 ): number {
-  const trait = (id: TraitId) => effectiveTrait(author.traits, author.tendencies, id);
-  const rows = TRAIT_IDS.reduce(
-    (sum, id) => sum + mulBp(trait(id), rowWeight(TRAIT_BIASES[id], act, tone)),
-    0,
-  );
-  return rows + (isFalse ? mulBp(trait("honesty"), LIE_WEIGHT) : 0);
+  return traitRows(author, act, tone) + (isFalse ? lieBias(author) : 0);
 }
 
 /** The bias of the author's bond with one target (dialogue-acts §9.3). */
@@ -161,16 +174,18 @@ export function perceptionBias(values: PerceptionValues, act: ActId, tone: ToneI
   );
 }
 
-/** The association subject a topic refers to: a thing, a tag or a person. */
-function subjectOf(topic: Topic): unknown {
-  if (topic.type === "THING") {
-    return { kind: "THING", thing: topic.thing };
-  }
-  if (topic.type === "PLACE") {
-    return { kind: "TAG", tag: topic.place };
-  }
-  return topic.type === "PERSON" ? { kind: "PERSON", person: topic.person } : null;
-}
+/** The association subject a topic refers to: a thing, a tag or an absent person; `null` otherwise. */
+const SUBJECTS: {
+  readonly [K in Topic["type"]]?: (
+    topic: Extract<Topic, { type: K }>,
+    present: readonly CharacterId[],
+  ) => unknown;
+} = {
+  THING: (topic) => ({ kind: "THING", thing: topic.thing }),
+  PLACE: (topic) => ({ kind: "TAG", tag: topic.place }),
+  PERSON: (topic, present) =>
+    present.includes(topic.person) ? null : { kind: "PERSON", person: topic.person },
+};
 
 /**
  * The bias of the associations of the topic (dialogue-acts §9.3): a topic about
@@ -183,14 +198,13 @@ export function associationBias(
   topic: Topic,
   present: readonly CharacterId[],
 ): number {
-  const subject = subjectOf(topic);
-  const absent = topic.type !== "PERSON" || !present.includes(topic.person);
-  if (subject === null || !absent || !ASSOCIATION_ACTS.includes(act)) {
-    return 0;
-  }
-  const wanted = canonicalize(subject);
+  // The rule of a topic type takes exactly the topics of that type.
+  const subjectOf = SUBJECTS[topic.type] as
+    ((topic: Topic, present: readonly CharacterId[]) => unknown) | undefined;
+  const wanted = canonicalize(subjectOf?.(topic, present) ?? null);
   const match = author.associations.find((entry) => canonicalize(entry.subject) === wanted);
-  return mulBp(match?.valence ?? 0, ASSOCIATION_FACTOR);
+  const felt = ASSOCIATION_ACTS.includes(act) ? (match?.valence ?? 0) : 0;
+  return mulBp(felt, ASSOCIATION_FACTOR);
 }
 
 /**
@@ -200,7 +214,7 @@ export function associationBias(
  */
 export function npcIntensity(emotions: Emotions, act: ActId, tone: ToneId): number {
   const parts = emotionParts(emotions, act, tone);
-  const best = parts.reduce((top, part, index) => (part > (parts[top] ?? 0) ? index : top), -1);
-  const strongest = EMOTION_IDS[best];
+  const top = Math.max(...parts);
+  const strongest = top > 0 ? EMOTION_IDS[parts.indexOf(top)] : undefined;
   return INTENSITY_BASE + mulBp(strongest === undefined ? 0 : emotions[strongest], INTENSITY_SPAN);
 }

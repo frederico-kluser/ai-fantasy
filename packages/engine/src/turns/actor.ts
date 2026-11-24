@@ -9,6 +9,7 @@ import { isInterruption } from "../acts/obligations.ts";
 import type { CharacterState } from "../character/state.ts";
 import { URGE_THRESHOLD } from "../domain/constants.ts";
 import { compareIds, type CharacterId } from "../domain/ids.ts";
+import { itemAt } from "../domain/lookup.ts";
 import type { Fact } from "../memory/fact.ts";
 import type { Drawer } from "../rng/drawer.ts";
 import type { PlayerSeat, TurnState } from "./state.ts";
@@ -61,7 +62,7 @@ function drawActor(drawer: Drawer, input: TurnInput): CharacterId | null {
     eligible.map(({ urge }) => urge),
     "TURN_ACTOR",
   );
-  return eligible[index]?.id ?? null;
+  return itemAt(eligible, index).id;
 }
 
 /**

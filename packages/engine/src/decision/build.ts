@@ -10,8 +10,7 @@ import { TONES_PER_ACT } from "../domain/constants.ts";
 import type { ActId } from "../presets/acts.ts";
 import type { RequestObjectId } from "../presets/request-objects.ts";
 import { TONE_IDS, type ToneId } from "../presets/tones.ts";
-import type { Volume } from "../space/hearing.ts";
-import { emotionBias, npcIntensity, traitBias } from "./biases.ts";
+import { emotionBias, npcIntensity, traitRows } from "./biases.ts";
 import type { DecisionScene } from "./scene.ts";
 import { targetBias, type Candidate } from "./utility.ts";
 import { lieVariant, npcVolume } from "./values.ts";
@@ -19,8 +18,8 @@ import { lieVariant, npcVolume } from "./values.ts";
 /** Who a candidate is addressed to, and how loud it must be to reach. */
 export interface TargetOption {
   readonly targets: ActTargets;
-  /** `NORMAL`, or `SHOUT` when the target only hears so. */
-  readonly reach: Volume;
+  /** The target only hears a shout. */
+  readonly shouted: boolean;
   /** The single target, `null` for the `GROUP` or nobody. */
   readonly target: CharacterState | null;
   /** The target, or the listeners of the `GROUP` (empty for nobody). */
@@ -28,11 +27,11 @@ export interface TargetOption {
 }
 
 /** The option of an act addressed to nobody (`targets = []`). */
-export const NOBODY: TargetOption = { targets: [], reach: "NORMAL", target: null, listeners: [] };
+export const NOBODY: TargetOption = { targets: [], shouted: false, target: null, listeners: [] };
 
 /** The option of an act addressed to one present character. */
-export function toOne(target: CharacterState, reach: Volume = "NORMAL"): TargetOption {
-  return { targets: [target.id], reach, target, listeners: [target] };
+export function toOne(target: CharacterState, shouted: boolean): TargetOption {
+  return { targets: [target.id], shouted, target, listeners: [target] };
 }
 
 /**
@@ -49,7 +48,7 @@ export function toneBias(
   const label = { act, tone, targets: option.targets } as const;
   return (
     emotionBias(author.emotions, act, tone) +
-    traitBias(author, act, tone, false) +
+    traitRows(author, act, tone) +
     targetBias(scene, label)
   );
 }
@@ -95,7 +94,7 @@ export function makeLabel(
     targets: option.targets,
     topic,
     intensity: toBp(intensity),
-    volume: npcVolume(scene, { act, tone, topic }, option.reach),
+    volume: npcVolume(scene, { act, tone, topic }, option.shouted),
     isFalse: parts.isFalse ?? false,
   };
   return parts.object === undefined ? label : { ...label, object: parts.object };

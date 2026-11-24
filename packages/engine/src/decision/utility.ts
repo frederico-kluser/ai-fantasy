@@ -13,7 +13,7 @@ import { toldOffenders, badSubjects } from "../acts/appraisal-context.ts";
 import type { ActLabel } from "../acts/label.ts";
 import { answeredObligation } from "../acts/obligations.ts";
 import { bondToward } from "../character/bonds.ts";
-import { directedDeficit, dominantDrives, isDirected, type Drives } from "../character/drives.ts";
+import { dominantDrives, isDirected, type Drives } from "../character/drives.ts";
 import { effectiveWeight } from "../character/maslow.ts";
 import { perceptionPreview, perceptionToward } from "../character/perception.ts";
 import type { CharacterState } from "../character/state.ts";
@@ -54,7 +54,8 @@ export function deficitToward(drives: Drives, drive: DriveId, target: CharacterI
   if (!isDirected(drive)) {
     return drives.deficits[drive];
   }
-  return target === null ? 0 : directedDeficit(drives, drive, target);
+  // Without a single target, no entry matches and the deficit reads 0.
+  return drives.directed[drive].find((entry) => entry.target === target)?.deficit ?? 0;
 }
 
 /** `mulBp(effectiveWeight(v), deficit(v))` toward `target`: how much the drive presses. */
@@ -88,7 +89,7 @@ function objectDrives(scene: DecisionScene, object: string | undefined) {
 function answeredDrive(scene: DecisionScene, label: ActLabel): DriveId | null {
   const owed = answeredObligation(scene.obligations, scene.author.id, label);
   const request = scene.facts.find((fact) => fact.id === owed?.fact);
-  if (label.act !== "ACCEPT" || owed === undefined || request?.kind !== "ACT") {
+  if (owed === undefined || request?.kind !== "ACT") {
     return null;
   }
   return ANSWERED_DRIVES[owed.act]?.(objectDrives(scene, request.label.object)) ?? null;

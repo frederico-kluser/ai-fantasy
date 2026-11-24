@@ -29,19 +29,19 @@ const REQUEST_DRIVES = 2;
 
 /**
  * The volume of a NPC act (dialogue-acts §5): `WHISPER` in a `TELL` of a
- * `SECRET`; `SHOUT` when the target only hears so (`reach`), or with anger ≥
+ * `SECRET`; `SHOUT` when the target only hears so (`shouted`), or with anger ≥
  * 7000 in an `AGGRESSIVE` tone; `NORMAL` otherwise.
  */
 export function npcVolume(
   scene: DecisionScene,
   label: Pick<ActLabel, "act" | "tone" | "topic">,
-  reach: Volume,
+  shouted: boolean,
 ): Volume {
   if (label.act === "TELL" && label.topic.type === "SECRET") {
     return "WHISPER";
   }
   const angry = scene.author.emotions.anger >= SHOUTING_ANGER && label.tone === "AGGRESSIVE";
-  return reach === "SHOUT" || angry ? "SHOUT" : "NORMAL";
+  return shouted || angry ? "SHOUT" : "NORMAL";
 }
 
 /**

@@ -128,11 +128,9 @@ export function leaveScores(input: DepartureInput, who: CharacterState): LeaveSc
 
 /** Whether `who` acted or was addressed an act in the last 12 ticks. */
 function recentlyEngaged(input: DepartureInput, who: CharacterState): boolean {
-  return input.facts.some(
+  return sliceActs(input.facts, input.sliceStart).some(
     (fact) =>
-      fact.kind === "ACT" &&
-      input.tick - fact.tick < RECENT_TICKS &&
-      (fact.author === who.id || isDirectedTo(fact, who)),
+      input.tick - fact.tick < RECENT_TICKS && (fact.author === who.id || isDirectedTo(fact, who)),
   );
 }
 

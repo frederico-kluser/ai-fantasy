@@ -10,7 +10,8 @@ import { fixedReply } from "../acts/requests.ts";
 import type { CharacterState } from "../character/state.ts";
 import type { ActId } from "../presets/acts.ts";
 import { makeLabel, NOBODY, rankTones, toOne, withLie, type TargetOption } from "./build.ts";
-import { presentOther, reachVolume, distanceTo, type DecisionScene } from "./scene.ts";
+import { distanceTo, needsShout, presentOther, type DecisionScene } from "./scene.ts";
+import { itemAt } from "../domain/lookup.ts";
 import { acceptsTopic, offenceBy } from "./topics.ts";
 import type { Candidate } from "./utility.ts";
 
@@ -68,7 +69,7 @@ const toRequest: AnswerRule = (scene, owed, option) => {
     );
   }
   const reply = fixedReply(drawn.band);
-  const [tone = "NEUTRAL"] = rankTones(scene, reply.act, option, 1, reply.tones);
+  const tone = itemAt(rankTones(scene, reply.act, option, 1, reply.tones), 0);
   return [
     makeLabel(scene, reply.act, option, { tone, topic: owed.topic, intensity: reply.intensity }),
   ];
@@ -86,7 +87,7 @@ const ANSWER_RULES: Readonly<Partial<Record<ActId, AnswerRule>>> = {
 
 /** The single `STAY_SILENT` candidate: to nobody, in its tone of highest bias. */
 export function silence(scene: DecisionScene): Candidate {
-  const [tone = "NEUTRAL"] = rankTones(scene, "STAY_SILENT", NOBODY, 1);
+  const tone = itemAt(rankTones(scene, "STAY_SILENT", NOBODY, 1), 0);
   return {
     label: makeLabel(scene, "STAY_SILENT", NOBODY, { tone, topic: { type: "NONE" } }),
     answers: false,
@@ -95,12 +96,14 @@ export function silence(scene: DecisionScene): Candidate {
 
 function answersTo(scene: DecisionScene, owed: Obligation): Candidate[] {
   const creditor: CharacterState | undefined = presentOther(scene, owed.creditor);
-  const reach = creditor === undefined ? null : reachVolume(scene, creditor);
+  const shouted = creditor === undefined ? null : needsShout(scene, creditor);
   const rule = ANSWER_RULES[owed.act];
-  if (creditor === undefined || reach === null || rule === undefined) {
+  if (creditor === undefined || shouted === null || rule === undefined) {
     return [];
   }
-  return rule(scene, owed, toOne(creditor, reach)).flatMap((label) => withLie(scene, label, true));
+  return rule(scene, owed, toOne(creditor, shouted)).flatMap((label) =>
+    withLie(scene, label, true),
+  );
 }
 
 /**

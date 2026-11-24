@@ -27,8 +27,8 @@ export type SatisfactionCondition = "BAD_FACT" | "TARGET_OFFENDER";
 export interface SatisfactionCell {
   readonly drive: SatisfiedDrive;
   readonly level: SatisfactionLevel;
-  /** Only when this holds (simulation-model §10, "Satisfação condicional"). */
-  readonly when?: SatisfactionCondition;
+  /** Only when this holds (simulation-model §10, "Satisfação condicional"); `null` always. */
+  readonly when: SatisfactionCondition | null;
 }
 
 /** What the drive cells and conditions of a candidate resolve to. */
@@ -46,8 +46,8 @@ export interface SatisfactionContext {
 const cell = (
   drive: SatisfiedDrive,
   level: SatisfactionLevel,
-  when?: SatisfactionCondition,
-): SatisfactionCell => (when === undefined ? { drive, level } : { drive, level, when });
+  when: SatisfactionCondition | null = null,
+): SatisfactionCell => ({ drive, level, when });
 
 /** dialogue-acts §9.2, the rows of the acts. */
 export const ACT_SATISFACTION: Readonly<Record<ActId, readonly SatisfactionCell[]>> = {
@@ -122,7 +122,7 @@ export function satisfaction(
   context: SatisfactionContext,
 ): Bp {
   const levels = [...ACT_SATISFACTION[act], ...TONE_SATISFACTION[tone]]
-    .filter((entry) => entry.when === undefined || CONDITIONS[entry.when](context))
+    .filter((entry) => entry.when === null || CONDITIONS[entry.when](context))
     .filter((entry) => resolved(entry.drive, context) === drive)
     .map((entry) => LEVEL_BP[entry.level]);
   return toBp(Math.max(0, ...levels));

@@ -13,13 +13,7 @@ import { canSee } from "../space/sight.ts";
 import { answerCandidates, silence } from "./answers.ts";
 import { makeLabel, rankTones, toOne, withLie, type TargetOption } from "./build.ts";
 import { isDirectedTo, sliceActs } from "./facts.ts";
-import {
-  distanceTo,
-  groupListeners,
-  othersById,
-  reachVolume,
-  type DecisionScene,
-} from "./scene.ts";
+import { distanceTo, groupListeners, othersById, needsShout, type DecisionScene } from "./scene.ts";
 import { candidateTopics } from "./topics.ts";
 import type { Candidate } from "./utility.ts";
 import { offerObjects, requestObjects } from "./values.ts";
@@ -62,10 +56,10 @@ const whisperable: Precondition = (scene, option, topic) =>
 
 const apologetic: Precondition = (scene, option) =>
   scene.author.emotions.guilt >= APOLOGETIC_GUILT ||
-  (option.target !== null && didInSlice(scene, option.target, "ACCUSE", scene.author));
+  option.listeners.every((listener) => didInSlice(scene, listener, "ACCUSE", scene.author));
 
 const askObjects: ObjectRule = (scene, option) =>
-  option.target === null ? [] : requestObjects(scene, option.target.id);
+  option.listeners.flatMap((listener) => requestObjects(scene, listener.id));
 
 /** The candidate acts and their rules (simulation-model §10 item 2; dialogue-acts §9.1). */
 const PLANS: Readonly<Partial<Record<ActId, ActPlan>>> = {
@@ -87,8 +81,8 @@ const PLANS: Readonly<Partial<Record<ActId, ActPlan>>> = {
 
 function hearers(scene: DecisionScene): TargetOption[] {
   return othersById(scene).flatMap((other) => {
-    const reach = reachVolume(scene, other);
-    return reach === null ? [] : [toOne(other, reach)];
+    const shouted = needsShout(scene, other);
+    return shouted === null ? [] : [toOne(other, shouted)];
   });
 }
 
@@ -96,13 +90,13 @@ function group(scene: DecisionScene): TargetOption[] {
   const listeners = groupListeners(scene);
   return listeners.length < 2
     ? []
-    : [{ targets: "GROUP", reach: "NORMAL", target: null, listeners }];
+    : [{ targets: "GROUP", shouted: false, target: null, listeners }];
 }
 
 function within(scene: DecisionScene, test: (other: CharacterState) => boolean): TargetOption[] {
   return othersById(scene)
     .filter(test)
-    .map((other) => toOne(other));
+    .map((other) => toOne(other, false));
 }
 
 const TARGET_RULES: Readonly<Record<TargetRule, (scene: DecisionScene) => TargetOption[]>> = {

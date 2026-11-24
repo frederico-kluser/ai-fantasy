@@ -65,14 +65,14 @@ export function hearsAt(scene: DecisionScene, other: CharacterState, volume: Vol
 }
 
 /**
- * The volume at which `other` hears the author as `DIRECT` (simulation-model
- * §10): `NORMAL`, or `SHOUT` if only so; `null` when not even a shout reaches.
+ * How `other` hears the author as `DIRECT` (simulation-model §10): `false` at
+ * `NORMAL`, `true` if only by a shout, `null` when not even a shout reaches.
  */
-export function reachVolume(scene: DecisionScene, other: CharacterState): Volume | null {
+export function needsShout(scene: DecisionScene, other: CharacterState): boolean | null {
   if (hearsAt(scene, other, "NORMAL")) {
-    return "NORMAL";
+    return false;
   }
-  return hearsAt(scene, other, "SHOUT") ? "SHOUT" : null;
+  return hearsAt(scene, other, "SHOUT") ? true : null;
 }
 
 /** The listeners of an act for the `GROUP`: those who hear the author as `DIRECT` at `NORMAL`, by id. */
