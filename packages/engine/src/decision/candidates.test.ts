@@ -21,7 +21,7 @@ import {
   anObligation,
   arbitraryDecisionScene,
 } from "../../test/support/decision.ts";
-import { idOf } from "../../test/support/space.ts";
+import { gridOf, idOf } from "../../test/support/space.ts";
 import { validateAct } from "../acts/validate.ts";
 import { toBp } from "../domain/bp.ts";
 import { createCopy } from "../memory/copy.ts";
@@ -211,6 +211,63 @@ describe("generateCandidates: answers owed (simulation-model §10 item 1)", () =
     expect(new Set(ofAct(scene, "REFUSE").map(({ label }) => label.volume))).toEqual(
       new Set(["SHOUT"]),
     );
+  });
+});
+
+describe("generateCandidates: more answers", () => {
+  it("given two questions owed out of order when generating then the answers follow the fact order", () => {
+    const first = anActFact(0, 3, aLabel({ act: "ASK", targets: ids(1), topic: personOf(3) }));
+    const second = anActFact(1, 2, aLabel({ act: "ASK", targets: ids(1), topic: personOf(2) }));
+    const scene = aDecisionScene(aCharacter(1, 0), {
+      others: [aCharacter(2, 1), aCharacter(3, 2)],
+      facts: [first, second],
+      obligations: [
+        anObligation(1, 2, 1, "ASK", personOf(2)),
+        anObligation(1, 3, 0, "ASK", personOf(3)),
+      ],
+    });
+    const targets = generateCandidates(scene)
+      .filter(({ label }) => label.act === "REFUSE")
+      .map(({ label }) => JSON.stringify(label.targets));
+
+    expect([...new Set(targets)]).toEqual(["[3]", "[2]"]);
+  });
+
+  it("given a question about a secret from someone at 2 cells when generating then the secret is not told, only refused", () => {
+    const topic = aboutFact("SECRET", 0);
+    const scene = aDecisionScene(aCharacter(1, 0, { memories: [knows(0)] }), {
+      others: [aCharacter(2, 2)],
+      facts: [
+        aHistoryFact(0, 2, 3, { secret: true }),
+        anActFact(1, 2, aLabel({ act: "ASK", targets: ids(1), topic })),
+      ],
+      obligations: [anObligation(1, 2, 1, "ASK", topic)],
+    });
+
+    expect(new Set(generateCandidates(scene).map(({ label }) => label.act))).toEqual(
+      new Set(["REFUSE", "STAY_SILENT"]),
+    );
+  });
+
+  it("given a creditor beyond the reach of a shout when generating then only STAY_SILENT is offered", () => {
+    const topic = personOf(1);
+    const scene = aDecisionScene(aCharacter(1, 0), {
+      grid: gridOf([".".repeat(40)]),
+      others: [aCharacter(2, 35)],
+      facts: [anActFact(0, 2, aLabel({ act: "ASK", targets: ids(1), topic }))],
+      obligations: [anObligation(1, 2, 0, "ASK", topic)],
+    });
+
+    expect(generateCandidates(scene).map(summary)).toEqual(["STAY_SILENT WARM [] NONE"]);
+  });
+
+  it("given someone beyond the reach of a shout when generating then only STAY_SILENT is left (no voice reaches and no sight)", () => {
+    const scene = aDecisionScene(aCharacter(1, 0), {
+      grid: gridOf([".".repeat(40)]),
+      others: [aCharacter(2, 35)],
+    });
+
+    expect(generateCandidates(scene).map(summary)).toEqual(["STAY_SILENT WARM [] NONE"]);
   });
 });
 

@@ -7,6 +7,7 @@
 import { effectiveTrait } from "../character/traits.ts";
 import { BP_MAX } from "../domain/bp.ts";
 import { TOP_K } from "../domain/constants.ts";
+import { itemAt } from "../domain/lookup.ts";
 import type { Drawer } from "../rng/drawer.ts";
 import type { DecisionScene } from "./scene.ts";
 import { scoreCandidate, type Candidate } from "./utility.ts";
@@ -74,9 +75,5 @@ export function chooseAct(
     selfControl,
   );
   const index = drawer.drawWeighted("choice", weights, "ACT_CHOICE", author.id);
-  const chosen = top[index];
-  if (chosen === undefined) {
-    throw new RangeError("chooseAct: there is no candidate");
-  }
-  return { chosen, top, weights };
+  return { chosen: itemAt(top, index), top, weights };
 }

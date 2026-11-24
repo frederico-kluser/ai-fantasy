@@ -934,7 +934,7 @@ Em cada **ponto de decisão** (fim de um ato ou de um tick de silêncio), na ord
   contador e o pedido de vez.
 - **Saída:** "agiu ou recebeu um ato nos últimos 12 ticks" é ter um fato de ato com
   `tick − tick do fato < 12` de que é autor ou a quem foi dirigido (seção 10). Os ouvintes do
-  `FAREWELL` são os presentes que o ouvem como `DIRECT` em `NORMAL`. O sorteio usa a finalidade
+  `FAREWELL` são os presentes que o ouvem como `DIRECT` em `NORMAL`; o `LEAVE` vai em `NEUTRAL`. O sorteio usa a finalidade
   `LEAVE_DECISION`, com o personagem. A saída forçada é só de NPC; o jogador em `AUTO` passa pela
   regra comum. "Cumpriu o objetivo": numa atualização desta fatia, o déficit de uma vontade
   dominante dirigida a um presente passou de ≥ 1000 para < 1000 (o motor anota). "Perdeu de vez":
