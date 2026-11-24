@@ -132,3 +132,21 @@ describe("noteReachedGoals: who is compared with whom", () => {
     expect(turns.reachedGoals).toEqual([]);
   });
 });
+
+describe("noteReachedGoals: undirected drives", () => {
+  it("given dominant undirected drives besides the directed one when noting then only the directed one is compared", () => {
+    const drives = (deficit: number) =>
+      someDrives({
+        weights: { company: 9000, curiosity: 9000, intimacy: 7000 },
+        directed: { intimacy: [[2, deficit]] },
+      });
+    const turns = noteReachedGoals(
+      OPENING_TURNS,
+      [aCharacter(1, 0, { drives: drives(4000) })],
+      [aCharacter(1, 0, { drives: drives(0) })],
+      ids(1, 2),
+    );
+
+    expect(turns.reachedGoals).toEqual([1]);
+  });
+});

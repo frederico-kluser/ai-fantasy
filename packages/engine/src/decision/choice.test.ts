@@ -270,6 +270,29 @@ describe("owedBands in detail", () => {
     ]);
   });
 
+  it("given kept bands of the same request for another debtor and of another request of the debtor when drawing then the missing band is still drawn", () => {
+    const requests = [
+      anActFact(0, 2, aLabel({ act: "REQUEST", targets: ids(1, 3), topic, object: "HELP" })),
+      anActFact(5, 2, aLabel({ act: "OFFER", targets: ids(1), topic, object: "HELP" })),
+    ];
+    const obligations = [
+      anObligation(1, 2, 0, "REQUEST", topic),
+      anObligation(3, 2, 0, "REQUEST", topic),
+      anObligation(1, 2, 5, "OFFER", topic),
+    ];
+    const drawer = aDrawer([forcing("REQUEST_BAND", 4, 1)]);
+    const bands = owedBands(
+      drawer,
+      base({ facts: requests, obligations, drawn: [band(0, 3), band(5, 1)] }),
+    );
+
+    expect(bands.map((each) => [each.fact, each.debtor, each.band])).toEqual([
+      [0, 3, "ACCEPT"],
+      [5, 1, "ACCEPT"],
+      [0, 1, "HARD_REFUSE"],
+    ]);
+  });
+
   it("given an obligation of another debtor without a band when the debtor draws then the other's band is not drawn", () => {
     const request = anActFact(
       0,

@@ -184,3 +184,11 @@ describe("lieVariant (dialogue-acts §5)", () => {
     expect(lieVariant(aDecisionScene(author), aLabel({ act: "APOLOGIZE" }))).toBeNull();
   });
 });
+
+describe("lieVariant reads the effective honesty", () => {
+  it("given honesty 0 with a tendency of −10000 when lying then the author lies (0 + mulBp(−10000, 3000) = −3000)", () => {
+    const author = aCharacter(1, 0, { tendencies: someTraits({ honesty: -10000 }) });
+
+    expect(lieVariant(aDecisionScene(author), aLabel({ act: "APOLOGIZE" }))?.isFalse).toBe(true);
+  });
+});

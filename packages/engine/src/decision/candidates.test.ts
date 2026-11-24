@@ -714,3 +714,36 @@ describe("generateCandidates: details of targets and pre-conditions", () => {
     expect([accused(0), accused(1)]).toEqual([3, 0]);
   });
 });
+
+describe("generateCandidates: last gaps", () => {
+  it("given a question about small talk from someone at 2 cells when generating then it may be told", () => {
+    const topic = { type: "SMALL_TALK" } as const;
+    const scene = aDecisionScene(aCharacter(1, 0), {
+      others: [aCharacter(2, 2)],
+      facts: [anActFact(0, 2, aLabel({ act: "ASK", targets: ids(1), topic }))],
+      obligations: [anObligation(1, 2, 0, "ASK", topic)],
+    });
+
+    expect(ofAct(scene, "TELL").length).toBe(3);
+  });
+
+  it("given an accusation owed whose topic is no fact when denying then the denial is no lie", () => {
+    const topic = { type: "SMALL_TALK" } as const;
+    const scene = aDecisionScene(aCharacter(1, 0), {
+      others: [aCharacter(2, 1)],
+      facts: [anActFact(0, 2, aLabel({ act: "ACCUSE", targets: ids(1), topic }))],
+      obligations: [anObligation(1, 2, 0, "ACCUSE", topic)],
+    });
+
+    expect(new Set(ofAct(scene, "REFUSE").map(({ label }) => label.isFalse))).toEqual(
+      new Set([false]),
+    );
+  });
+
+  it("given a humorous author when ranking the tones of a CHAT then PLAYFUL comes first", () => {
+    const author = aCharacter(1, 0, { traits: someTraits({ humor: 5000 }) });
+    const scene = aDecisionScene(author, { others: [aCharacter(2, 1)] });
+
+    expect(ofAct(scene, "CHAT")[0]?.label.tone).toBe("PLAYFUL");
+  });
+});
