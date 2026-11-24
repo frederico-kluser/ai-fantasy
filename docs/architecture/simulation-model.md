@@ -1,6 +1,6 @@
 # Modelo de simulação — Hermeneutic Core
 
-> **Especificação v1.10 — 2026-11-23.** As **regras** deste documento são contrato do motor. Os
+> **Especificação v1.11 — 2026-11-23.** As **regras** deste documento são contrato do motor. Os
 > **números** (taxas, limiares, pesos) são valores iniciais e calibráveis: mudar um número exige
 > teste atualizado e nota no PR, não decisão nova. Mudar uma regra exige ADR. Produto em
 > [`docs/product.md`](<../product.md>); atos, tabelas de efeito e vieses em
@@ -18,7 +18,8 @@
 > um ato em fatos e cópias (SOC-01); a v1.8 fixou a ordem e as finalidades dos sorteios dos sinais,
 > quem pode notar, a ordem dos pesos da interpretação e o que conta como atualização da percepção
 > (SOC-02); a v1.9 fixou o contador de tentativa da stream `generation` (CORE-05); a v1.10 fixou
-> a composição das consequências e o que a avaliação passa à gravação (SOC-03).
+> a composição das consequências e o que a avaliação passa à gravação (SOC-03); a v1.11 fixou os
+detalhes da decisão e dos turnos (SOC-04).
 
 ## 1. Princípios
 
@@ -810,6 +811,64 @@ Em detalhe (`packages/engine/src/acts/obligations.ts`):
 - **Interrupção** (seção 11, item 4): o "último ato" é o fato de ato de maior id; quem age
   interrompe quando há obrigação pendente desse fato e não é o autor dele nem um devedor dela.
 
+**Detalhes da decisão** (fixados na SOC-04; `packages/engine/src/decision/`):
+
+- **Nesta fatia** são os fatos de id maior ou igual ao primeiro fato da fatia (o motor guarda esse
+  id ao abrir a cena). Um ato é **dirigido a** X quando X está na lista de alvos, ou quando é para
+  `GROUP` e X tem cópia `DIRECT` do fato. O "último ato dirigido ao autor" é o fato de ato de maior
+  id dirigido a ele. "Cumprimentou o alvo nesta fatia" é um `GREET` do autor nesta fatia dirigido
+  ao alvo; "o alvo acusou o autor nesta fatia", um `ACCUSE` do alvo nesta fatia dirigido ao autor.
+- **Ordem de geração** (desempate do passo 4): atos na ordem do catálogo; em cada ato, os alvos
+  em ordem crescente de id e depois `GROUP`; em cada alvo, os tons; em cada tom, os tópicos na
+  ordem da regra; em cada tópico, os objetos na ordem do catálogo; a versão verdadeira antes da
+  variante mentirosa.
+- **Ouvintes** de `GROUP`: os presentes que ouviriam o autor como `DIRECT` em volume `NORMAL`. Uma
+  pré-condição sobre "o alvo" vale em `GROUP` quando vale para cada ouvinte. Em `GROUP` o `GREET`
+  leva o tópico `SMALL_TALK`, e os tópicos salientes pulam os dois itens que dependem do alvo (o
+  sentimento e o próprio alvo).
+- **Tons:** o viés de um tom é o viés do candidato sem o das associações (que depende só do
+  tópico). `STAY_SILENT` entra uma vez, com o tom de maior viés.
+- **Ofensor segundo o autor:** o da cópia do autor (a versão falsa, quando ele acreditou numa
+  mentira). Vale para `ACCUSE` (tópico `EVENT` do fato), `APOLOGIZE` (tópico `EVENT`; o alvo é
+  alvo ou tópico do ato, ou o lado B do acontecimento de história), a chantagem de `THREATEN`
+  (tópico `SECRET`, só fato secreto) e as mentiras.
+- **Tópicos salientes:** o tipo do fato é `SECRET` se o fato é secreto, `RUMOR` se a cópia do
+  autor é `TOLD`, senão `EVENT`; "envolvendo um presente" é ter outro presente como autor, alvo
+  ou tópico (ou como lado de um acontecimento de história). A vontade dominante dirigida dá, em
+  ordem de catálogo, o seu alvo entre os outros presentes. O sentimento é o eixo de laço maior
+  entre `affection`, `attraction` e `resentment` (empate nessa ordem). A coisa ou tag é a
+  primeira associação, na ordem guardada, com uma coisa ou com uma tag presente (tópico `PLACE`
+  da tag); associações com pessoas não entram. O filtro dos tipos aceitos inclui a cópia exigida
+  por `TELL` de fato. O segredo de `TELL` de `SECRET` entra depois dos salientes, se não repetir.
+- **Intensidade:** a emoção que mais somou viés positivo é a de maior parcela positiva da tabela
+  de emoções (empate: ordem do catálogo de emoções).
+- **Mentira:** a variante de `TELL` sobre fato nega quando um ofensor (segundo o autor) é o próprio
+  autor ou alguém por quem ele tem afeto ≥ 6000; senão culpa o outro presente de maior
+  ressentimento ≥ 3000 que não seja um desses ofensores (empate: menor id).
+- **Objeto de `REQUEST`:** as duas vontades de maior pressão, empate pela ordem do catálogo de
+  vontades.
+- **Satisfação condicional:** o `TELL` serve `justice` 1 quando o fato do tópico é ruim para
+  alguém (atos de conversa, seção 4); o `AGGRESSIVE` serve `influence` 2 sempre e `justice` 2 com
+  `justice` dirigida ao alvo ≥ 5000. O `ACCEPT` serve a vontade do pedido no alvo: em `REQUEST`, a
+  de quem dá o objeto; em `OFFER`, a de quem recebe; em `APOLOGIZE`, `intimacy`; em `THREATEN`,
+  `physical_safety`.
+- **Repetições:** entre os 6 fatos de ato de maior id do autor (de qualquer fatia), os de mesmo
+  ato e mesmo tópico.
+- **Respostas devidas:** cada obrigação pendente do autor, em ordem de fato, com o credor presente
+  e ao alcance (`NORMAL` ou, se só assim, `SHOUT`), dá as suas respostas: a um `ASK`, `TELL` do
+  tópico (só com cópia, se for fato; com variante mentirosa) e `REFUSE`; a um `ACCUSE`,
+  `APOLOGIZE` (tópico `EVENT` do fato), `REFUSE` do mesmo tópico (com `isFalse` quando os
+  ofensores reais do fato incluem o autor) e `ACCUSE` do fato mais importante em que o credor é o
+  ofensor; a um pedido, a resposta fixada (com dois tons, o de maior viés; empate `WARM`). Cada
+  resposta segue a regra de tons e valores dos outros candidatos; `STAY_SILENT` vem por último, sem
+  bônus.
+- **Faixas:** quando o devedor em `AUTO` ganha a vez, cada obrigação de pedido dele ainda sem
+  faixa, em ordem de fato e com o autor presente, sorteia a sua (`REQUEST_BAND`). "Outro ouvinte
+  `DIRECT`" é outro presente com cópia `DIRECT` do pedido. A faixa fica guardada até a obrigação
+  terminar; em `MANUAL` nada é sorteado.
+- **Pesos:** cinco pesos de no máximo `10000 × 10000` somam 5 × 10^8, abaixo de 2^31. O sorteio
+  usa a finalidade `ACT_CHOICE`, com o autor, mesmo com um só candidato.
+
 ## 11. Vontade de agir, turnos, silêncio e saída
 
 Em cada **ponto de decisão** (fim de um ato ou de um tick de silêncio), na ordem da seção 16:
@@ -867,6 +926,27 @@ Em cada **ponto de decisão** (fim de um ato ou de um tick de silêncio), na ord
    alguém devia uma resposta, isso conta como interrupção.
 6. **Fim da fatia:** quando resta uma pessoa ou menos (quem está saindo conta até chegar à
    saída), ou após 60 ticks seguidos de silêncio (`SILENCE_END_TICKS`, "a conversa morreu").
+
+**Detalhes dos turnos** (fixados na SOC-04; `packages/engine/src/turns/`):
+
+- **Estado dos turnos** da fatia: o contador de silêncio, quem pediu a vez (`TAKE_TURN`), quem
+  está saindo e quem cumpriu o objetivo. Um tick de silêncio soma 1 ao contador; um ato zera o
+  contador e o pedido de vez.
+- **Saída:** "agiu ou recebeu um ato nos últimos 12 ticks" é ter um fato de ato com
+  `tick − tick do fato < 12` de que é autor ou a quem foi dirigido (seção 10). Os ouvintes do
+  `FAREWELL` são os presentes que o ouvem como `DIRECT` em `NORMAL`; o `LEAVE` vai em `NEUTRAL`. O sorteio usa a finalidade
+  `LEAVE_DECISION`, com o personagem. A saída forçada é só de NPC; o jogador em `AUTO` passa pela
+  regra comum. "Cumpriu o objetivo": numa atualização desta fatia, o déficit de uma vontade
+  dominante dirigida a um presente passou de ≥ 1000 para < 1000 (o motor anota). "Perdeu de vez":
+  ele tem alguma vontade dominante dirigida e, nesta fatia, um presente lhe dirigiu uma resposta de
+  faixa `HARD_REFUSE`. "Célula descoberta" é a não coberta, com o clima `rain` ou `storm`.
+- **Vontade de agir:** "o último ato foi dirigido a ele" lê o fato de ato de maior id (seção 10);
+  a obrigação é uma pendente desse fato com ele como devedor; "maior emoção" é a maior das dez.
+  As divisões são `div((sociability + 10000) × 3000, 20000)`,
+  `div(min(silêncio × 50, 3000) × (sociability + 10000), 20000)` e `div(max(0, fatigue − 5000), 2)`,
+  com `sociability` efetiva. A vontade não é estado e não é limitada.
+- **Quem age:** o sorteio usa a finalidade `TURN_ACTOR`, sem alvo, com os pesos dos que passam do
+  limiar em ordem de id (mesmo com um só). Com `TAKE_TURN` nada é sorteado.
 
 ## 12. Memória, fatos e perspectiva
 
