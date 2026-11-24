@@ -2,7 +2,13 @@ import fc from "fast-check";
 import { describe, expect, it } from "vitest";
 
 import { aDrawer, aLabel, anActFact, ids } from "../../test/support/acts.ts";
-import { aCharacter, arbitraryCharacter, someTraits } from "../../test/support/character.ts";
+import {
+  aCharacter,
+  arbitraryCharacter,
+  someDrives,
+  someEmotions,
+  someTraits,
+} from "../../test/support/character.ts";
 import { anObligation } from "../../test/support/decision.ts";
 import { idOf } from "../../test/support/space.ts";
 import { pickActor, urges, type TurnInput } from "./actor.ts";
@@ -166,5 +172,28 @@ describe("invariant 9: the player in MANUAL never gets an act chosen by the engi
         expect(actedByManual).toBe(false);
       }),
     );
+  });
+});
+
+describe("turns: limits and who counts", () => {
+  it("given an urge of exactly 4000 when picking then the character takes part in the draw", () => {
+    const edge = aCharacter(1, 0, { emotions: someEmotions({ anger: 1667 }) });
+    const drawer = aDrawer();
+
+    expect([
+      urges(anInput({ characters: [edge] })),
+      pickActor(drawer, anInput({ characters: [edge] })),
+    ]).toEqual([[{ id: 1, urge: 4000 }], { kind: "ACT", actor: 1, interruption: false }]);
+  });
+
+  it("given a directed drive toward someone present when listing the urges then its pressure counts", () => {
+    const caring = aCharacter(1, 0, {
+      drives: someDrives({ weights: { care: 10000 }, directed: { care: [[2, 5000]] } }),
+    });
+
+    expect(urges(anInput({ characters: [caring, aCharacter(2, 1)] }))[0]).toEqual({
+      id: 1,
+      urge: 3500 + 1000,
+    });
   });
 });

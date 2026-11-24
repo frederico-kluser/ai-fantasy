@@ -1,6 +1,13 @@
 import { describe, expect, it } from "vitest";
 
-import { aLabel, anActFact, aHistoryFact, aboutFact, ids } from "../../test/support/acts.ts";
+import {
+  aLabel,
+  anActFact,
+  aHistoryFact,
+  aboutFact,
+  factIdOf,
+  ids,
+} from "../../test/support/acts.ts";
 import {
   aBond,
   aCharacter,
@@ -258,4 +265,116 @@ describe("satisfactionContext", () => {
       ).toBe(expected);
     },
   );
+});
+
+describe("scoreCandidate: who the biases look at", () => {
+  it("given a target who is absent when scoring then there is no bias toward it", () => {
+    const scene = aDecisionScene(aCharacter(1, 0, { bonds: [aBond(9, { trust: 9000 })] }), {
+      others: [listener(2, 1)],
+    });
+
+    expect(scoreCandidate(scene, aCandidate({ act: "TELL", targets: ids(9) }))).toBe(0);
+  });
+
+  it("given a single target and another listener with another bond when scoring then only the target counts", () => {
+    const author = aCharacter(1, 0, {
+      bonds: [aBond(2, { affection: 5000 }), aBond(3, { affection: 0, resentment: 9000 })],
+    });
+    const scene = aDecisionScene(author, { others: [listener(3, 2), listener(2, 1)] });
+
+    expect(scoreCandidate(scene, aCandidate({ act: "GREET", tone: "WARM", targets: ids(2) }))).toBe(
+      1125,
+    );
+  });
+
+  it("given a group with a listener out of normal reach when scoring then the mean is over those who hear it", () => {
+    const author = aCharacter(1, 0, {
+      bonds: [
+        aBond(2, { affection: 5000 }),
+        aBond(3, { affection: 5000 }),
+        aBond(4, { resentment: 9000 }),
+      ],
+    });
+    const scene = aDecisionScene(author, {
+      others: [listener(2, 1), listener(3, 2), listener(4, 20)],
+    });
+
+    expect(
+      scoreCandidate(scene, aCandidate({ act: "GREET", tone: "WARM", targets: "GROUP" })),
+    ).toBe(1125);
+  });
+
+  it("given a dominant directed drive served below 6000 when scoring then there is no goal bonus", () => {
+    const author = aCharacter(1, 0, {
+      drives: someDrives({ weights: { justice: 7000 }, directed: { justice: [[2, 10000]] } }),
+    });
+    const scene = aDecisionScene(author, { others: [listener(2, 1)] });
+
+    expect(scoreCandidate(scene, aCandidate({ act: "TEASE", targets: ids(2) }))).toBe(2100);
+  });
+});
+
+describe("repetitions: what counts", () => {
+  it("given a history fact of the author and an own act of another kind on the same topic when counting then neither counts", () => {
+    const facts = [aHistoryFact(0, 1, 2), anActFact(1, 1, aLabel({ act: "TELL" }))];
+    const scene = aDecisionScene(aCharacter(1, 0), { facts });
+
+    expect(repetitions(scene, aLabel({ act: "CHAT" }))).toBe(0);
+  });
+});
+
+describe("satisfactionContext: which fact and which copy", () => {
+  it("given two facts and a TELL of the second, bad one when reading the context then the second is read", () => {
+    const facts = [aHistoryFact(0, 2, 3), aHistoryFact(1, 2, 3, { offenders: ids(2) })];
+    const author = aCharacter(1, 0, {
+      memories: [
+        createCopy(factIdOf(0), { perspective: "DIRECT" }, toBp(0)),
+        createCopy(factIdOf(1), { perspective: "DIRECT" }, toBp(0)),
+      ],
+    });
+    const scene = aDecisionScene(author, { facts });
+
+    expect([
+      satisfactionContext(scene, aLabel({ act: "TELL", topic: aboutFact("EVENT", 1) })).badFact,
+      satisfactionContext(scene, aLabel({ act: "TELL", topic: aboutFact("EVENT", 0) })).badFact,
+    ]).toEqual([true, false]);
+  });
+
+  it("given the author believed a lie that blames someone for a fact without offenders when reading the context then the fact is bad", () => {
+    const facts = [aHistoryFact(0, 2, 3, { offenders: ids(2) }), aHistoryFact(1, 2, 3)];
+    const author = aCharacter(1, 0, {
+      memories: [
+        createCopy(factIdOf(0), { perspective: "DIRECT" }, toBp(0), []),
+        createCopy(
+          factIdOf(1),
+          { perspective: "TOLD", tellerFidelity: toBp(9000) },
+          toBp(0),
+          ids(3),
+        ),
+      ],
+    });
+    const scene = aDecisionScene(author, { facts });
+
+    expect([
+      satisfactionContext(scene, aLabel({ act: "TELL", topic: aboutFact("RUMOR", 1) })).badFact,
+      satisfactionContext(scene, aLabel({ act: "TELL", topic: aboutFact("EVENT", 0) })).badFact,
+    ]).toEqual([true, false]);
+  });
+
+  it("given the request answered is not the first fact when reading the context then its own object decides", () => {
+    const topic = { type: "PERSON", person: idOf(1) } as const;
+    const facts = [
+      anActFact(0, 2, aLabel({ act: "OFFER", targets: ids(1), topic, object: "DATE" })),
+      anActFact(1, 2, aLabel({ act: "OFFER", targets: ids(1), topic, object: "INFORMATION" })),
+    ];
+    const scene = aDecisionScene(aCharacter(1, 0), {
+      others: [listener(2, 1)],
+      facts,
+      obligations: [anObligation(1, 2, 1, "OFFER", topic)],
+    });
+
+    expect(
+      satisfactionContext(scene, aLabel({ act: "ACCEPT", targets: ids(2), topic })).answered,
+    ).toBe("curiosity");
+  });
 });

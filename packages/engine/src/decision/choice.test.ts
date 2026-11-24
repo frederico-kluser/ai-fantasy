@@ -1,11 +1,19 @@
 import { describe, expect, it } from "vitest";
 
-import { aDrawer, aLabel, anActFact, factIdOf, forcing, ids } from "../../test/support/acts.ts";
+import {
+  aDrawer,
+  aHistoryFact,
+  aLabel,
+  anActFact,
+  factIdOf,
+  forcing,
+  ids,
+} from "../../test/support/acts.ts";
 import { aCharacter, someTraits } from "../../test/support/character.ts";
 import { aCandidate, aDecisionScene, anObligation } from "../../test/support/decision.ts";
 import { idOf } from "../../test/support/space.ts";
 import { toBp } from "../domain/bp.ts";
-import { createCopy } from "../memory/copy.ts";
+import { createCopy, type FactCopy } from "../memory/copy.ts";
 import { owedBands, requestTurnInput, type OwedBandsInput } from "./bands.ts";
 import { defaultObjects } from "../../test/support/acts.ts";
 import { bestCandidates, chooseAct, choiceWeights } from "./choice.ts";
@@ -221,4 +229,124 @@ describe("owedBands (dialogue-acts §8.2)", () => {
         ?.humiliating,
     ).toBe(false);
   });
+});
+
+describe("owedBands in detail", () => {
+  const topic = { type: "PERSON", person: idOf(1) } as const;
+  const objects = defaultObjects();
+  const base = (overrides: Partial<OwedBandsInput>): OwedBandsInput => ({
+    debtor: idOf(1),
+    control: "AUTO",
+    characters: [aCharacter(1, 0), aCharacter(2, 1), aCharacter(3, 2)],
+    facts: [],
+    obligations: [],
+    objects,
+    privacy: toBp(5000),
+    drawn: [],
+    ...overrides,
+  });
+  const copyOf = (fact: number) => createCopy(factIdOf(fact), { perspective: "DIRECT" }, toBp(0));
+  const band = (fact: number, debtor: number) =>
+    ({ fact: factIdOf(fact), debtor: idOf(debtor), band: "ACCEPT" }) as const;
+
+  it("given bands of several obligations when updating then only those whose own obligation pends are kept, and a missing one is drawn", () => {
+    const requests = [
+      anActFact(0, 2, aLabel({ act: "REQUEST", targets: ids(1), topic, object: "HELP" })),
+      anActFact(7, 2, aLabel({ act: "REQUEST", targets: ids(3), topic, object: "HELP" })),
+    ];
+    const obligations = [
+      anObligation(1, 2, 0, "REQUEST", topic),
+      anObligation(3, 2, 7, "REQUEST", topic),
+    ];
+    const drawer = aDrawer([forcing("REQUEST_BAND", 4, 1)]);
+    const bands = owedBands(
+      drawer,
+      base({ facts: requests, obligations, drawn: [band(0, 3), band(7, 1), band(7, 3)] }),
+    );
+
+    expect(bands.map((each) => [each.fact, each.debtor, each.band])).toEqual([
+      [7, 3, "ACCEPT"],
+      [0, 1, "HARD_REFUSE"],
+    ]);
+  });
+
+  it("given an obligation of another debtor without a band when the debtor draws then the other's band is not drawn", () => {
+    const request = anActFact(
+      0,
+      2,
+      aLabel({ act: "REQUEST", targets: ids(3), topic, object: "HELP" }),
+    );
+    const drawer = aDrawer();
+    const bands = owedBands(
+      drawer,
+      base({ facts: [request], obligations: [anObligation(3, 2, 0, "REQUEST", topic)] }),
+    );
+
+    expect([bands, drawer.finish().records.length]).toEqual([[], 0]);
+  });
+
+  it("given the request among other facts and characters out of order when reading the turn then its own act, object, author and target are read", () => {
+    const facts = [
+      anActFact(0, 3, aLabel({ act: "CHAT" })),
+      anActFact(
+        1,
+        2,
+        aLabel({ act: "OFFER", tone: "WARM", targets: ids(1), topic, object: "DATE" }),
+      ),
+    ];
+    const read = requestTurnInput(
+      base({ facts, characters: [aCharacter(3, 2), aCharacter(2, 1), aCharacter(1, 0)] }),
+      anObligation(1, 2, 1, "OFFER", topic),
+    );
+
+    expect([read?.request, read?.author.id, read?.target.id]).toEqual([
+      { act: "OFFER", tone: "WARM", object: "DATE" },
+      2,
+      1,
+    ]);
+  });
+
+  it("given a THREATEN without an object when reading the turn then the object is null", () => {
+    const facts = [anActFact(0, 2, aLabel({ act: "THREATEN", targets: ids(1), topic }))];
+
+    expect(
+      requestTurnInput(base({ facts }), anObligation(1, 2, 0, "THREATEN", topic))?.request.object,
+    ).toBeNull();
+  });
+
+  it.each([
+    ["the request", [aCharacter(1, 0), aCharacter(2, 1)], []],
+    [
+      "the target",
+      [aCharacter(2, 1)],
+      [anActFact(0, 2, aLabel({ act: "REQUEST", targets: ids(1), topic, object: "HELP" }))],
+    ],
+    ["the fact as an act", [aCharacter(1, 0), aCharacter(2, 1)], [aHistoryFact(0, 2, 1)]],
+  ] as const)(
+    "given %s missing when reading the turn then there is none",
+    (_what, characters, facts) => {
+      expect(
+        requestTurnInput(base({ characters, facts }), anObligation(1, 2, 0, "REQUEST", topic)),
+      ).toBeNull();
+    },
+  );
+
+  it.each([
+    ["the target itself", 1, [copyOf(0)], false],
+    ["a witness with copies of other facts too", 3, [copyOf(5), copyOf(0)], true],
+    ["a witness with a copy of another fact only", 3, [copyOf(5)], false],
+  ] as const)(
+    "given %s holding the copies when reading the turn then giving in humiliates: %s",
+    (_who, holder, memories, expected) => {
+      const facts = [anActFact(0, 2, aLabel({ act: "THREATEN", targets: ids(1), topic }))];
+      const holdings = new Map<number, { memories: readonly FactCopy[] }>([[holder, { memories }]]);
+      const characters = [1, 2, 3].map((id) => aCharacter(id, id, holdings.get(id) ?? {}));
+      const read = requestTurnInput(
+        base({ facts, characters, privacy: toBp(0) }),
+        anObligation(1, 2, 0, "THREATEN", topic),
+      );
+
+      expect(read?.humiliating).toBe(expected);
+    },
+  );
 });

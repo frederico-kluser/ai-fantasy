@@ -520,3 +520,197 @@ describe("generateCandidates: every candidate is a valid act (property)", () => 
     );
   });
 });
+
+describe("generateCandidates: answers in detail", () => {
+  const creditor = aCharacter(2, 1);
+
+  it("given a question about a secret from someone at 1 cell when generating then the secret is told in a whisper", () => {
+    const topic = aboutFact("SECRET", 0);
+    const scene = aDecisionScene(aCharacter(1, 0, { memories: [knows(0)] }), {
+      others: [creditor],
+      facts: [
+        aHistoryFact(0, 2, 3, { secret: true }),
+        anActFact(1, 2, aLabel({ act: "ASK", targets: ids(1), topic })),
+      ],
+      obligations: [anObligation(1, 2, 1, "ASK", topic)],
+    });
+
+    expect(new Set(ofAct(scene, "TELL").map(({ label }) => label.volume))).toEqual(
+      new Set(["WHISPER"]),
+    );
+  });
+
+  it("given a false accusation among other facts and no offence of the accuser when generating then the denial is true and nothing is thrown back", () => {
+    const topic = aboutFact("EVENT", 1);
+    const author = aCharacter(1, 0, { memories: [knows(0), knows(1)] });
+    const scene = aDecisionScene(author, {
+      others: [creditor],
+      facts: [
+        aHistoryFact(0, 1, 2, { offenders: ids(1) }),
+        aHistoryFact(1, 3, 2, { offenders: ids(3) }),
+        anActFact(2, 2, aLabel({ act: "ACCUSE", targets: ids(1), topic })),
+      ],
+      obligations: [anObligation(1, 2, 2, "ACCUSE", topic)],
+    });
+    const answers = generateCandidates(scene).filter((candidate) => candidate.answers);
+
+    expect([...new Set(answers.map(({ label }) => [label.act, label.isFalse].join(" ")))]).toEqual([
+      "APOLOGIZE false",
+      "REFUSE false",
+    ]);
+  });
+
+  it("given an accusation owed whose topic is no fact when generating then there is nothing to admit, only the denial", () => {
+    const topic = { type: "SMALL_TALK" } as const;
+    const scene = aDecisionScene(aCharacter(1, 0), {
+      others: [creditor],
+      facts: [anActFact(0, 2, aLabel({ act: "ACCUSE", targets: ids(1), topic }))],
+      obligations: [anObligation(1, 2, 0, "ACCUSE", topic)],
+    });
+
+    expect([...new Set(generateCandidates(scene).map(({ label }) => label.act))]).toEqual([
+      "REFUSE",
+      "STAY_SILENT",
+    ]);
+  });
+
+  it("given bands of other requests and other debtors when answering then the band of this request of this debtor fixes the reply", () => {
+    const topic = personOf(1);
+    const request = anActFact(
+      0,
+      2,
+      aLabel({ act: "REQUEST", targets: ids(1), topic, object: "HELP" }),
+    );
+    const scene = aDecisionScene(aCharacter(1, 0), {
+      others: [creditor],
+      facts: [request],
+      obligations: [anObligation(1, 2, 0, "REQUEST", topic)],
+      bands: [
+        { fact: factIdOf(0), debtor: idOf(3), band: "ACCEPT" },
+        { fact: factIdOf(5), debtor: idOf(1), band: "ENTHUSIASTIC" },
+        { fact: factIdOf(0), debtor: idOf(1), band: "HARD_REFUSE" },
+      ],
+    });
+
+    expect(generateCandidates(scene).map(summary)).toEqual([
+      "REFUSE AGGRESSIVE [2] PERSON *",
+      "STAY_SILENT WARM [] NONE",
+    ]);
+  });
+
+  it("given a request owed without a band when generating then the error says the band was not drawn", () => {
+    const topic = personOf(1);
+    const scene = aDecisionScene(aCharacter(1, 0), {
+      others: [creditor],
+      facts: [anActFact(0, 2, aLabel({ act: "OFFER", targets: ids(1), topic, object: "HELP" }))],
+      obligations: [anObligation(1, 2, 0, "OFFER", topic)],
+    });
+
+    expect(() => generateCandidates(scene)).toThrow("was not drawn");
+  });
+
+  it("given an obligation of someone else when generating then the author chooses freely", () => {
+    const topic = personOf(3);
+    const scene = aDecisionScene(aCharacter(1, 0), {
+      others: [creditor],
+      facts: [anActFact(0, 2, aLabel({ act: "ASK", targets: ids(3), topic }))],
+      obligations: [anObligation(3, 2, 0, "ASK", topic)],
+    });
+
+    expect(ofAct(scene, "GREET").length).toBe(3);
+  });
+
+  it("given an obligation to an act that has no answers when generating then only STAY_SILENT is offered", () => {
+    const topic = personOf(1);
+    const scene = aDecisionScene(aCharacter(1, 0), {
+      others: [creditor],
+      facts: [anActFact(0, 2, aLabel({ act: "GREET", targets: ids(1), topic }))],
+      obligations: [anObligation(1, 2, 0, "GREET", topic)],
+    });
+
+    expect(generateCandidates(scene).map(summary)).toEqual(["STAY_SILENT WARM [] NONE"]);
+  });
+});
+
+describe("generateCandidates: details of targets and pre-conditions", () => {
+  it("given a CHAT to 2 in this slice when generating GREET then 2 may still be greeted", () => {
+    const scene = aDecisionScene(aCharacter(1, 0), {
+      others: [aCharacter(2, 1)],
+      facts: [anActFact(0, 1, aLabel({ act: "CHAT", targets: ids(2) }))],
+    });
+
+    expect(ofAct(scene, "GREET").length).toBe(3);
+  });
+
+  it.each([
+    [[1, 26], 3],
+    [[1, 2], 0],
+  ] as const)(
+    "given two listeners at cells %j and a secret when generating TELL to the GROUP then %i whispered candidates are offered",
+    (cells, expected) => {
+      const scene = aDecisionScene(aCharacter(1, 0, { memories: [knows(0)] }), {
+        others: cells.map((cell, index) => aCharacter(index + 2, cell)),
+        facts: [aHistoryFact(0, 9, 9, { secret: true })],
+      });
+      const whispered = ofAct(scene, "TELL").filter(
+        ({ label }) => label.targets === "GROUP" && label.topic.type === "SECRET",
+      );
+
+      expect(whispered.length).toBe(expected);
+    },
+  );
+
+  it("given a target at 2 cells when generating TELL then the TELLs are not whispered", () => {
+    const scene = aDecisionScene(aCharacter(1, 0), { others: [aCharacter(2, 2)] });
+
+    expect(
+      new Set(ofAct(scene, "TELL").map(({ label }) => [label.topic.type, label.volume].join(" "))),
+    ).toEqual(new Set(["PERSON NORMAL", "SMALL_TALK NORMAL"]));
+  });
+
+  it("given exactly two listeners when generating CHAT then the GROUP is offered", () => {
+    const scene = aDecisionScene(aCharacter(1, 0), {
+      others: [aCharacter(2, 1), aCharacter(3, 2)],
+    });
+
+    expect(ofAct(scene, "CHAT").some(({ label }) => label.targets === "GROUP")).toBe(true);
+  });
+
+  it("given someone at exactly 3 cells when generating WITHDRAW then it may be withdrawn from; at 4 it may not", () => {
+    const scene = aDecisionScene(aCharacter(1, 0), {
+      others: [aCharacter(2, 3), aCharacter(3, 4)],
+    });
+
+    expect(
+      new Set(ofAct(scene, "WITHDRAW").map(({ label }) => JSON.stringify(label.targets))),
+    ).toEqual(new Set(["[2]"]));
+  });
+
+  it("given candidates of acts without an object when generating then their labels carry no object field and a normal voice", () => {
+    const scene = aDecisionScene(aCharacter(1, 0), {
+      others: [aCharacter(2, 1), aCharacter(3, 2)],
+    });
+    const plain = generateCandidates(scene).filter(
+      ({ label }) => label.act !== "REQUEST" && label.act !== "OFFER",
+    );
+
+    expect([
+      plain.some(({ label }) => "object" in label),
+      [...new Set(plain.map(({ label }) => label.volume))],
+    ]).toEqual([false, ["NORMAL"]]);
+  });
+
+  it("given an accusation of the target in this slice when generating APOLOGIZE then the target may be apologized to; one from a previous slice does not count", () => {
+    const accused = (sliceStart: number) =>
+      ofAct(
+        aDecisionScene(aCharacter(1, 0), {
+          others: [aCharacter(2, 1)],
+          facts: [anActFact(0, 2, aLabel({ act: "ACCUSE", targets: ids(1) }))],
+          sliceStart,
+        }),
+        "APOLOGIZE",
+      ).length;
+
+    expect([accused(0), accused(1)]).toEqual([3, 0]);
+  });
+});

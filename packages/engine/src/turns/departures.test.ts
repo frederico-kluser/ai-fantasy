@@ -319,3 +319,66 @@ describe("departureAct (simulation-model §11 item 1)", () => {
     });
   });
 });
+
+describe("departures: limits and who counts", () => {
+  it("given a NPC whose need is exactly 9000 when deciding then it leaves without a draw", () => {
+    const drawer = aDrawer();
+    const who = aCharacter(1, 0, { body: aBody({ hunger: 9000 }) });
+    const departure = decideDepartures(drawer, anInput({ characters: [who, aCharacter(2, 2)] }));
+
+    expect([departure.kind, drawer.finish().records.length]).toEqual(["LEAVE", 0]);
+  });
+
+  it("given a drawn departure when deciding then it is not marked as forced", () => {
+    const drawer = aDrawer([forcing("LEAVE_DECISION", 1, 1)]);
+    const departure = decideDepartures(
+      drawer,
+      anInput({ characters: [restless(1, 4000), aCharacter(2, 2)] }),
+    );
+
+    expect("forced" in departure && departure.forced).toBe(false);
+  });
+
+  it("given a will to stay when deciding then the chance is twice the lead of leave over stay", () => {
+    const who = aCharacter(1, 0, {
+      emotions: someEmotions({ boredom: 10000 }),
+      threat: toBp(7000),
+      drives: someDrives({ deficits: { curiosity: 5000 } }),
+    });
+    const drawer = aDrawer([forcing("LEAVE_DECISION", 0, 1)]);
+    decideDepartures(drawer, anInput({ characters: [who, aCharacter(2, 2)] }));
+
+    expect(drawer.finish().records[0]?.p).toBe((5000 - 1000) * 2);
+  });
+
+  it("given a desire toward itself and an obligation of someone else when weighing then neither keeps it", () => {
+    const who = aCharacter(1, 0, { drives: someDrives({ directed: { desire: [[1, 9000]] } }) });
+    const input = anInput({
+      characters: [who, aCharacter(2, 1)],
+      obligations: [anObligation(2, 1, 0, "ASK", { type: "SMALL_TALK" })],
+    });
+
+    expect(leaveScores(input, who).stay).toBe(0);
+  });
+
+  it("given an act of a previous slice at a recent tick when leaving then it does not count as recent", () => {
+    const who = aCharacter(1, 0);
+    const input = anInput({
+      characters: [who, aCharacter(2, 1)],
+      facts: [anActFact(0, 1, aLabel(), 19)],
+      sliceStart: 1,
+    });
+
+    expect(departureAct(input, who).act).toBe("LEAVE");
+  });
+
+  it("given the leaver's own affection for itself when choosing the farewell tone then only listeners count", () => {
+    const who = aCharacter(1, 0, { bonds: [aBond(1, { affection: 9000 })] });
+    const input = anInput({
+      characters: [who, aCharacter(2, 1)],
+      facts: [anActFact(0, 1, aLabel(), 19)],
+    });
+
+    expect(departureAct(input, who).tone).toBe("NEUTRAL");
+  });
+});

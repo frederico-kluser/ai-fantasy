@@ -118,3 +118,23 @@ describe("socialPressure (simulation-model §11 item 2)", () => {
     expect(socialPressure(character, ids(1, 2))).toBe(3000);
   });
 });
+
+describe("urgeToAct: who counts", () => {
+  it("given a directed drive toward itself when reading the social pressure then it does not count", () => {
+    const character = aCharacter(1, 0, {
+      drives: someDrives({ weights: { care: 10000 }, directed: { care: [[1, 9000]] } }),
+    });
+
+    expect(socialPressure(character, ids(1, 2))).toBe(0);
+  });
+
+  it("given a GROUP last act that left an obligation to someone else when computing the urge then there is no obligation bonus", () => {
+    const facts = [anActFact(0, 2, aLabel({ act: "ASK", targets: "GROUP" }))];
+    const heard = aCharacter(1, 0, {
+      memories: [createCopy(factIdOf(0), { perspective: "DIRECT" }, toBp(0))],
+    });
+    const obligations = [anObligation(3, 2, 0, "ASK", { type: "SMALL_TALK" })];
+
+    expect(urgeToAct(heard, context({ facts, obligations }))).toBe(7500);
+  });
+});

@@ -120,3 +120,13 @@ describe("satisfaction (dialogue-acts §9.2)", () => {
     ]).toEqual([6000, 0]);
   });
 });
+
+describe("acts that are never chosen", () => {
+  it("given FAREWELL, MOVE and LEAVE when reading the table then they serve nothing", () => {
+    expect([ACT_SATISFACTION.FAREWELL, ACT_SATISFACTION.MOVE, ACT_SATISFACTION.LEAVE]).toEqual([
+      [],
+      [],
+      [],
+    ]);
+  });
+});

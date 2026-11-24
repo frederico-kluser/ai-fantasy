@@ -145,8 +145,8 @@ describe("npcIntensity (dialogue-acts §5)", () => {
     expect(npcIntensity(emotions, "CHAT", "NEUTRAL")).toBe(3000 + 1400);
   });
 
-  it("given only negative parts when choosing then the intensity is 3000", () => {
-    const emotions = someEmotions({ fear: 9000 });
+  it("given only negative or empty parts when choosing then the intensity is 3000", () => {
+    const emotions = someEmotions({ fear: 9000, joy: 6000, sadness: 5000 });
 
     expect(npcIntensity(emotions, "THREATEN", "NEUTRAL")).toBe(3000);
   });

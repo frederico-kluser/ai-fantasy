@@ -100,3 +100,35 @@ describe("checkSliceEnd (simulation-model §11 item 6)", () => {
     expect(checkSliceEnd(4, 60)).toBe("SILENCE");
   });
 });
+
+describe("noteReachedGoals: who is compared with whom", () => {
+  const wanting = (id: number, target: number, deficit: number) =>
+    aCharacter(id, 0, {
+      drives: someDrives({
+        weights: { intimacy: 7000 },
+        directed: { intimacy: [[target, deficit]] },
+      }),
+    });
+
+  it("given characters out of order before the update when noting then each is compared with its own past", () => {
+    const turns = noteReachedGoals(
+      OPENING_TURNS,
+      [wanting(3, 2, 0), wanting(1, 2, 5000)],
+      [wanting(1, 2, 0), wanting(3, 2, 0)],
+      ids(1, 2, 3),
+    );
+
+    expect(turns.reachedGoals).toEqual([1]);
+  });
+
+  it("given a drive toward itself that drops when noting then it is no goal", () => {
+    const turns = noteReachedGoals(
+      OPENING_TURNS,
+      [wanting(1, 1, 5000)],
+      [wanting(1, 1, 0)],
+      ids(1, 2),
+    );
+
+    expect(turns.reachedGoals).toEqual([]);
+  });
+});

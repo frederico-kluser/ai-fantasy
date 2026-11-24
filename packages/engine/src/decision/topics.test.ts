@@ -266,3 +266,62 @@ describe("acceptsTopic (dialogue-acts §4)", () => {
     },
   );
 });
+
+describe("topics: more of the rules", () => {
+  it("given a dominant directed drive and nobody else present when listing then it gives no person", () => {
+    const author = aCharacter(1, 0, { drives: someDrives({ weights: { care: 9000 } }) });
+
+    expect(salientTopics(aDecisionScene(author), null)).toEqual([{ type: "SMALL_TALK" }]);
+  });
+
+  it("given the last act addressed to the author is a TOUCH when listing then its topic is not salient", () => {
+    const facts = [
+      anActFact(0, 2, aLabel({ act: "TOUCH", targets: ids(1), topic: { type: "NONE" } })),
+    ];
+
+    expect(salientTopics(aDecisionScene(aCharacter(1, 0), { facts }), null)).toEqual([
+      { type: "SMALL_TALK" },
+    ]);
+  });
+
+  it.each([
+    [personOf(2), [aboutFact("EVENT", 0)]],
+    [personOf(3), [personOf(2)]],
+  ] as const)(
+    "given an offence of the author addressed to nobody about %j when generating APOLOGIZE to 2 then the topics are %j",
+    (topic, expected) => {
+      const offence = {
+        ...anActFact(0, 1, aLabel({ act: "TEASE", targets: [], topic })),
+        offenders: ids(1),
+      };
+      const scene = aDecisionScene(aCharacter(1, 0, { memories: [knows(0)] }), {
+        others: [target],
+        facts: [offence],
+      });
+
+      expect(candidateTopics(scene, "APOLOGIZE", target)).toEqual(expected);
+    },
+  );
+
+  it.each(["ACCUSE", "APOLOGIZE", "THREATEN"] as const)(
+    "given the GROUP when generating %s then there is no topic",
+    (act) => {
+      const scene = aDecisionScene(aCharacter(1, 0, { memories: [knows(0)] }), {
+        others: [target],
+        facts: [aHistoryFact(0, 2, 1, { offenders: ids(2), secret: true })],
+      });
+
+      expect(candidateTopics(scene, act, null)).toEqual([]);
+    },
+  );
+
+  it("given an act fact addressed to a present other when listing then it is a salient fact", () => {
+    const facts = [anActFact(0, 9, aLabel({ targets: ids(2) }))];
+    const scene = aDecisionScene(aCharacter(1, 0, { memories: [knows(0)] }), {
+      others: [target],
+      facts,
+    });
+
+    expect(salientTopics(scene, null)[0]).toEqual(aboutFact("EVENT", 0));
+  });
+});
