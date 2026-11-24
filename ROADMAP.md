@@ -14,9 +14,13 @@
 - **F1 — Base TypeScript: concluída** (FND-01). Monorepo com os quatro pacotes em esqueleto,
   gates de qualidade, CI em Node e o [ADR 0020](<docs/architecture/adr/0020-base-tools-and-libraries.md>)
   com as ferramentas de base.
-- As próximas tarefas prontas são a **[CORE-01](<docs/planning/prompts/CORE-01.md>)** e a
-  **[SRV-01](<docs/planning/prompts/SRV-01.md>)**, que podem correr em paralelo. Código só com
-  pedido explícito do maintainer.
+- **F2 — Núcleo determinístico: concluída** (CORE-01..05). **F3 — Motor social: em andamento**
+  (SOC-01..03 integradas; SOC-04 com PR #28 aberto; SOC-05 começada). **F4:** SRV-01, WEB-01 e
+  AI-01 integradas.
+- **Rodada de construção por agentes (2026-11-23), pausada pelo maintainer** com 13 de 23
+  tarefas integradas. O que foi feito, as decisões tomadas em nome do maintainer e **como
+  retomar** estão no [diário da construção](<docs/planning/build-log.md>). A próxima ação é
+  revisar e integrar o PR #28 (SOC-04) e terminar a SOC-05.
 - O plano anterior (região procedural em Rust, 46 tarefas em ondas com juiz) está no histórico do
   git até o commit `05dea65` e não vale mais.
 
@@ -123,8 +127,8 @@ uma tarefa atualiza esta tabela no próprio PR.
 | [SOC-01](<docs/planning/prompts/SOC-01.md>) | Atos: validação, custo, quem ouve e interpretação | F3 | CORE-04 | ✅ concluída (#22) |
 | [SOC-02](<docs/planning/prompts/SOC-02.md>) | Sinais e percepção do momento | F3 | SOC-01 | ✅ concluída (#25) |
 | [SOC-03](<docs/planning/prompts/SOC-03.md>) | Consequências: avaliação emocional, pedidos e mentiras | F3 | SOC-02 | ✅ concluída (#27) |
-| [SOC-04](<docs/planning/prompts/SOC-04.md>) | Decisão e turnos | F3 | SOC-03 | ⏳ pendente |
-| [SOC-05](<docs/planning/prompts/SOC-05.md>) | Passo do motor, sessão e replay | F3 | SOC-04 | ⏳ pendente |
+| [SOC-04](<docs/planning/prompts/SOC-04.md>) | Decisão e turnos | F3 | SOC-03 | 🚧 PR #28 aberto, revisão pendente |
+| [SOC-05](<docs/planning/prompts/SOC-05.md>) | Passo do motor, sessão e replay | F3 | SOC-04 | 🚧 começada (branch, sem PR) |
 | [SOC-06](<docs/planning/prompts/SOC-06.md>) | Personalidade que muda e continuidade entre fatias | F3 | SOC-05 | ⏳ pendente |
 | [SRV-01](<docs/planning/prompts/SRV-01.md>) | Servidor local | F4 | FND-01 | ✅ concluída (#18) |
 | [WEB-01](<docs/planning/prompts/WEB-01.md>) | Site base e playground manual | F4 | FND-01, CORE-05 | ✅ concluída (#26) |
