@@ -1,21 +1,56 @@
-/* Minimal styles of the start page; WEB-01 decides how the site is styled. */
+/*
+ * Styles of the site (overview §6): plain CSS with custom properties for the
+ * light and dark themes. The system decides by default; a theme picked by hand
+ * marks the root with data-theme. Warm, sober and readable: no gradients and no
+ * heavy shadows.
+ */
 :root {
-  color-scheme: light dark;
+  color-scheme: light;
   --color-background: #f6f4f0;
+  --color-surface: #fdfcfa;
   --color-text: #1f1c19;
   --color-muted: #5b554e;
+  --color-line: #d9d3ca;
+  --color-accent: #8a4b2a;
+  --color-focus: #1d5fa8;
+  --color-alert: #9b2c22;
+  --color-alert-surface: #fbeeea;
   --font-body: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
+  --font-mono: ui-monospace, "Cascadia Mono", "Segoe UI Mono", Menlo, Consolas, monospace;
+  --space-xs: 0.25rem;
+  --space-s: 0.5rem;
   --space-m: 1rem;
-  --space-xl: 4rem;
-  --measure: 40rem;
+  --space-l: 2rem;
+  --measure: 56rem;
+  --radius: 6px;
 }
 
 @media (prefers-color-scheme: dark) {
-  :root {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
     --color-background: #16181b;
+    --color-surface: #1e2024;
     --color-text: #ebe7e1;
     --color-muted: #a59f97;
+    --color-line: #3a3d42;
+    --color-accent: #e0a37c;
+    --color-focus: #8cbcf0;
+    --color-alert: #f2a59b;
+    --color-alert-surface: #3a2220;
   }
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --color-background: #16181b;
+  --color-surface: #1e2024;
+  --color-text: #ebe7e1;
+  --color-muted: #a59f97;
+  --color-line: #3a3d42;
+  --color-accent: #e0a37c;
+  --color-focus: #8cbcf0;
+  --color-alert: #f2a59b;
+  --color-alert-surface: #3a2220;
 }
 
 body {
@@ -26,20 +61,226 @@ body {
   line-height: 1.5;
 }
 
+.shell,
 main {
   max-width: var(--measure);
   margin: 0 auto;
-  padding: var(--space-xl) var(--space-m);
+  padding: var(--space-m);
 }
 
-h1 {
-  margin: 0 0 var(--space-m);
-  font-size: 2.5rem;
+.shell {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--space-s) var(--space-l);
+  border-bottom: 1px solid var(--color-line);
+}
+
+.shell h1 {
+  margin: 0;
+  font-size: 1.75rem;
   line-height: 1.1;
 }
 
-p {
+.shell p {
+  flex-basis: 100%;
+  order: 1;
   margin: 0;
   color: var(--color-muted);
+}
+
+.shell nav ul {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-m);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+a {
+  color: var(--color-accent);
+}
+
+a[aria-current="page"] {
+  color: var(--color-text);
+  font-weight: 600;
+  text-decoration-thickness: 2px;
+}
+
+h2 {
+  margin: var(--space-l) 0 var(--space-m);
+  font-size: 1.5rem;
+}
+
+h3 {
+  margin: var(--space-l) 0 var(--space-s);
   font-size: 1.125rem;
+}
+
+fieldset {
+  margin: 0 0 var(--space-m);
+  padding: var(--space-m);
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius);
+  background: var(--color-surface);
+}
+
+legend {
+  padding: 0 var(--space-xs);
+  font-weight: 600;
+}
+
+.field {
+  display: inline-flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+  margin: 0 var(--space-m) var(--space-s) 0;
+  vertical-align: top;
+}
+
+label {
+  color: var(--color-muted);
+  font-size: 0.875rem;
+}
+
+input,
+select,
+button {
+  font: inherit;
+  color: inherit;
+}
+
+input,
+select {
+  min-width: 10rem;
+  padding: var(--space-xs) var(--space-s);
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius);
+  background: var(--color-background);
+}
+
+button {
+  margin: 0 var(--space-s) var(--space-s) 0;
+  padding: var(--space-xs) var(--space-m);
+  border: 1px solid var(--color-text);
+  border-radius: var(--radius);
+  background: transparent;
+  cursor: pointer;
+}
+
+button[type="submit"] {
+  background: var(--color-text);
+  color: var(--color-background);
+}
+
+button:disabled,
+input:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+:focus-visible {
+  outline: 3px solid var(--color-focus);
+  outline-offset: 2px;
+}
+
+.lock {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-xs);
+  margin-right: var(--space-m);
+}
+
+.lock input {
+  min-width: 0;
+}
+
+.hint {
+  margin: 0;
+  color: var(--color-muted);
+  font-size: 0.875rem;
+}
+
+.grid {
+  display: inline-block;
+  margin: 0;
+  padding: var(--space-s);
+  border: 1px solid var(--color-line);
+  font-family: var(--font-mono);
+  line-height: 1.1;
+  letter-spacing: 0.2em;
+}
+
+figure {
+  margin: 0 0 var(--space-m);
+}
+
+figcaption {
+  color: var(--color-muted);
+  font-size: 0.875rem;
+}
+
+.problems {
+  margin: var(--space-m) 0;
+  padding: var(--space-s) var(--space-m);
+  border-left: 4px solid var(--color-alert);
+  background: var(--color-alert-surface);
+  color: var(--color-alert);
+}
+
+.problems p,
+.problems ul {
+  margin: 0;
+}
+
+.review dl {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: var(--space-xs) var(--space-m);
+}
+
+.review dl div {
+  display: contents;
+}
+
+.review dt {
+  color: var(--color-muted);
+}
+
+.review dd {
+  margin: 0;
+}
+
+table {
+  margin: var(--space-m) 0;
+  border-collapse: collapse;
+}
+
+caption {
+  text-align: left;
+  font-weight: 600;
+}
+
+th,
+td {
+  padding: var(--space-xs) var(--space-m) var(--space-xs) 0;
+  border-bottom: 1px solid var(--color-line);
+  text-align: left;
+}
+
+pre {
+  overflow-x: auto;
+  font-family: var(--font-mono);
+  font-size: 0.875rem;
+}
+
+input[aria-invalid="true"] {
+  border-color: var(--color-alert);
+}
+
+.field-error {
+  margin: 0;
+  color: var(--color-alert);
+  font-size: 0.875rem;
 }

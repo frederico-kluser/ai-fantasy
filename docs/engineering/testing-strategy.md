@@ -159,6 +159,10 @@ exceções (`NOT_MUTATED` em `scripts/mutation-changed.ts`):
 | `<pacote>/test/**`, `<pacote>/e2e/**`, `<pacote>/bench/**` | suporte de teste, specs do E2E e benchmark |
 | `*.config.{js,mjs,ts,…}` e `vitest.setup.*` na raiz do repositório ou de um pacote; `stryker.base.mjs` | configuração das ferramentas (dentro de `src/`, um `*.config.ts` é código de produção e é mutado) |
 
+O ponto de entrada do Web Worker do motor (`apps/web/src/engine/engine.worker.ts`) é só fiação
+(liga `self` ao manipulador testado) e segue a regra dos pontos de entrada do ADR 0020 (item 9):
+fica fora da cobertura e da mutação por comentário explícito e é exercitado pelo E2E.
+
 Código novo fora dessa lista vai para `<pacote>/src` de um pacote com `stryker.config.mjs`; uma
 exceção nova entra na lista e nesta tabela, com o motivo.
 
