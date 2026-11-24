@@ -123,7 +123,7 @@ uma tarefa atualiza esta tabela no próprio PR.
 | [SOC-01](<docs/planning/prompts/SOC-01.md>) | Atos: validação, custo, quem ouve e interpretação | F3 | CORE-04 | ✅ concluída (#22) |
 | [SOC-02](<docs/planning/prompts/SOC-02.md>) | Sinais e percepção do momento | F3 | SOC-01 | ✅ concluída (#25) |
 | [SOC-03](<docs/planning/prompts/SOC-03.md>) | Consequências: avaliação emocional, pedidos e mentiras | F3 | SOC-02 | ✅ concluída (#27) |
-| [SOC-04](<docs/planning/prompts/SOC-04.md>) | Decisão e turnos | F3 | SOC-03 | ⏳ pendente |
+| [SOC-04](<docs/planning/prompts/SOC-04.md>) | Decisão e turnos | F3 | SOC-03 | ✅ concluída (#28) |
 | [SOC-05](<docs/planning/prompts/SOC-05.md>) | Passo do motor, sessão e replay | F3 | SOC-04 | ⏳ pendente |
 | [SOC-06](<docs/planning/prompts/SOC-06.md>) | Personalidade que muda e continuidade entre fatias | F3 | SOC-05 | ⏳ pendente |
 | [SRV-01](<docs/planning/prompts/SRV-01.md>) | Servidor local | F4 | FND-01 | ✅ concluída (#18) |
