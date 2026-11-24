@@ -10,14 +10,14 @@
 - **Projeto:** AI Fantasy (`frederico-kluser/ai-fantasy`).
 - **Produto:** simulador web de conversas com NPCs que simulam pessoas. **O motor é o
   produto** e se chama **Hermeneutic Core**. Definição canônica: [`docs/product.md`](docs/product.md).
-- **Estado:** **F1 — base TypeScript pronta (FND-01).** Monorepo com os quatro pacotes em
-  esqueleto, gates de qualidade e CI em Node ([ADR 0020](docs/architecture/adr/0020-base-tools-and-libraries.md)).
-  O plano antigo (região em Rust, 46 tarefas em ondas) foi descartado (D-09) e não deve ser
-  retomado.
-- **Retomada:** as próximas tarefas são a [CORE-01](docs/planning/prompts/CORE-01.md) e a
-  [SRV-01](docs/planning/prompts/SRV-01.md). Siga o [ROADMAP](ROADMAP.md) e o
-  [guia dos agentes](docs/planning/prompts/README.md). Escrever código exige pedido explícito do
-  maintainer para a tarefa.
+- **Estado:** **F2 concluída, F3 em andamento.** 13 de 23 tarefas integradas (FND-01,
+  CORE-01..05, SOC-01..03, SRV-01, WEB-01, AI-01). O plano antigo (região em Rust, 46 tarefas em
+  ondas) foi descartado (D-09) e não deve ser retomado.
+- **Retomada:** leia o [diário da construção](docs/planning/build-log.md): ele diz o que está
+  aberto (PR #28 da SOC-04 e a SOC-05 começada), como a rodada trabalhou (agente por tarefa,
+  revisor separado, empilhamento sem rebase) e as decisões a revisitar. Siga o
+  [ROADMAP](ROADMAP.md) e o [guia dos agentes](docs/planning/prompts/README.md). Escrever código
+  exige pedido explícito do maintainer para a tarefa.
 - **Decisões:** [`docs/planning/decisions.md`](docs/planning/decisions.md) (D-09 em diante) e
   [ADRs](docs/architecture/adr/README.md) 0013–0021.
 - **Licença:** código MIT; pesos de modelos não são distribuídos (ADR 0019).
